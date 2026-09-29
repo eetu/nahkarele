@@ -36,6 +36,5 @@ fi
 
 cat >"$conf" <<EOF
 sub_filter '</head>' '<script type="module" src="$url" data-entity="$entity"></script></head>';
-sub_filter_once on;
 EOF
 echo "40-liwan-tracker: tracking with entity $entity via $url"
