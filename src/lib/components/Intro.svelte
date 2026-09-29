@@ -33,7 +33,7 @@
         <div class="art" aria-hidden="true">
           <SpriteIcon sprite={SPRITES.worker} animation="idle" scale={2} />
           <SpriteIcon {...lookOf({ model: "boot", defect: null })} scale={3} />
-          <SpriteIcon {...lookOf({ model: "brick", defect: null })} scale={3} />
+          <SpriteIcon {...lookOf({ model: "boot", defect: "hole" })} scale={3} />
         </div>
         <span class="label">1978 · legacy</span>
         <span class="title">kumitehdas</span>
