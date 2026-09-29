@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Pre-commit gate: typecheck, lint, format and unit tests when anything is staged.
+set -euo pipefail
+[ -n "$(git diff --cached --name-only --diff-filter=ACMR)" ] || exit 0
+node .yarn/releases/yarn-*.cjs validate

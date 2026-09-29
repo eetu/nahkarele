@@ -1,0 +1,9 @@
+node_modules
+dist
+.svelte-kit
+.yarn/cache
+.yarn/install-state.gz
+.git
+.github
+.claude
+*.md

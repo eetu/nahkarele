@@ -1,0 +1,86 @@
+{
+  "name": "banana",
+  "w": 16,
+  "h": 16,
+  "palette": {
+    "K": "#111214",
+    "Y": "#e8c53a",
+    "G": "#9fcf6a",
+    "D": "#1c241a",
+    "X": "#e8ecf0",
+    "N": "#8a929a",
+    "S": "#2a2d31"
+  },
+  "variants": {
+    "xray": {
+      "K": "#c8f6ff",
+      "Y": "#2f7486",
+      "G": "#1d4f5c",
+      "D": "#081418",
+      "X": "#c8f6ff",
+      "N": "#5fb0c0",
+      "S": "#1d4f5c"
+    }
+  },
+  "animations": {
+    "good": [0],
+    "dark": [1],
+    "cracked": [2]
+  },
+  "frames": [
+    [
+      ".......KKKKK....",
+      "......KYYYYYK...",
+      "......KYGGGYK...",
+      ".....KYYGGGYK...",
+      ".....KYYYYYYK...",
+      ".....KYYNNYYK...",
+      "....KYYYYYYK....",
+      "....KSSSSSSK....",
+      "....KSSSSSSK....",
+      "....KSSSSSSK....",
+      ".....KSSSSSSK...",
+      ".....KSSSSSSK...",
+      ".....KYYYYYYK...",
+      "......KYYYYYK...",
+      "......KYYYYK....",
+      ".......KKKK....."
+    ],
+    [
+      ".......KKKKK....",
+      "......KYYYYYK...",
+      "......KYDDDYK...",
+      ".....KYYDDDYK...",
+      ".....KYYYYYYK...",
+      ".....KYYNNYYK...",
+      "....KYYYYYYK....",
+      "....KSSSSSSK....",
+      "....KSSSSSSK....",
+      "....KSSSSSSK....",
+      ".....KSSSSSSK...",
+      ".....KSSSSSSK...",
+      ".....KYYYYYYK...",
+      "......KYYYYYK...",
+      "......KYYYYK....",
+      ".......KKKK....."
+    ],
+    [
+      ".......KKKKK....",
+      "......KYYYYYK...",
+      "......KYXGXYK...",
+      ".....KYYGXGYK...",
+      ".....KYXYYXYK...",
+      ".....KYYNNYYK...",
+      "....KYYYYYYK....",
+      "....KSSSSSSK....",
+      "....KSSSSSSK....",
+      "....KSSSSSSK....",
+      ".....KSSSSSSK...",
+      ".....KSSSSSSK...",
+      ".....KYYYYYYK...",
+      "......KYYYYYK...",
+      "......KYYYYK....",
+      ".......KKKK....."
+    ]
+  ]
+}

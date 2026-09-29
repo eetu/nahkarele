@@ -1,0 +1,8 @@
+dist
+node_modules
+.svelte-kit
+.yarn
+yarn.lock
+*.png
+*.svg
+*.webmanifest

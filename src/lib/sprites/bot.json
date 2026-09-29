@@ -1,0 +1,42 @@
+{
+  "name": "bot",
+  "w": 14,
+  "h": 9,
+  "palette": {
+    "K": "#1a1c1e",
+    "Y": "#d8b23a",
+    "D": "#8a6f1f",
+    "E": "#6ccf5a",
+    "W": "#6a6e73"
+  },
+  "variants": {
+    "busy": { "E": "#e0443a" }
+  },
+  "animations": {
+    "roll": [0, 1]
+  },
+  "frames": [
+    [
+      "....KKKKKK....",
+      "...KYYYYYYK...",
+      "..KYYYYYYEYK..",
+      ".KYYYYYYYYYYK.",
+      ".KDDDDDDDDDDK.",
+      ".KYYYYYYYYYYK.",
+      "..KKKKKKKKKK..",
+      "..KWK....KWK..",
+      "...K......K..."
+    ],
+    [
+      "....KKKKKK....",
+      "...KYYYYYYK...",
+      "..KYYYYYYEYK..",
+      ".KYYYYYYYYYYK.",
+      ".KDDDDDDDDDDK.",
+      ".KYYYYYYYYYYK.",
+      "..KKKKKKKKKK..",
+      "..WKW....WKW..",
+      "...W......W..."
+    ]
+  ]
+}

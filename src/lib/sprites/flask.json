@@ -1,0 +1,41 @@
+{
+  "name": "flask",
+  "w": 10,
+  "h": 22,
+  "palette": {
+    "K": "#6f8a94",
+    "G": "#cfe6ecb0",
+    "L": "#eef7f9c8",
+    "H": "#ffffff",
+    "C": "#b8bec4",
+    "D": "#7a8288",
+    "W": "#f4f0e0",
+    "R": "#2f5f9f"
+  },
+  "frames": [
+    [
+      "...DDDD...",
+      "...CCCC...",
+      "...CCCC...",
+      "...KGGK...",
+      "...KGGK...",
+      "..KGGGGK..",
+      ".KGGGGGGK.",
+      "KGHGGGGGGK",
+      "KGHLLLLLGK",
+      "KGHLLLLLGK",
+      "KGLWWWWLGK",
+      "KGLWRRWLGK",
+      "KGLWWWWLGK",
+      "KGLLLLLLGK",
+      "KGLLLLLLGK",
+      "KGLLLLLLGK",
+      "KGLLLLLLGK",
+      "KGLLLLLLGK",
+      "KGLLLLLLGK",
+      "KGGGGGGGGK",
+      ".KGGGGGGK.",
+      "..KKKKKK.."
+    ]
+  ]
+}
