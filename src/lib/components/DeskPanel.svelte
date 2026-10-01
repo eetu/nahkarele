@@ -4,6 +4,7 @@
   import FileSearch from "@lucide/svelte/icons/file-search";
   import X from "@lucide/svelte/icons/x";
 
+  import { sfx } from "$lib/audio/sfx.svelte";
   import { leaveKey } from "$lib/keys";
   import { DESK_CAPACITY } from "$lib/office/engine";
   import { officeWeek } from "$lib/office/week.svelte";
@@ -28,12 +29,16 @@
   });
 
   const submit = (value: string) => {
-    officeWeek.answer(value);
+    const verdict = officeWeek.answer(value);
     typed = "";
+    if (!verdict) return;
+    if (task === "ok") sfx.ok();
+    else sfx.verdict(verdict === "correct");
   };
 
   const key = (k: string) => {
     if (!prompt) return;
+    sfx.key(k);
     if (k === "back") typed = typed.slice(0, -1);
     else if (k === "-") typed = typed.startsWith("-") ? typed.slice(1) : `-${typed}`;
     else if (typed.replace("-", "").length < 6) typed += k;

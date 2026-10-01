@@ -52,7 +52,7 @@ const BOOTS: Product[] = [{ model: "boot", weight: 1 }];
 
 export const DAYS: Day[] = [
   {
-    name: "maanantai",
+    name: "monday",
     speed: 30,
     interval: 1.7,
     products: BOOTS,
@@ -64,7 +64,7 @@ export const DAYS: Day[] = [
     weather: "clear",
   },
   {
-    name: "tiistai",
+    name: "tuesday",
     speed: 36,
     interval: 1.4,
     products: BOOTS,
@@ -76,7 +76,7 @@ export const DAYS: Day[] = [
     weather: "snow",
   },
   {
-    name: "keskiviikko",
+    name: "wednesday",
     speed: 42,
     interval: 1.2,
     products: BOOTS,
@@ -88,7 +88,7 @@ export const DAYS: Day[] = [
     weather: "rain",
   },
   {
-    name: "torstai",
+    name: "thursday",
     speed: 50,
     interval: 1.0,
     products: [
@@ -104,7 +104,7 @@ export const DAYS: Day[] = [
     weather: "clear",
   },
   {
-    name: "perjantai",
+    name: "friday",
     speed: 60,
     interval: 0.85,
     products: [

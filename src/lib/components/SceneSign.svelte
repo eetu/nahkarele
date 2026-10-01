@@ -1,0 +1,90 @@
+<script lang="ts">
+  import { resolve } from "$app/paths";
+
+  type Rect = { x: number; y: number; w: number; h: number };
+
+  type Props = {
+    /** Where the sign is drawn, in scene pixels. */
+    at: Rect;
+    scene: { w: number; h: number };
+    label: string;
+    /** A link to the front page, or a button. */
+    home?: boolean;
+    onclick?: () => void;
+    /** Pulse a few times when it appears: this one is meant to be pressed. */
+    invite?: boolean;
+  };
+
+  let { at, scene, label, home = false, onclick, invite = false }: Props = $props();
+
+  const left = $derived(`${(at.x / scene.w) * 100}%`);
+  const top = $derived(`${(at.y / scene.h) * 100}%`);
+  const width = $derived(`${(at.w / scene.w) * 100}%`);
+  const height = $derived(`${(at.h / scene.h) * 100}%`);
+</script>
+
+{#if home}
+  <a
+    class="sign"
+    href={resolve("/")}
+    aria-label={label}
+    title={label}
+    style:left
+    style:top
+    style:width
+    style:height
+  ></a>
+{:else}
+  <button
+    class="sign"
+    class:invite
+    onmousedown={(e) => e.preventDefault()}
+    {onclick}
+    aria-label={label}
+    title={label}
+    style:left
+    style:top
+    style:width
+    style:height
+  ></button>
+{/if}
+
+<style>
+  .sign {
+    position: absolute;
+    display: block;
+    padding: 0;
+    border: none;
+    border-radius: 1px;
+    background: none;
+    cursor: pointer;
+    transition: backdrop-filter var(--halo-d-fast);
+  }
+
+  /* The sign under the button lights up a little; nothing is drawn around it. */
+  .sign:hover {
+    backdrop-filter: brightness(1.3);
+  }
+
+  .sign:focus-visible {
+    backdrop-filter: brightness(1.3);
+    outline: 1px solid var(--halo-accent);
+    outline-offset: 1px;
+  }
+
+  .invite {
+    animation: invite 1.4s ease-in-out 0.6s 3;
+  }
+
+  @keyframes invite {
+    50% {
+      backdrop-filter: brightness(1.45);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .invite {
+      animation: none;
+    }
+  }
+</style>

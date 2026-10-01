@@ -34,6 +34,13 @@ export type Stage = "fly-in" | "desk" | "fly-out" | "falling" | "floor" | "carri
 
 export type Verdict = "correct" | "wrong" | "dropped";
 
+/** Something that happened this step that can be heard. The stage drains the list each frame. */
+export type OfficeEvent =
+  | { kind: "send"; from: Ai; direct: boolean }
+  | { kind: "land" }
+  | { kind: "fall"; x: number }
+  | { kind: "receive"; to: Ai };
+
 export type Envelope = {
   id: number;
   from: Ai;
@@ -83,6 +90,7 @@ export type OfficeState = {
   tally: Tally;
   /** The specialist is on a break: the AIs talk directly, and faster. */
   away: boolean;
+  events: OfficeEvent[];
 };
 
 const mulberry = (state: number): [number, number] => {
@@ -119,6 +127,7 @@ export const createOffice = (day: OfficeDay, seed: number): OfficeState => ({
   slideSeed: seed ^ 0x5bd1e995,
   tally: { correct: 0, wrong: 0, dropped: 0, delivered: 0, automated: 0 },
   away: false,
+  events: [],
 });
 
 /** The pile on the desk, oldest first: the one the specialist is looking at is [0]. */
@@ -141,6 +150,7 @@ const spawn = (s: OfficeState) => {
   });
   if (s.away) s.tally.automated += 1;
   s.spawned += 1;
+  s.events.push({ kind: "send", from, direct: s.away });
 };
 
 const fall = (s: OfficeState, e: Envelope) => {
@@ -149,6 +159,7 @@ const fall = (s: OfficeState, e: Envelope) => {
   e.x = TRAY.x + (slideRandom(s) < 0.5 ? -1 : 1) * (14 + slideRandom(s) * 30);
   s.tally.dropped += 1;
   s.last = { verdict: "dropped", at: s.t };
+  s.events.push({ kind: "fall", x: e.x });
 };
 
 const leaveDesk = (s: OfficeState, e: Envelope) => {
@@ -193,6 +204,7 @@ const moveDrone = (s: OfficeState, d: number) => {
     return;
   }
   s.tally.delivered += 1;
+  s.events.push({ kind: "receive", to: item.to });
   s.envelopes = s.envelopes.filter((e) => e.id !== item.id);
   dr.carrying = null;
   dr.target = null;
@@ -223,6 +235,7 @@ export const step = (s: OfficeState, dt: number) => {
       else {
         e.stage = "desk";
         e.stageAt = s.t;
+        s.events.push({ kind: "land" });
       }
     } else if (e.stage === "falling" && age >= FALL_S) {
       e.stage = "floor";
@@ -248,6 +261,7 @@ export const step = (s: OfficeState, dt: number) => {
     (e) => (e.stage === "fly-out" || e.stage === "direct") && s.t - e.stageAt >= FLY_S,
   );
   s.tally.delivered += arrived.length;
+  for (const e of arrived) s.events.push({ kind: "receive", to: e.to });
   s.envelopes = s.envelopes.filter((e) => !arrived.includes(e));
 
   moveDrone(s, d);

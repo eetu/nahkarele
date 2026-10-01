@@ -1,3 +1,5 @@
+import { sfx } from "$lib/audio/sfx.svelte";
+
 import { OFFICE_DAYS } from "./days";
 import type { Mood } from "./draw";
 import {
@@ -22,6 +24,8 @@ export type DayResult = {
   bonus: number;
   /** Diff lines read against lines approved, from the review dialog. */
   diff: { read: number; total: number };
+  /** The shift ended with the specialist still on the toilet. */
+  inToilet: boolean;
 };
 
 /** Seconds the mushroom cloud rises before the payslip. */
@@ -59,6 +63,8 @@ class OfficeWeek {
   toggleBreak = () => {
     if (this.screen !== "shift") return;
     this.away = !this.away;
+    if (this.away) sfx.door();
+    else sfx.flush();
     setAway(this.sim, this.away);
     this.sync();
   };
@@ -123,9 +129,17 @@ class OfficeWeek {
     const { salary, bonus } = pay(this.sim);
     this.results = [
       ...this.results.filter((r) => r.day !== this.day),
-      { day: this.day, tally: { ...this.sim.tally }, salary, bonus, diff: { ...this.diff } },
+      {
+        day: this.day,
+        tally: { ...this.sim.tally },
+        salary,
+        bonus,
+        diff: { ...this.diff },
+        inToilet: this.away,
+      },
     ];
     this.screen = "review";
+    if (this.away) sfx.flush();
     this.away = false;
   };
 

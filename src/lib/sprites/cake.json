@@ -1,0 +1,64 @@
+{
+  "name": "cake",
+  "w": 14,
+  "h": 12,
+  "palette": {
+    "y": "#ffe27a",
+    "o": "#f78f08",
+    "c": "#f4f0e0",
+    "r": "#c8283a",
+    "W": "#f7f1e6",
+    "w": "#d9cfc0",
+    "D": "#4a2a1e",
+    "d": "#2f1a12",
+    "S": "#f1e4d0",
+    "p": "#b8bec4"
+  },
+  "animations": {
+    "flicker": [0, 1, 0, 2]
+  },
+  "frames": [
+    [
+      ".......y......",
+      ".......o......",
+      "..r....c...r..",
+      ".WWWWWWcWWWWW.",
+      ".WwWWWWWWWwWW.",
+      ".DDDDDDDDDDDD.",
+      ".DdDDDDdDDDDd.",
+      ".SSSSSSSSSSSS.",
+      ".DDDDDDDDDDDD.",
+      ".DDdDDDDDdDDD.",
+      ".DDDDDDDDDDDD.",
+      "pppppppppppppp"
+    ],
+    [
+      "......y.......",
+      ".......o......",
+      "..r....c...r..",
+      ".WWWWWWcWWWWW.",
+      ".WwWWWWWWWwWW.",
+      ".DDDDDDDDDDDD.",
+      ".DdDDDDdDDDDd.",
+      ".SSSSSSSSSSSS.",
+      ".DDDDDDDDDDDD.",
+      ".DDdDDDDDdDDD.",
+      ".DDDDDDDDDDDD.",
+      "pppppppppppppp"
+    ],
+    [
+      "........y.....",
+      ".......o......",
+      "..r....c...r..",
+      ".WWWWWWcWWWWW.",
+      ".WwWWWWWWWwWW.",
+      ".DDDDDDDDDDDD.",
+      ".DdDDDDdDDDDd.",
+      ".SSSSSSSSSSSS.",
+      ".DDDDDDDDDDDD.",
+      ".DDdDDDDDdDDD.",
+      ".DDDDDDDDDDDD.",
+      "pppppppppppppp"
+    ]
+  ]
+}

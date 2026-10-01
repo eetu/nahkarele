@@ -1,13 +1,16 @@
 import { prefersReducedMotion } from "$lib/keys";
 import { drawLedClock } from "$lib/scene/led";
 import { clockAt, drawWindow, flash, mix, roomDarkness, type SkyInput } from "$lib/scene/sky";
+import cake from "$lib/sprites/cake.json";
 import deer from "$lib/sprites/deer.json";
 import drone from "$lib/sprites/drone.json";
+import exit from "$lib/sprites/exit.json";
 import fx from "$lib/sprites/fx.json";
 import jar from "$lib/sprites/jar.json";
 import specialist from "$lib/sprites/specialist.json";
 import { bake, drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 import token from "$lib/sprites/token.json";
+import wc from "$lib/sprites/wc.json";
 
 import {
   AI_MOUTH,
@@ -26,10 +29,13 @@ import {
 const S = {
   specialist: specialist as Sprite,
   jar: jar as Sprite,
+  cake: cake as Sprite,
   deer: deer as Sprite,
   drone: drone as Sprite,
   token: token as Sprite,
   fx: fx as Sprite,
+  exit: exit as Sprite,
+  wc: wc as Sprite,
 };
 
 /** What the room is doing beyond the messages: the blast, and friday. */
@@ -46,6 +52,11 @@ export type Mood = {
 
 export const GLASS = { x: 126, y: 18, w: 68, h: 42 };
 export const CLOCK = { x: 214, y: 24, w: 40, h: 16 };
+/** The way out over the window; the toilet on the wall between AI #1 and the window. */
+export const SIGNS = {
+  exit: { x: 149, y: 4, w: S.exit.w, h: S.exit.h },
+  wc: { x: 100, y: 28, w: S.wc.w, h: S.wc.h },
+};
 const SLAB = { w: 44, top: 22, bottom: 150 };
 const AI_X = { 1: 6, 2: SCENE_W - 6 - SLAB.w } as const;
 const DESK = { x: 104, w: 112, y: 118 };
@@ -504,6 +515,10 @@ const drawDesk = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => 
   if (mood.after) {
     const frame = frameOf(S.jar, "bubble", mood.since * 1.5);
     drawSprite(ctx, S.jar, 151, y - 20, { frame });
+    // Between the CRT and the jar: as promised.
+    drawSprite(ctx, S.cake, 137, y - S.cake.h, {
+      frame: frameOf(S.cake, "flicker", mood.since * 6),
+    });
   }
 };
 
@@ -659,6 +674,22 @@ const SEEDS = [161, 163, 162, 164, 161].map((x, k) => ({
 const SEED_FALL_S = 0.45;
 const cycleAt = (since: number) => (since + 6) % CYCLE_S;
 
+/** When in its cycle the bird is heard: on landing, at each seed, and taking off. */
+const BIRD_CUES = [
+  { at: 2.8, cue: "chirp" as const },
+  ...SEEDS.map((sd) => ({ at: sd.eat - 0.1, cue: "peck" as const })),
+  { at: 12.9, cue: "chirp" as const },
+];
+
+/** What the bird says between two moments of friday, if anything. */
+export const birdCue = (from: number, to: number): "chirp" | "peck" | null => {
+  if (to <= from) return null;
+  const a = cycleAt(from);
+  const b = cycleAt(to);
+  const hit = BIRD_CUES.find(({ at }) => (a <= b ? at > a && at <= b : at > a || at <= b));
+  return hit?.cue ?? null;
+};
+
 const birdAt = (since: number) => {
   const c = cycleAt(since);
   if (c < 3) {
@@ -735,6 +766,9 @@ export const drawOffice = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: 
   }
   if (mood.after) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
   else drawLedClock(ctx, CLOCK, clockAt(progress(s)), sky.t);
+  // Lit signs, so they read in the dark.
+  drawSprite(ctx, S.exit, SIGNS.exit.x, SIGNS.exit.y);
+  drawSprite(ctx, S.wc, SIGNS.wc.x, SIGNS.wc.y);
   if (mood.after) drawGarden(ctx, mood.since);
   drawSlab(ctx, 1, s, mood);
   drawSlab(ctx, 2, s, mood);

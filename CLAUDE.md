@@ -12,9 +12,10 @@ shape), `../dice` (same SvelteKit stack), `eetu/scene` (origin of `src/lib/tape/
 ```
 src/lib/factory/     kumitehdas: engine (belt, gate, TÄ'h, floor bots), days, drawing, week store
 src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, week store
+src/lib/audio/       synthesized sound for both rooms, the mute
 src/lib/scene/       shared: the winter window (sky, weather, blast, cracks) and the shift clock
 src/lib/sprites/     dab-format sprite JSON for both rooms + a reader
-src/lib/tape/        orientation cassette: mechanics (from scene), canvas drawing, captions
+src/lib/tape/        orientation cassette: mechanics (from scene), canvas drawing, script + cues
 src/lib/components/  Intro · FactoryStage + Memo/DayReview/WeekReview · OfficeStage + DeskPanel/Payslip
 src/routes/          / (front page) · /tehdas · /specialist
 static/              favicon.svg (icon source) + generated PNGs + manifest
@@ -41,13 +42,17 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   in the tray (max `DESK_CAPACITY`), overflow or slide onto the floor, and the drone carries
   those to the receiver. An answer only moves the accuracy bonus. Salary is time on shift.
   The office test runs idle, right, wrong and slow players against the same seed.
-- **A toilet break hands the job to the machines.** `setAway` opens the factory gate (TÄ'h
+- **A toilet break hands the job to the machines.** The WC sign on the wall (or `w`) starts and
+  ends it. `setAway` opens the factory gate (TÄ'h
   decides, correctly) or sends office tokens AI to AI; the stage runs time 3×. Whatever is
   handled away is `automated`, outside the grade and the accuracy; a day with no decisions
   of your own grades 4.
 - **Engines are pure and stepped by the frame loop** (`step(state, dt)`); the week stores are
   the only reactive layer, copying a few numbers into `hud`. Keep rules in the engine so
   vitest covers them without a DOM.
+- **Sound is synthesized** (`src/lib/audio/sfx.svelte.ts`, Web Audio, no assets, as in
+  `../dice`). Engines push what can be heard onto `state.events`; the stage drains it each
+  frame and plays it. Nothing audible feeds back into the engine.
 - **Friday in the office is a loop, not a day.** `mood.since` drives everything (grass, vines,
   bird, drone) as functions of time; there is nothing to finish.
 - **The cassette canvas animates only while something moves.** The factory canvas runs every
@@ -61,7 +66,9 @@ docker/              optional Liwan tracker entrypoint (same as logo)
 builds only) ·
 `yarn validate` (typecheck, lint, format, test) · `yarn build` → `dist/`.
 `./install-hooks.sh` once after clone; the pre-commit hook runs `validate`. Icons: edit
-`static/favicon.svg`, then `scripts/gen-icons.sh` (needs librsvg + ImageMagick).
+`static/favicon.svg`, then `scripts/gen-icons.sh` (needs librsvg + ImageMagick). Tape: edit
+`src/lib/tape/orientation.json`, then `uv run scripts/gen-tape.py` (Piper on mini, ffmpeg); it
+re-sings each line on held notes and writes `static/tape/orientation.mp3` + `tape.json` cues.
 
 ## Out of scope
 

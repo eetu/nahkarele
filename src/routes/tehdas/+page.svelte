@@ -1,7 +1,4 @@
 <script lang="ts">
-  import Briefcase from "@lucide/svelte/icons/briefcase";
-  import DoorOpen from "@lucide/svelte/icons/door-open";
-
   import DayReview from "$lib/components/DayReview.svelte";
   import FactoryStage from "$lib/components/FactoryStage.svelte";
   import Memo from "$lib/components/Memo.svelte";
@@ -52,11 +49,6 @@
         </div>
       {/if}
     </dl>
-    {#if week.screen === "shift"}
-      <button class="break" class:away={week.away} onclick={week.toggleBreak}>
-        {#if week.away}<Briefcase size={16} /> back to work{:else}<DoorOpen size={16} /> toilet break{/if}
-      </button>
-    {/if}
   </TopBar>
 
   <main>
@@ -98,15 +90,6 @@
     margin: 0;
     font-size: 1.1rem;
     font-weight: 500;
-  }
-
-  .break {
-    align-self: center;
-  }
-
-  .break.away {
-    border-color: var(--halo-accent);
-    color: var(--halo-accent);
   }
 
   .fast {

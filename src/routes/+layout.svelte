@@ -7,6 +7,7 @@
   import "$lib/styles/halo.css";
 
   import { updated } from "$app/state";
+  import { sfx } from "$lib/audio/sfx.svelte";
 
   let { children } = $props();
 
@@ -22,6 +23,9 @@
     document.documentElement.classList.toggle("standalone", standalone);
   });
 </script>
+
+<!-- Browsers only let sound start inside a gesture. -->
+<svelte:window onpointerdown={sfx.unlock} onkeydown={sfx.unlock} />
 
 {@render children()}
 

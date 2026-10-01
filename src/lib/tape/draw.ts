@@ -6,20 +6,22 @@ export const SHELL_H = 63.8;
 const HUB_X = 21;
 const HUB_Y = 29;
 const WINDOW = { x: 32, y: 21, w: 36.5, h: 16 };
+/** The printed spectrum across the label, top to bottom: 1970s process inks, a little faded. */
+const STRIPES = ["#d8433a", "#ec8a2c", "#efc232", "#5ba54b", "#3d7fc2", "#7b52a1"];
+const STRIPE_GAP = 0.4;
+/** The band is exactly as tall as the window, so the window sits in it. */
+const STRIPE_H = (WINDOW.h - STRIPE_GAP * (STRIPES.length - 1)) / STRIPES.length;
 
 export type Palette = {
   shell: string;
   label: string;
   ink: string;
   muted: string;
-  accent: string;
   tape: string;
   window: string;
 };
 
-export const readPalette = (el: Element): Palette => {
-  const css = getComputedStyle(el);
-  const v = (name: string) => css.getPropertyValue(name).trim();
+export const readPalette = (): Palette => {
   const dark = matchMedia("(prefers-color-scheme: dark)").matches;
   return {
     shell: dark ? "#2e2e2e" : "#3b3b3b",
@@ -27,7 +29,6 @@ export const readPalette = (el: Element): Palette => {
     label: "#f3eee3",
     ink: "#3d3d3d",
     muted: "#6e6a62",
-    accent: v("--halo-accent") || "#f78f08",
     tape: "#4a3426",
     window: dark ? "#141414" : "#1c1c1c",
   };
@@ -81,8 +82,11 @@ export const drawCassette = (ctx: CanvasRenderingContext2D, deck: DeckState, p: 
   roundRect(ctx, 5, 4, SHELL_W - 10, 40, 2);
   ctx.fillStyle = p.label;
   ctx.fill();
-  ctx.fillStyle = p.accent;
-  ctx.fillRect(5, 13, SHELL_W - 10, 2.2);
+  // One band of stripes edge to edge behind the window and reels.
+  STRIPES.forEach((colour, i) => {
+    ctx.fillStyle = colour;
+    ctx.fillRect(5, WINDOW.y + i * (STRIPE_H + STRIPE_GAP), SHELL_W - 10, STRIPE_H);
+  });
 
   ctx.fillStyle = p.ink;
   ctx.font = "600 5px Inter, system-ui, sans-serif";
@@ -133,9 +137,14 @@ export const drawCassette = (ctx: CanvasRenderingContext2D, deck: DeckState, p: 
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.fillStyle = p.window;
+  // Capstan holes, and the two small square holes the deck's locating pins go into.
   for (const x of [cx - 16, cx + 16]) {
     ctx.beginPath();
-    ctx.arc(x, 56, 1.6, 0, Math.PI * 2);
+    ctx.arc(x, 59.2, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (const x of [cx - 7, cx + 7]) {
+    roundRect(ctx, x - 0.75, 57.65, 1.5, 1.5, 0.3);
     ctx.fill();
   }
 
