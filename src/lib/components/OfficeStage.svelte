@@ -1,10 +1,21 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
-  import { drawOffice } from "$lib/office/draw";
-  import { AI_MOUTH, FLY_S, type OfficeState, SCENE_H, SCENE_W } from "$lib/office/engine";
+  import { panOf, sfx } from "$lib/audio/sfx.svelte";
+  import { leaveKey } from "$lib/keys";
+  import { birdCue, drawOffice, SIGNS } from "$lib/office/draw";
+  import {
+    AI_MOUTH,
+    FLY_S,
+    type OfficeEvent,
+    type OfficeState,
+    SCENE_H,
+    SCENE_W,
+  } from "$lib/office/engine";
   import { officeWeek } from "$lib/office/week.svelte";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
+
+  import SceneSign from "./SceneSign.svelte";
 
   type Props = {
     /** A card over the whole scene: memo, payslip. */
@@ -24,6 +35,14 @@
   let canvas: HTMLCanvasElement | undefined = $state();
   let frameEl: HTMLDivElement | undefined = $state();
   let fit = $state<Fit>({ scale: 2, sceneCss: SCENE_W, viewCss: SCENE_W });
+  const SCENE = { w: SCENE_W, h: SCENE_H };
+  const staffed = $derived(officeWeek.screen === "shift");
+
+  const onKey = (e: KeyboardEvent) => {
+    if (!staffed || leaveKey(e) || (e.key !== "w" && e.key !== "W")) return;
+    e.preventDefault();
+    officeWeek.toggleBreak();
+  };
 
   $effect(() => {
     const el = wrap;
@@ -61,6 +80,15 @@
     return early ? desk : AI_MOUTH[flying.to].x;
   };
 
+  const pan = (x: number) => panOf(x, SCENE_W);
+
+  const play = (e: OfficeEvent) => {
+    if (e.kind === "send") sfx.send(pan(AI_MOUTH[e.from].x), e.direct);
+    else if (e.kind === "receive") sfx.receive(pan(AI_MOUTH[e.to].x));
+    else if (e.kind === "land") sfx.land();
+    else sfx.flutter(pan(e.x));
+  };
+
   $effect(() => {
     const el = canvas;
     const ctx = el?.getContext("2d");
@@ -79,7 +107,21 @@
       }
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
+      const { mood } = officeWeek;
+      const before = { blast: mood.blast, since: mood.since };
       officeWeek.tick(dt);
+      const s = officeWeek.sim;
+      for (const e of s.events.splice(0)) play(e);
+      if (before.blast === null && mood.blast !== null) sfx.blast();
+      if (mood.after) {
+        const cue = birdCue(before.since, mood.since);
+        if (cue === "chirp") sfx.chirp();
+        else if (cue === "peck") sfx.peck();
+      }
+      // The AIs' fans, and the drone's rotors pitched by how fast it is going.
+      sfx.bed("fans", 0.03);
+      const speed = Math.hypot(s.drone.vx, s.drone.vy) / 320;
+      sfx.bed("drone", 0.012 + speed * 0.03, 1 + speed * 0.6);
       const k = el.width / SCENE_W;
       ctx.setTransform(k, 0, 0, k, 0, 0);
       drawOffice(ctx, officeWeek.sim, officeWeek.mood);
@@ -92,9 +134,15 @@
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      sfx.bed("fans", 0);
+      sfx.bed("drone", 0);
+    };
   });
 </script>
+
+<svelte:window onkeydown={onKey} />
 
 <div class="stage" bind:this={wrap}>
   <div class="box" style:width="{fit.viewCss}px">
@@ -102,6 +150,16 @@
       <div class="frame" bind:this={frameEl} style:width="{fit.sceneCss}px">
         <canvas bind:this={canvas} aria-label="an office: two AI slabs and a desk between them"
         ></canvas>
+        <SceneSign at={SIGNS.exit} scene={SCENE} label="exit" home />
+        {#if staffed}
+          <SceneSign
+            at={SIGNS.wc}
+            scene={SCENE}
+            label={officeWeek.away ? "back to work (w)" : "toilet break (w)"}
+            onclick={officeWeek.toggleBreak}
+            invite={!officeWeek.away}
+          />
+        {/if}
       </div>
     </div>
     {#if children && covered}
@@ -131,6 +189,10 @@
     box-shadow: var(--halo-shadow);
   }
 
+  .frame {
+    position: relative;
+  }
+
   canvas {
     display: block;
     width: 100%;
@@ -146,6 +208,12 @@
     padding: 0.5rem;
     background: rgb(0 0 0 / 25%);
     border-radius: var(--halo-radius);
+    /* The signs on the wall stay pressable through the dimming; only the card takes clicks. */
+    pointer-events: none;
+  }
+
+  .overlay > :global(*) {
+    pointer-events: auto;
   }
 
   .dock {

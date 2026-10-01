@@ -1,10 +1,12 @@
 import banana from "$lib/sprites/banana.json";
 import boot from "$lib/sprites/boot.json";
 import bot from "$lib/sprites/bot.json";
+import exit from "$lib/sprites/exit.json";
 import foreman from "$lib/sprites/foreman.json";
 import fx from "$lib/sprites/fx.json";
 import phone from "$lib/sprites/phone.json";
 import { type Flip, frameOf, type Sprite } from "$lib/sprites/sprite";
+import wc from "$lib/sprites/wc.json";
 import worker from "$lib/sprites/worker.json";
 
 import type { Defect, Model } from "./days";
@@ -17,6 +19,8 @@ export const SPRITES = {
   worker: worker as Sprite,
   foreman: foreman as Sprite,
   fx: fx as Sprite,
+  exit: exit as Sprite,
+  wc: wc as Sprite,
 };
 
 export type Look = { sprite: Sprite; frame: number; variant?: string; flip?: Flip };

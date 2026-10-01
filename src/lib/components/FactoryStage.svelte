@@ -3,13 +3,26 @@
   import Stamp from "@lucide/svelte/icons/stamp";
   import type { Snippet } from "svelte";
 
-  import { BUTTONS, CLOCK, createStagecraft, drawFactory } from "$lib/factory/draw";
-  import { decide, onCurrent, SCENE_H, SCENE_W, step } from "$lib/factory/engine";
+  import { panOf, sfx } from "$lib/audio/sfx.svelte";
+  import { BUTTONS, CLOCK, createStagecraft, drawFactory, SIGNS } from "$lib/factory/draw";
+  import {
+    decide,
+    type FactoryEvent,
+    GATE_X,
+    MACHINE_IN,
+    MACHINE_OUT,
+    onCurrent,
+    SCENE_H,
+    SCENE_W,
+    SHRED_X,
+    step,
+  } from "$lib/factory/engine";
   import { week } from "$lib/factory/week.svelte";
   import { leaveKey } from "$lib/keys";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
 
   import NixieClock from "./NixieClock.svelte";
+  import SceneSign from "./SceneSign.svelte";
 
   type Props = {
     children?: Snippet;
@@ -29,12 +42,18 @@
   let dirty = true;
 
   const staffed = $derived(week.screen === "shift");
+  const SCENE = { w: SCENE_W, h: SCENE_H };
   const st = createStagecraft();
 
   const act = (stampIt: boolean) => {
     if (!staffed || week.away || !decide(week.sim, stampIt)) return;
-    if (stampIt) st.plungeAt = week.sim.t;
-    else st.pullAt = week.sim.t;
+    if (stampIt) {
+      st.plungeAt = week.sim.t;
+      sfx.stamp();
+    } else {
+      st.pullAt = week.sim.t;
+      sfx.lever();
+    }
     week.sync();
   };
 
@@ -53,7 +72,8 @@
 
   const onKey = (e: KeyboardEvent) => {
     if (!staffed || leaveKey(e)) return;
-    if (STAMP_KEYS.has(e.key)) act(true);
+    if (e.key === "w" || e.key === "W") week.toggleBreak();
+    else if (STAMP_KEYS.has(e.key)) act(true);
     else if (PASS_KEYS.has(e.key)) act(false);
     else return;
     e.preventDefault();
@@ -82,6 +102,22 @@
     };
   });
 
+  const pan = (x: number) => panOf(x, SCENE_W);
+
+  const play = (e: FactoryEvent) => {
+    if (e.kind === "gate") sfx.relay(pan(GATE_X));
+    else if (e.kind === "tip") sfx.flop(e.model === "boot", pan(e.x));
+    else if (e.kind === "scan") sfx.scan(pan(MACHINE_IN + 30));
+    else if (e.kind === "verdict") {
+      if (e.correction) sfx.chime(e.correction === "caught", pan(MACHINE_OUT));
+      if (e.defect) sfx.shred(pan(SHRED_X));
+    } else if (e.kind === "lift") sfx.whirr(pan(e.x));
+    else if (e.kind === "drop") {
+      if (e.defect) sfx.shred(pan(e.x));
+      else sfx.flop(false, pan(e.x));
+    } else sfx.whistle();
+  };
+
   $effect(() => {
     const el = canvas;
     const ctx = el?.getContext("2d");
@@ -108,9 +144,13 @@
         sim = s;
         lastSeen = 0;
         st.sparkles = [];
+        if (week.screen === "shift") sfx.whistle();
       }
       // Reviews hold the last frame; nothing moves and nothing is redrawn.
       const live = week.screen === "shift" || week.screen === "memo";
+      // Between shifts the line is heard from the door.
+      sfx.duck(week.screen === "shift" ? 1 : 0.4);
+      sfx.bed("belt", live ? 0.05 : 0, s.pace);
       if (!live && painted === s && !dirty) {
         raf = requestAnimationFrame(frame);
         return;
@@ -126,6 +166,7 @@
           ];
         }
       }
+      for (const e of s.events.splice(0)) play(e);
       week.sync();
       const k = el.width / SCENE_W;
       ctx.setTransform(k, 0, 0, k, 0, 0);
@@ -135,7 +176,11 @@
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      sfx.bed("belt", 0);
+      sfx.duck(1);
+    };
   });
 
   const ready = $derived(staffed && !week.away && week.hud.waiting);
@@ -162,6 +207,16 @@
         >
           <NixieClock value={week.hud.clock} />
         </div>
+        <SceneSign at={SIGNS.exit} scene={SCENE} label="exit" home />
+        {#if staffed}
+          <SceneSign
+            at={SIGNS.wc}
+            scene={SCENE}
+            label={week.away ? "back to work (w)" : "toilet break (w)"}
+            onclick={week.toggleBreak}
+            invite={!week.away}
+          />
+        {/if}
       </div>
     </div>
     {#if children && covered}
@@ -241,6 +296,12 @@
     padding: 0.5rem;
     background: rgb(0 0 0 / 25%);
     border-radius: var(--halo-radius);
+    /* The signs on the wall stay pressable through the dimming; only the card takes clicks. */
+    pointer-events: none;
+  }
+
+  .overlay > :global(*) {
+    pointer-events: auto;
   }
 
   .controls {

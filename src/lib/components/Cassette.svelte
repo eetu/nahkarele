@@ -5,63 +5,69 @@
   import Volume2 from "@lucide/svelte/icons/volume-2";
   import VolumeX from "@lucide/svelte/icons/volume-x";
 
+  import { asset } from "$app/paths";
+  import { type Reel, sfx } from "$lib/audio/sfx.svelte";
   import { type Deck, initialDeck, stepDeck } from "$lib/tape/cassette";
   import { drawCassette, readPalette, SHELL_H, SHELL_W } from "$lib/tape/draw";
   import { cueAt, CUES, TAPE_SECONDS } from "$lib/tape/orientation";
 
+  const RECORDING = asset("/tape/orientation.mp3");
+
   let canvas: HTMLCanvasElement | undefined = $state();
   let mode = $state<Deck>("stop");
   let position = $state(0);
-  let voice = $state(true);
 
   const cue = $derived(cueAt(position));
   const caption = $derived(cue >= 0 ? CUES[cue].text : "");
-  const canSpeak = typeof speechSynthesis !== "undefined";
 
   const deck = initialDeck();
   let wake: (() => void) | null = null;
 
-  const speak = (text: string) => {
-    if (!canSpeak) return;
-    speechSynthesis.cancel();
-    if (!voice || !text) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-GB";
-    u.rate = 1.15;
-    u.pitch = 0.8;
-    speechSynthesis.speak(u);
-  };
+  let recording: AudioBuffer | null = null;
+  /** The tape on the head, and one still running out after stop rewound the counter. */
+  let reel: Reel | null = null;
+  let coast: Reel | null = null;
 
-  // Speak each caption as the tape reaches it.
-  let spoken = -1;
-  $effect(() => {
-    if (mode !== "play" || cue === spoken) return;
-    spoken = cue;
-    if (cue >= 0) speak(CUES[cue].text);
-  });
+  const unthread = () => {
+    reel?.stop();
+    coast?.stop();
+    reel = coast = null;
+  };
 
   const toggle = () => {
     if (mode === "play") {
       mode = "pause";
-      if (canSpeak) speechSynthesis.cancel();
-      spoken = -1;
       return;
     }
+    coast?.stop();
+    coast = null;
     if (position >= TAPE_SECONDS) position = 0;
     mode = "play";
+    fetchRecording();
+  };
+
+  const fetchRecording = () => {
+    if (!recording) void sfx.load(RECORDING).then((buffer) => (recording ??= buffer));
+  };
+
+  /** The tape runs out past the head as the reels wind down. */
+  const release = () => {
+    coast?.stop();
+    coast = reel;
+    reel = null;
   };
 
   const stop = () => {
     mode = "stop";
     position = 0;
-    spoken = -1;
-    if (canSpeak) speechSynthesis.cancel();
+    release();
   };
 
-  const toggleVoice = () => {
-    voice = !voice;
-    if (!voice && canSpeak) speechSynthesis.cancel();
-  };
+  // Muting stops the tape; unmuting threads it again where the counter is.
+  $effect(() => {
+    if (sfx.muted) unthread();
+    else if (mode === "play") fetchRecording();
+  });
 
   // One frame loop while anything moves: playing, or the reels still coasting down.
   // Idle, the canvas holds its last frame and costs nothing.
@@ -70,7 +76,7 @@
     if (!el) return;
     const ctx = el.getContext("2d");
     if (!ctx) return;
-    let palette = readPalette(el);
+    let palette = readPalette();
     let raf = 0;
     let last = performance.now();
 
@@ -89,11 +95,26 @@
     const frame = (t: number) => {
       const dt = Math.min(0.1, (t - last) / 1000);
       last = t;
-      if (mode === "play") {
-        position = Math.min(TAPE_SECONDS, position + dt);
-        if (position >= TAPE_SECONDS) mode = "stop";
+      // The tape moves at the reels' speed, so a pause slurs out and play winds up.
+      if (mode === "play" || mode === "pause") {
+        position = Math.min(TAPE_SECONDS, position + dt * deck.spin);
+        if (position >= TAPE_SECONDS) {
+          mode = "stop";
+          release();
+        }
       }
       stepDeck(deck, dt, mode, position / TAPE_SECONDS);
+      if (mode === "play" && !reel && recording) reel = sfx.reel(recording, position);
+      reel?.speed(deck.spin);
+      coast?.speed(deck.spin);
+      if (deck.spin === 0) {
+        coast?.stop();
+        coast = null;
+        if (mode !== "play") {
+          reel?.stop();
+          reel = null;
+        }
+      }
       paint();
       raf = mode === "play" || deck.spin > 0 ? requestAnimationFrame(frame) : 0;
     };
@@ -106,7 +127,7 @@
 
     const scheme = matchMedia("(prefers-color-scheme: dark)");
     const onScheme = () => {
-      palette = readPalette(el);
+      palette = readPalette();
       paint();
     };
     scheme.addEventListener("change", onScheme);
@@ -119,7 +140,7 @@
       scheme.removeEventListener("change", onScheme);
       resize.disconnect();
       wake = null;
-      if (canSpeak) speechSynthesis.cancel();
+      unthread();
     };
   });
 
@@ -138,11 +159,9 @@
     <button class="key" onclick={stop} aria-label="stop" disabled={position === 0}>
       <Square size={16} />
     </button>
-    {#if canSpeak}
-      <button class="key" onclick={toggleVoice} aria-label={voice ? "mute voice" : "voice on"}>
-        {#if voice}<Volume2 size={18} />{:else}<VolumeX size={18} />{/if}
-      </button>
-    {/if}
+    <button class="key" onclick={sfx.toggleMute} aria-label={sfx.muted ? "sound on" : "sound off"}>
+      {#if sfx.muted}<VolumeX size={18} />{:else}<Volume2 size={18} />{/if}
+    </button>
   </div>
   <figcaption aria-live="polite">
     {#if caption}

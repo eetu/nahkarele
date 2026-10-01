@@ -1,0 +1,25 @@
+{
+  "name": "wc",
+  "w": 16,
+  "h": 11,
+  "palette": {
+    "K": "#1d2f4a",
+    "B": "#2f5f9f",
+    "W": "#f4f0e0"
+  },
+  "frames": [
+    [
+      "KKKKKKKKKKKKKKKK",
+      "KBBBBBBBBBBBBBBK",
+      "KBBBBBBBBBBBBBBK",
+      "KBBWBBBWBBWWWBBK",
+      "KBBWBBBWBWBBBBBK",
+      "KBBWBWBWBWBBBBBK",
+      "KBBWBWBWBWBBBBBK",
+      "KBBBWBWBBBWWWBBK",
+      "KBBBBBBBBBBBBBBK",
+      "KBBBBBBBBBBBBBBK",
+      "KKKKKKKKKKKKKKKK"
+    ]
+  ]
+}

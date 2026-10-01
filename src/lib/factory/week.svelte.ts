@@ -1,3 +1,4 @@
+import { sfx } from "$lib/audio/sfx.svelte";
 import { clockAt } from "$lib/scene/sky";
 
 import { DAYS } from "./days";
@@ -16,7 +17,13 @@ import { shiftProgress } from "./sky";
 
 export type Screen = "memo" | "shift" | "review" | "week";
 
-export type DayResult = { day: number; tally: Tally; grade: number };
+export type DayResult = {
+  day: number;
+  tally: Tally;
+  grade: number;
+  /** The whistle went with the relay still on the toilet. */
+  inToilet: boolean;
+};
 
 const demo = (day: number): FactoryState =>
   createFactory({ ...DAYS[day], seconds: Infinity }, Math.floor(Math.random() * 2 ** 31));
@@ -76,6 +83,8 @@ class Week {
   toggleBreak = () => {
     if (this.screen !== "shift") return;
     this.away = !this.away;
+    if (this.away) sfx.door();
+    else sfx.flush();
     setAway(this.sim, this.away);
   };
 
@@ -105,9 +114,10 @@ class Week {
     const tally = { ...this.sim.tally };
     this.results = [
       ...this.results.filter((r) => r.day !== this.day),
-      { day: this.day, tally, grade: grade(tally) },
+      { day: this.day, tally, grade: grade(tally), inToilet: this.away },
     ];
     this.screen = "review";
+    if (this.away) sfx.flush();
     this.away = false;
   };
 

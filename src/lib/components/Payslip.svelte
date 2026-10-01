@@ -14,6 +14,9 @@
   <section class="card halo-card" aria-label="payslip">
     <div class="label">payslip · {officeWeek.current.name}</div>
     <p>{remark(r)}</p>
+    {#if r.inToilet}
+      <p>the shift ended while you were on the toilet. facebook, we assume.</p>
+    {/if}
 
     <dl>
       <div>

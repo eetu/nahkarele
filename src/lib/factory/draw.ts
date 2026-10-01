@@ -35,6 +35,11 @@ export const createStagecraft = (): Stagecraft => ({
 
 /** Scene rect the nixie clock overlay covers. */
 export const CLOCK = { x: 146, y: 22, w: 40, h: 16 };
+/** The way out, and the toilet, on the wall past TÄ'h where the belt leaves the room. */
+export const SIGNS = {
+  exit: { x: 295, y: 3, w: SPRITES.exit.w, h: SPRITES.exit.h },
+  wc: { x: 298, y: 18, w: SPRITES.wc.w, h: SPRITES.wc.h },
+};
 
 const WORKER_X = GATE_X + 14;
 /** Waist height: the belt hides the worker's hips, the legs show underneath. */
@@ -524,6 +529,9 @@ export const drawFactory = (
     rect(ctx, "#0a0f1c", 0, 0, SCENE_W, SCENE_H);
     ctx.globalAlpha = 1;
   }
+  // Lit signs, so they read in the dark.
+  drawSprite(ctx, SPRITES.exit, SIGNS.exit.x, SIGNS.exit.y);
+  drawSprite(ctx, SPRITES.wc, SIGNS.wc.x, SIGNS.wc.y);
   drawLamp(ctx);
   if (staffed) drawWorker(ctx, st, s.t);
   drawBelt(ctx, 0, MACHINE_IN + 4, offset);

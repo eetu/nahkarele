@@ -1,0 +1,51 @@
+{
+  "voice": "en_US-ljspeech-high",
+  "seconds": 50.52,
+  "cues": [
+    {
+      "text": "Welcome. We are so glad you are here. Genuinely.",
+      "start": 0.6,
+      "end": 5.55
+    },
+    {
+      "text": "In an age of machines, the human touch has never been more valuable. We checked twice.",
+      "start": 5.55,
+      "end": 11.83
+    },
+    {
+      "text": "You bring something no system can replace. Judgement. Intuition. Presence. Mostly presence.",
+      "start": 11.83,
+      "end": 20.32
+    },
+    {
+      "text": "Every process we run is better with a person in it. Somewhere.",
+      "start": 20.32,
+      "end": 25.52
+    },
+    {
+      "text": "Your work matters. It is measured, reviewed, and appreciated. In that order.",
+      "start": 25.52,
+      "end": 32.2
+    },
+    {
+      "text": "Automation is here to help you. You are here to help automation.",
+      "start": 32.2,
+      "end": 37.39
+    },
+    {
+      "text": "Together, we are building a future that still has room for people. Several people.",
+      "start": 37.39,
+      "end": 43.75
+    },
+    {
+      "text": "Thank you for being part of it.",
+      "start": 43.75,
+      "end": 46.25
+    },
+    {
+      "text": "At the end of your week, there will be cake.",
+      "start": 46.25,
+      "end": 50.52
+    }
+  ]
+}

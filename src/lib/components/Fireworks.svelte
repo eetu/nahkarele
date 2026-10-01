@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { panOf, sfx } from "$lib/audio/sfx.svelte";
+  import cake from "$lib/sprites/cake.json";
   import flask from "$lib/sprites/flask.json";
-  import { drawSprite, type Sprite } from "$lib/sprites/sprite";
+  import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 
   const W = 160;
   const H = 60;
@@ -64,6 +66,10 @@
       ctx.translate(W / 2 - 10, H - 45);
       ctx.scale(2, 2);
       drawSprite(ctx, flask as Sprite, 0, 0);
+      // The bottle has company: as promised.
+      drawSprite(ctx, cake as Sprite, 11, 22 - cake.h, {
+        frame: frameOf(cake as Sprite, "flicker", t * 6),
+      });
       ctx.restore();
     };
 
@@ -79,11 +85,14 @@
           top: 8 + Math.random() * 20,
           colour: COLOURS[Math.floor(Math.random() * COLOURS.length)],
         });
+        sfx.launch(panOf(rockets[rockets.length - 1].x, W));
         nextLaunch = t + 0.25 + Math.random() * 0.45;
       }
       for (const r of rockets) {
         r.y += r.vy * dt;
-        if (r.y <= r.top) burst(r.x, r.y, r.colour);
+        if (r.y > r.top) continue;
+        burst(r.x, r.y, r.colour);
+        sfx.pop(panOf(r.x, W));
       }
       rockets = rockets.filter((r) => r.y > r.top);
       for (const sp of sparks) {

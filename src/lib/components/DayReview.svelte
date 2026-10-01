@@ -27,6 +27,9 @@
       </div>
     </div>
     <p>{remark(result.grade)}</p>
+    {#if result.inToilet}
+      <p>the whistle went while you were on the toilet. reading the paper, we assume.</p>
+    {/if}
 
     <dl>
       <div>

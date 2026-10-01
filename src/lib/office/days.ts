@@ -19,7 +19,7 @@ export type OfficeDay = {
 
 export const OFFICE_DAYS: OfficeDay[] = [
   {
-    name: "maanantai",
+    name: "monday",
     task: "review",
     messages: 14,
     interval: 4,
@@ -27,7 +27,7 @@ export const OFFICE_DAYS: OfficeDay[] = [
     weather: "clear",
   },
   {
-    name: "tiistai",
+    name: "tuesday",
     task: "hard",
     messages: 6,
     interval: 3.5,
@@ -35,7 +35,7 @@ export const OFFICE_DAYS: OfficeDay[] = [
     weather: "snow",
   },
   {
-    name: "keskiviikko",
+    name: "wednesday",
     task: "easy",
     messages: 8,
     interval: 1.6,
@@ -43,7 +43,7 @@ export const OFFICE_DAYS: OfficeDay[] = [
     weather: "rain",
   },
   {
-    name: "torstai",
+    name: "thursday",
     task: "ok",
     messages: 20,
     interval: 0.3,
@@ -51,7 +51,7 @@ export const OFFICE_DAYS: OfficeDay[] = [
     weather: "clear",
   },
   {
-    name: "perjantai",
+    name: "friday",
     task: "jar",
     messages: 0,
     interval: 0,

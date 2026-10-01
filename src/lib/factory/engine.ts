@@ -98,6 +98,16 @@ export type Tally = {
 
 export type Phase = "running" | "closing" | "done";
 
+/** Something that happened this step that can be heard. The stage drains the list each frame. */
+export type FactoryEvent =
+  | { kind: "gate" }
+  | { kind: "tip"; x: number; model: Model }
+  | { kind: "scan" }
+  | { kind: "verdict"; defect: boolean; correction: Correction }
+  | { kind: "lift"; x: number }
+  | { kind: "drop"; x: number; defect: boolean }
+  | { kind: "whistle" };
+
 export type FactoryState = {
   day: Day;
   t: number;
@@ -119,6 +129,7 @@ export type FactoryState = {
   tally: Tally;
   /** The relay is on a break: the gate stands open and TÄ'h does it all. */
   away: boolean;
+  events: FactoryEvent[];
 };
 
 const emptyTally = (): Tally => ({
@@ -169,6 +180,7 @@ export const createFactory = (day: Day, seed: number): FactoryState => ({
   tipSeed: seed ^ 0x5bd1e995,
   tally: emptyTally(),
   away: false,
+  events: [],
 });
 
 const onBelt = (s: FactoryState) => s.items.filter((i) => i.stage === "belt");
@@ -218,6 +230,7 @@ const spawn = (s: FactoryState) => {
 const tip = (s: FactoryState, item: Item) => {
   item.stage = "floor";
   item.stageAt = s.t;
+  s.events.push({ kind: "tip", x: item.x + ITEM_W / 2, model: item.model });
   if (s.away) item.auto = true;
   else s.tally.dropped += 1;
 };
@@ -275,11 +288,15 @@ const moveBelt = (s: FactoryState, d: number) => {
     const want = item.x + s.day.speed * s.pace * d;
     item.stuck = max < want;
     item.x = Math.max(item.x, Math.min(want, max));
-    if (!item.decided && item.gateAt === null && item.x >= GATE_X - ITEM_W / 2) item.gateAt = s.t;
+    if (!item.decided && item.gateAt === null && item.x >= GATE_X - ITEM_W / 2) {
+      item.gateAt = s.t;
+      s.events.push({ kind: "gate" });
+    }
     limit = item.x - ITEM_W - GAP;
     if (item.x + ITEM_W / 2 >= MACHINE_IN) {
       item.stage = "machine";
       item.stageAt = s.t;
+      s.events.push({ kind: "scan" });
     }
   }
 };
@@ -320,6 +337,7 @@ const moveBots = (s: FactoryState, d: number) => {
     }
     if (!bot.carrying) {
       bot.carrying = true;
+      s.events.push({ kind: "lift", x: bot.x });
       item.stage = "carried";
       item.stageAt = s.t;
       continue;
@@ -327,6 +345,7 @@ const moveBots = (s: FactoryState, d: number) => {
     item.stage = item.defect ? "rejected" : "delivered";
     item.x = bot.x - ITEM_W / 2;
     settle(s, item, true);
+    s.events.push({ kind: "drop", x: bot.x, defect: item.defect !== null });
     bot.item = null;
     bot.carrying = false;
   }
@@ -346,6 +365,7 @@ export const step = (s: FactoryState, dt: number) => {
     if (s.spawned >= s.total) {
       s.phase = "closing";
       s.lastDecision = Math.max(s.lastDecision, s.t);
+      s.events.push({ kind: "whistle" });
     }
   }
   // After the whistle the relay works through the queue. Left alone at the gate, it
@@ -361,6 +381,7 @@ export const step = (s: FactoryState, dt: number) => {
       item.stage = item.defect ? "rejected" : "shipped";
       item.x = MACHINE_OUT;
       settle(s, item, false);
+      s.events.push({ kind: "verdict", defect: item.defect !== null, correction: item.correction });
     } else if (item.stage === "shipped") {
       item.x += s.day.speed * s.pace * d;
     }
@@ -412,7 +433,7 @@ export const setAway = (s: FactoryState, away: boolean) => {
   s.away = away;
 };
 
-/** Finnish school grade, 4 (hylätty) to 10, from how well the stamps matched the defects. */
+/** Finnish school grade, 4 (fail) to 10, from how well the stamps matched the defects. */
 export const grade = (t: Tally): number => {
   if (t.hits + t.misses + t.falseStamps + t.passes === 0) return 4;
   const defects = t.hits + t.misses;

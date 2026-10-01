@@ -1,12 +1,12 @@
-/** Finnish school grades, 4 to 10. */
+/** The Finnish school scale, 4 to 10, in words. */
 export const GRADE_WORD: Record<number, string> = {
-  4: "hylätty",
-  5: "välttävä",
-  6: "kohtalainen",
-  7: "tyydyttävä",
-  8: "hyvä",
-  9: "kiitettävä",
-  10: "erinomainen",
+  4: "fail",
+  5: "passable",
+  6: "fair",
+  7: "satisfactory",
+  8: "good",
+  9: "commendable",
+  10: "excellent",
 };
 
 const REMARK: Record<number, string> = {

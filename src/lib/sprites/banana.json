@@ -9,7 +9,7 @@
     "D": "#1c241a",
     "X": "#e8ecf0",
     "N": "#8a929a",
-    "S": "#2a2d31"
+    "y": "#c9a72a"
   },
   "variants": {
     "xray": {
@@ -19,7 +19,7 @@
       "D": "#081418",
       "X": "#c8f6ff",
       "N": "#5fb0c0",
-      "S": "#1d4f5c"
+      "y": "#25606f"
     }
   },
   "animations": {
@@ -36,11 +36,11 @@
       ".....KYYYYYYK...",
       ".....KYYNNYYK...",
       "....KYYYYYYK....",
-      "....KSSSSSSK....",
-      "....KSSSSSSK....",
-      "....KSSSSSSK....",
-      ".....KSSSSSSK...",
-      ".....KSSSSSSK...",
+      "....KyyyyyyK....",
+      "....KYYYYYYK....",
+      "....KYYYYYYK....",
+      ".....KYYYYYYK...",
+      ".....KYYYYYYK...",
       ".....KYYYYYYK...",
       "......KYYYYYK...",
       "......KYYYYK....",
@@ -54,11 +54,11 @@
       ".....KYYYYYYK...",
       ".....KYYNNYYK...",
       "....KYYYYYYK....",
-      "....KSSSSSSK....",
-      "....KSSSSSSK....",
-      "....KSSSSSSK....",
-      ".....KSSSSSSK...",
-      ".....KSSSSSSK...",
+      "....KyyyyyyK....",
+      "....KYYYYYYK....",
+      "....KYYYYYYK....",
+      ".....KYYYYYYK...",
+      ".....KYYYYYYK...",
       ".....KYYYYYYK...",
       "......KYYYYYK...",
       "......KYYYYK....",
@@ -72,11 +72,11 @@
       ".....KYXYYXYK...",
       ".....KYYNNYYK...",
       "....KYYYYYYK....",
-      "....KSSSSSSK....",
-      "....KSSSSSSK....",
-      "....KSSSSSSK....",
-      ".....KSSSSSSK...",
-      ".....KSSSSSSK...",
+      "....KyyyyyyK....",
+      "....KYYYYYYK....",
+      "....KYYYYYYK....",
+      ".....KYYYYYYK...",
+      ".....KYYYYYYK...",
       ".....KYYYYYYK...",
       "......KYYYYYK...",
       "......KYYYYK....",

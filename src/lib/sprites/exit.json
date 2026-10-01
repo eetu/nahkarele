@@ -1,0 +1,23 @@
+{
+  "name": "exit",
+  "w": 23,
+  "h": 9,
+  "palette": {
+    "K": "#0f3a1e",
+    "G": "#2fae5a",
+    "W": "#eafff0"
+  },
+  "frames": [
+    [
+      "KKKKKKKKKKKKKKKKKKKKKKK",
+      "KGGGGGGGGGGGGGGGGGGGGGK",
+      "KGGGGWGGWWWGWGWGWGWWWGK",
+      "KGGWWWGGWGGGWGWGWGGWGGK",
+      "KGWGWGGGWWGGGWGGWGGWGGK",
+      "KGGWGWGGWGGGWGWGWGGWGGK",
+      "KGWGGGWGWWWGWGWGWGGWGGK",
+      "KGGGGGGGGGGGGGGGGGGGGGK",
+      "KKKKKKKKKKKKKKKKKKKKKKK"
+    ]
+  ]
+}
