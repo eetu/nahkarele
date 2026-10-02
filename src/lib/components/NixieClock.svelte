@@ -8,6 +8,8 @@
 
   const LIT = "#ff9a3c";
   const DEAD = "#24160e";
+  /** Below this CSS height the tubes drop their glass. */
+  const SMALL_PX = 32;
 
   let box: HTMLDivElement | undefined = $state();
   let row: NixieRow | null = null;
@@ -21,7 +23,17 @@
       color: LIT,
       label: "wall clock",
     });
-    const ro = new ResizeObserver(() => row?.tubes.forEach((t) => t.resize()));
+    // The tube's glass keeps a fixed few-pixel margin and rim, which swallows the numeral in a
+    // phone-sized clock. Small, the numerals go bare (and meshless) over the scene's housing.
+    let small: boolean | null = null;
+    const ro = new ResizeObserver(() => {
+      const next = (box?.clientHeight ?? 0) < SMALL_PX;
+      if (next !== small) {
+        small = next;
+        row?.setOptions({ bare: small, mesh: !small });
+      }
+      row?.tubes.forEach((t) => t.resize());
+    });
     ro.observe(box);
     return () => {
       ro.disconnect();

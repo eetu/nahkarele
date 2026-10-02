@@ -43,7 +43,10 @@
       <a class="mode halo-card" href={resolve("/specialist")}>
         <div class="art" aria-hidden="true">
           <span class="slab">AI #1</span>
-          <SpriteIcon sprite={specialist as Sprite} animation="idle" scale={2} />
+          <span class="seat">
+            <SpriteIcon sprite={specialist as Sprite} animation="idle" scale={2} />
+            <span class="desk"></span>
+          </span>
           <span class="slab">AI #2</span>
         </div>
         <span class="label">2026 · current</span>
@@ -159,6 +162,22 @@
     gap: 0.75rem;
     min-height: 72px;
     margin-bottom: 0.4rem;
+  }
+
+  /* The sprite stops at the waist: in the office the desk hides that, so here too. */
+  .seat {
+    position: relative;
+    padding-bottom: 8px;
+  }
+
+  .desk {
+    position: absolute;
+    left: -0.75rem;
+    right: -0.75rem;
+    bottom: 0;
+    height: 18px;
+    border-top: 2px solid #4f3a28;
+    background: linear-gradient(#8a6a4a 0 4px, #6f5238 4px);
   }
 
   .slab {
