@@ -72,8 +72,8 @@
   .page {
     max-width: 72rem;
     margin: 0 auto;
-    padding: calc(0.75rem + env(safe-area-inset-top)) 1rem
-      calc(1.5rem + env(safe-area-inset-bottom));
+    padding: calc(0.75rem + env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+      calc(1.5rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
     display: flex;
     flex-direction: column;
     gap: 1rem;

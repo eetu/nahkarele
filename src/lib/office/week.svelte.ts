@@ -111,7 +111,8 @@ class OfficeWeek {
   tick = (dt: number) => {
     const s = this.sim;
     if (this.screen === "shift") {
-      step(s, s.away ? dt * 3 : dt);
+      // Three steps a frame on a break, not one tripled one: the engine caps a step at 0.1 s.
+      for (let i = 0; i < (s.away ? 3 : 1); i++) step(s, dt);
       if (s.phase === "done") {
         if (s.day.task === "ok") {
           this.screen = "blast";

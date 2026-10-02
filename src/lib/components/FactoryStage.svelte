@@ -163,7 +163,9 @@
         return;
       }
       // A break: time flies.
-      if (live) step(s, s.away ? dt * 3 : dt);
+      // A break runs the day three steps a frame rather than one long one: the engine caps a
+      // step at 0.1 s, so a tripled step on a slow phone would quietly lose its speed.
+      if (live) for (let i = 0; i < (s.away ? 3 : 1); i++) step(s, dt);
       for (const item of s.items) {
         if (item.correction && item.id > lastSeen) {
           lastSeen = item.id;

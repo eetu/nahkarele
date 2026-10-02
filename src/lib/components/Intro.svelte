@@ -66,7 +66,8 @@
   .intro {
     max-width: 62rem;
     margin: 0 auto;
-    padding: calc(1rem + env(safe-area-inset-top)) 1rem calc(2rem + env(safe-area-inset-bottom));
+    padding: calc(1rem + env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+      calc(2rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
