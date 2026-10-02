@@ -25,6 +25,7 @@ import {
   SCENE_W,
   TRAY,
 } from "./engine";
+import { drawTrees, drawWoodlife } from "./forest";
 
 const S = {
   specialist: specialist as Sprite,
@@ -243,6 +244,7 @@ const drawMoss = (ctx: CanvasRenderingContext2D, since: number) => {
 const drawGarden = (ctx: CanvasRenderingContext2D, since: number) => {
   drawCracks(ctx);
   drawMoss(ctx, since);
+  drawTrees(ctx, since);
   for (const t of TUFTS) {
     const h = Math.min(6, Math.max(0, (since - t.delay) * 0.25));
     if (h <= 0) continue;
@@ -733,6 +735,7 @@ export const drawOffice = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: 
     drawCritters(ctx, mood.since);
     drawDeer(ctx, mood.since);
     drawVisitors(ctx, mood.since);
+    drawWoodlife(ctx, mood.since);
   } else {
     drawTokens(ctx, s);
     drawDrone(ctx, s);

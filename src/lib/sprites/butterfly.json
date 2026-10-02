@@ -1,0 +1,22 @@
+{
+  "name": "butterfly",
+  "w": 5,
+  "h": 4,
+  "palette": {
+    "W": "#f78f08",
+    "w": "#e0443a",
+    "K": "#2a1a10"
+  },
+  "variants": {
+    "white": { "W": "#f4f4f0", "w": "#c8c8c0" },
+    "blue": { "W": "#57b6ff", "w": "#2f5f9f" },
+    "violet": { "W": "#b77cff", "w": "#7b52a1" }
+  },
+  "animations": {
+    "flap": [0, 1]
+  },
+  "frames": [
+    ["WW.WW", "WWKWW", "ww.ww", "....."],
+    [".....", ".WKW.", ".wKw.", "....."]
+  ]
+}

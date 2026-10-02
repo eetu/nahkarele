@@ -587,6 +587,22 @@ class Sfx {
     }
   }
 
+  /** The owl in the tallest tree: two soft notes, the second lower. */
+  hoot() {
+    const ctx = this.#live();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    this.#tone(ctx, t, { f0: 420, f1: 380, peak: 0.06, dur: 0.3, attack: 0.06, cutoff: 900 });
+    this.#tone(ctx, t + 0.38, {
+      f0: 380,
+      f1: 320,
+      peak: 0.07,
+      dur: 0.5,
+      attack: 0.08,
+      cutoff: 900,
+    });
+  }
+
   /** A beak on a glass lid. */
   peck() {
     const ctx = this.#live();

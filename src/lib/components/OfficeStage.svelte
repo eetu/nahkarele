@@ -12,6 +12,7 @@
     SCENE_H,
     SCENE_W,
   } from "$lib/office/engine";
+  import { forestCue } from "$lib/office/forest";
   import { officeWeek } from "$lib/office/week.svelte";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
 
@@ -117,6 +118,7 @@
         const cue = birdCue(before.since, mood.since);
         if (cue === "chirp") sfx.chirp();
         else if (cue === "peck") sfx.peck();
+        if (forestCue(before.since, mood.since)) sfx.hoot();
       }
       // The AIs' fans, and the drone's rotors pitched by how fast it is going.
       sfx.bed("fans", 0.03);

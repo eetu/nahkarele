@@ -1,0 +1,55 @@
+{
+  "name": "rabbit",
+  "w": 12,
+  "h": 10,
+  "palette": {
+    "F": "#b8a68e",
+    "f": "#8f7d66",
+    "P": "#e0b0a8",
+    "K": "#2a1a10",
+    "W": "#f4f0e0"
+  },
+  "animations": {
+    "sit": [0],
+    "hop": [1],
+    "nibble": [0, 2, 0, 2, 2]
+  },
+  "frames": [
+    [
+      "........F.F.",
+      "........FPFP",
+      "........F.F.",
+      "........FFF.",
+      "...FFFFFFKF.",
+      "..FFFFFFFFF.",
+      "..FFFFFFFF..",
+      ".WFFFFFFFF..",
+      "..FFFfFFf...",
+      "..ff..ff...."
+    ],
+    [
+      "........F.F.",
+      ".......FPFP.",
+      ".......F.F..",
+      "......FFFF..",
+      "..FFFFFFFKF.",
+      ".WFFFFFFFF..",
+      "..FFFFFFF...",
+      "..FFf..Ff...",
+      ".ff.....ff..",
+      "............"
+    ],
+    [
+      "............",
+      "........F.F.",
+      "........FPFP",
+      "...FFFFFF.F.",
+      "..FFFFFFFFF.",
+      "..FFFFFFFKF.",
+      ".WFFFFFFFFF.",
+      "..FFFfFFfFF.",
+      "..ff..ff..f.",
+      "............"
+    ]
+  ]
+}

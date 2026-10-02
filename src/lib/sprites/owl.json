@@ -1,0 +1,58 @@
+{
+  "name": "owl",
+  "w": 9,
+  "h": 11,
+  "palette": {
+    "B": "#5e4726",
+    "b": "#3e2e18",
+    "L": "#c8b89a",
+    "Y": "#f2c230",
+    "K": "#15120f",
+    "O": "#f78f08"
+  },
+  "animations": {
+    "perch": [0, 0, 0, 0, 0, 0, 0, 1],
+    "hoot": [2, 2, 0]
+  },
+  "frames": [
+    [
+      ".B.....B.",
+      ".BBBBBBB.",
+      ".BYKBYKB.",
+      ".BYYBYYB.",
+      ".BBBOBBB.",
+      ".BLBLBLB.",
+      ".BBLBLBB.",
+      ".BLBLBLB.",
+      ".BBBBBBB.",
+      "..bBBBb..",
+      "..O...O.."
+    ],
+    [
+      ".B.....B.",
+      ".BBBBBBB.",
+      ".BBBBBBB.",
+      ".BKKBKKB.",
+      ".BBBOBBB.",
+      ".BLBLBLB.",
+      ".BBLBLBB.",
+      ".BLBLBLB.",
+      ".BBBBBBB.",
+      "..bBBBb..",
+      "..O...O.."
+    ],
+    [
+      ".B.....B.",
+      ".BBBBBBB.",
+      ".BYKBYKB.",
+      ".BYYBYYB.",
+      ".BBOOOBB.",
+      ".BLLLLLB.",
+      ".BBLBLBB.",
+      ".BLBLBLB.",
+      ".BBBBBBB.",
+      "..bBBBb..",
+      "..O...O.."
+    ]
+  ]
+}
