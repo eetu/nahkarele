@@ -1,3 +1,5 @@
+import { drawCalendar } from "$lib/scene/calendar";
+import { drawPixelText } from "$lib/scene/pixelfont";
 import { drawWindow, flash, roomDarkness } from "$lib/scene/sky";
 import { bake, drawSprite, frameOf } from "$lib/sprites/sprite";
 
@@ -25,12 +27,17 @@ export type Stagecraft = {
   plungeAt: number;
   pullAt: number;
   sparkles: { at: number; caught: boolean }[];
+  /** What the wall signs show: the speaker's state, and fullscreen (null where unsupported). */
+  muted: boolean;
+  fullscreen: boolean | null;
 };
 
 export const createStagecraft = (): Stagecraft => ({
   plungeAt: -10,
   pullAt: -10,
   sparkles: [],
+  muted: false,
+  fullscreen: null,
 });
 
 /** Scene rect the nixie clock overlay covers. */
@@ -39,7 +46,12 @@ export const CLOCK = { x: 146, y: 22, w: 40, h: 16 };
 export const SIGNS = {
   exit: { x: 295, y: 3, w: SPRITES.exit.w, h: SPRITES.exit.h },
   wc: { x: 298, y: 18, w: SPRITES.wc.w, h: SPRITES.wc.h },
+  // Not part of the job, so away from the door: up by the lamp frame, where a phone still sees.
+  speaker: { x: 79, y: 3, w: SPRITES.speaker.w, h: SPRITES.speaker.h },
+  screen: { x: 94, y: 3, w: SPRITES.screen.w, h: SPRITES.screen.h },
 };
+/** The wall calendar, where the safety poster hung. */
+const CALENDAR_AT = { x: 197, y: 18 };
 
 const WORKER_X = GATE_X + 14;
 /** Waist height: the belt hides the worker's hips, the legs show underneath. */
@@ -129,14 +141,9 @@ const drawRoom = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
   rect(ctx, "#1a1c1e", kx - 1, ky - 1, kw + 2, kh + 2);
   rect(ctx, C.steel, kx + kw / 2 - 1, 0, 2, ky - 2);
 
-  // Safety poster.
-  rect(ctx, C.frame, 196, 18, 24, 32);
-  rect(ctx, C.face, 197, 19, 22, 30);
-  rect(ctx, C.red, 201, 23, 14, 3);
-  rect(ctx, C.stripe, 201, 30, 14, 1);
-  rect(ctx, C.stripe, 201, 33, 10, 1);
-  rect(ctx, C.stripe, 201, 36, 12, 1);
-  rect(ctx, C.red, 206, 40, 4, 6);
+  // The day's calendar page. Between shifts the line runs on with nothing to count.
+  const left = Number.isFinite(s.total) ? s.total - s.spawned : null;
+  drawCalendar(ctx, CALENDAR_AT.x, CALENDAR_AT.y, s.day.name, left);
 };
 
 const drawLamp = (ctx: CanvasRenderingContext2D) => {
@@ -259,6 +266,8 @@ const drawOutCrate = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
   rect(ctx, C.crateDark, x, y, w, h);
   rect(ctx, C.crate, x + 1, y + 1, w - 2, h - 2);
   rect(ctx, C.crateDark, x + 1, y + 8, w - 2, 1);
+  // Stencilled on the crate: how many went out today.
+  drawPixelText(ctx, String(s.tally.shipped), x + 11, y + 11, C.crateDark, { align: "center" });
 };
 
 const drawBots = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
@@ -354,6 +363,10 @@ const drawShredder = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
     rect(ctx, C.hole, x + i + 3 + shake, y + 18, 3, 4);
   }
   rect(ctx, busy ? "#e0443a" : "#5a2a28", x + w - 8 + shake, y + 9, 3, 3);
+  // Its counter: how many it has eaten today.
+  rect(ctx, C.hole, x + 3 + shake, y + 7, 21, 9);
+  const eaten = String(s.tally.rejected).padStart(3, "0");
+  drawPixelText(ctx, eaten, x + 13.5 + shake, y + 8, "#e8ecf0", { align: "center" });
 };
 
 /** Two tape reels that spool back and forth: fast while scanning, idling otherwise. */
@@ -408,12 +421,7 @@ type Verdict = { reject: boolean; note: string };
 
 const verdictOf = (item: Item): Verdict => ({
   reject: item.defect !== null,
-  note:
-    item.defect && !item.stamped
-      ? "stamp missing"
-      : !item.defect && item.stamped
-        ? "wrong stamp"
-        : "",
+  note: item.defect && !item.stamped ? "no stamp" : !item.defect && item.stamped ? "undone" : "",
 });
 
 /** Share of the scan after which the verdict shows. */
@@ -452,21 +460,16 @@ const drawMachine = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
         : null;
   const verdictColour = shown ? (shown.reject ? C.bad : C.good) : null;
 
-  // Readout.
-  rect(ctx, C.screen, x + 7, 81, w - 14, 18);
-  ctx.font = "5px ui-monospace, Menlo, monospace";
-  ctx.textBaseline = "top";
+  // Readout, two lines of eight characters: what it is doing, and the belt speed it has
+  // earned the relay; or its verdict, and what it had to change.
+  rect(ctx, C.screen, x + 4, 81, w - 8, 18);
   if (shown) {
-    ctx.fillStyle = verdictColour ?? C.good;
-    ctx.fillText(shown.reject ? "reject" : "ok", x + 9, 82.5);
-    if (shown.note) {
-      ctx.fillStyle = C.warn;
-      ctx.fillText(shown.note, x + 9, 89.5);
-    }
+    drawPixelText(ctx, shown.reject ? "reject" : "ok", x + 6, 83, verdictColour ?? C.good);
+    if (shown.note) drawPixelText(ctx, shown.note, x + 6, 91, C.warn);
   } else {
-    ctx.fillStyle = C.screenText;
-    ctx.fillText(scanning ? "scanning" : "ready", x + 9, 82.5);
-    if (scanning) rect(ctx, C.screenText, x + 9, 92, Math.round(p * (w - 18)), 2);
+    drawPixelText(ctx, scanning ? "scanning" : "ready", x + 6, 83, C.screenText);
+    if (scanning) rect(ctx, C.screenText, x + 6, 95, Math.round(p * (w - 12)), 2);
+    else drawPixelText(ctx, `belt ${s.pace.toFixed(1)}`, x + 6, 91, C.screenText);
   }
 
   // Intake, outlet, and the x-ray window between them.
@@ -492,8 +495,10 @@ const drawMachine = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
   ctx.fillStyle = C.machineEdge;
   ctx.font = "600 6px 'Space Grotesk', Inter, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("TÄ'h", x + 32, 134.5);
+  ctx.textBaseline = "middle";
+  ctx.fillText("TÄ'h", x + 32, 137.5);
   ctx.textAlign = "left";
+  ctx.textBaseline = "top";
 
   // Reject hatch opens as a boot drops.
   const dropping = s.items.some((i) => i.stage === "rejected" && s.t - i.stageAt < SHRED_FALL_S);
@@ -529,9 +534,15 @@ export const drawFactory = (
     rect(ctx, "#0a0f1c", 0, 0, SCENE_W, SCENE_H);
     ctx.globalAlpha = 1;
   }
-  // Lit signs, so they read in the dark.
+  // Lit signs, so they read in the dark; the speaker and the screen show their state.
   drawSprite(ctx, SPRITES.exit, SIGNS.exit.x, SIGNS.exit.y);
   drawSprite(ctx, SPRITES.wc, SIGNS.wc.x, SIGNS.wc.y);
+  drawSprite(ctx, SPRITES.speaker, SIGNS.speaker.x, SIGNS.speaker.y, { frame: st.muted ? 1 : 0 });
+  if (st.fullscreen !== null) {
+    drawSprite(ctx, SPRITES.screen, SIGNS.screen.x, SIGNS.screen.y, {
+      frame: st.fullscreen ? 1 : 0,
+    });
+  }
   drawLamp(ctx);
   if (staffed) drawWorker(ctx, st, s.t);
   drawBelt(ctx, 0, MACHINE_IN + 4, offset);

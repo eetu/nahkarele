@@ -1,0 +1,44 @@
+{
+  "name": "screen",
+  "w": 12,
+  "h": 12,
+  "palette": {
+    "K": "#3a3a3a",
+    "D": "#1a1c1e",
+    "W": "#e8ecf0"
+  },
+  "animations": {
+    "enter": [0],
+    "leave": [1]
+  },
+  "frames": [
+    [
+      "KKKKKKKKKKKK",
+      "KDDDDDDDDDDK",
+      "KDWWWDDWWWDK",
+      "KDWDDDDDDWDK",
+      "KDWDDDDDDWDK",
+      "KDDDDDDDDDDK",
+      "KDDDDDDDDDDK",
+      "KDWDDDDDDWDK",
+      "KDWDDDDDDWDK",
+      "KDWWWDDWWWDK",
+      "KDDDDDDDDDDK",
+      "KKKKKKKKKKKK"
+    ],
+    [
+      "KKKKKKKKKKKK",
+      "KDDDDDDDDDDK",
+      "KDDDWDDWDDDK",
+      "KDDDWDDWDDDK",
+      "KDWWWDDWWWDK",
+      "KDDDDDDDDDDK",
+      "KDDDDDDDDDDK",
+      "KDWWWDDWWWDK",
+      "KDDDWDDWDDDK",
+      "KDDDWDDWDDDK",
+      "KDDDDDDDDDDK",
+      "KKKKKKKKKKKK"
+    ]
+  ]
+}

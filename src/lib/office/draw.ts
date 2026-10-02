@@ -1,5 +1,7 @@
 import { prefersReducedMotion } from "$lib/keys";
+import { drawCalendar } from "$lib/scene/calendar";
 import { drawLedClock } from "$lib/scene/led";
+import { drawPixelText } from "$lib/scene/pixelfont";
 import { clockAt, drawWindow, flash, mix, roomDarkness, type SkyInput } from "$lib/scene/sky";
 import cake from "$lib/sprites/cake.json";
 import deer from "$lib/sprites/deer.json";
@@ -7,6 +9,8 @@ import drone from "$lib/sprites/drone.json";
 import exit from "$lib/sprites/exit.json";
 import fx from "$lib/sprites/fx.json";
 import jar from "$lib/sprites/jar.json";
+import screen from "$lib/sprites/screen.json";
+import speaker from "$lib/sprites/speaker.json";
 import specialist from "$lib/sprites/specialist.json";
 import { bake, drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 import token from "$lib/sprites/token.json";
@@ -19,6 +23,7 @@ import {
   FLOOR_Y,
   FLY_S,
   type OfficeState,
+  pay,
   pile,
   progress,
   SCENE_H,
@@ -37,6 +42,8 @@ const S = {
   fx: fx as Sprite,
   exit: exit as Sprite,
   wc: wc as Sprite,
+  speaker: speaker as Sprite,
+  screen: screen as Sprite,
 };
 
 /** What the room is doing beyond the messages: the blast, and friday. */
@@ -56,8 +63,18 @@ export const CLOCK = { x: 214, y: 24, w: 40, h: 16 };
 /** The way out over the window; the toilet on the wall between AI #1 and the window. */
 export const SIGNS = {
   exit: { x: 149, y: 4, w: S.exit.w, h: S.exit.h },
-  wc: { x: 100, y: 28, w: S.wc.w, h: S.wc.h },
+  wc: { x: 97, y: 24, w: S.wc.w, h: S.wc.h },
+  // Not part of the job, so away from the door: top left, over the calendar.
+  speaker: { x: 61, y: 4, w: S.speaker.w, h: S.speaker.h },
+  screen: { x: 76, y: 4, w: S.screen.w, h: S.screen.h },
 };
+/** The wall calendar, on the wall between AI #1 and the toilet sign. */
+const CALENDAR_AT = { x: 61, y: 24 };
+/** The pay readout under the clock: the one number the job is really about. */
+const PAY = { x: CLOCK.x, y: CLOCK.y + CLOCK.h + 5, w: CLOCK.w, h: 11 };
+
+/** What the wall signs show: the speaker's state, and fullscreen (null where unsupported). */
+export type Signs = { muted: boolean; fullscreen: boolean | null };
 const SLAB = { w: 44, top: 22, bottom: 150 };
 const AI_X = { 1: 6, 2: SCENE_W - 6 - SLAB.w } as const;
 const DESK = { x: 104, w: 112, y: 118 };
@@ -117,6 +134,19 @@ const drawRoom = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => 
   // Clock housing; the digits are drawn after the room darkens, so they stay lit.
   rect(ctx, C.frame, CLOCK.x - 2, CLOCK.y - 2, CLOCK.w + 4, CLOCK.h + 4);
   rect(ctx, "#140807", CLOCK.x - 1, CLOCK.y - 1, CLOCK.w + 2, CLOCK.h + 2);
+  // The pay readout's housing, under the clock, lit the same way.
+  rect(ctx, C.frame, PAY.x - 2, PAY.y - 2, PAY.w + 4, PAY.h + 4);
+  rect(ctx, "#140807", PAY.x - 1, PAY.y - 1, PAY.w + 2, PAY.h + 2);
+  const left = mood.after ? null : s.day.messages - s.spawned;
+  drawCalendar(ctx, CALENDAR_AT.x, CALENDAR_AT.y, s.day.name, left);
+};
+
+/** Salary so far in red segments' colours, or a dead readout on friday. */
+const drawPay = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => {
+  const text = mood.after ? "-.--€" : `${pay(s).salary.toFixed(2)}€`;
+  drawPixelText(ctx, text, PAY.x + PAY.w - 2, PAY.y + 2, mood.after ? "#3a1410" : "#ff3b2a", {
+    align: "right",
+  });
 };
 
 // --- Friday: cracks, grass, vines -------------------------------------------------
@@ -710,7 +740,12 @@ const drawVisitors = (ctx: CanvasRenderingContext2D, since: number) => {
 };
 
 /** Paint one frame. `ctx` is already scaled so one unit is one scene pixel. */
-export const drawOffice = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => {
+export const drawOffice = (
+  ctx: CanvasRenderingContext2D,
+  s: OfficeState,
+  mood: Mood,
+  signs: Signs,
+) => {
   ctx.imageSmoothingEnabled = false;
   const sky = skyOf(s, mood);
   const shake =
@@ -728,9 +763,14 @@ export const drawOffice = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: 
   }
   if (mood.after) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
   else drawLedClock(ctx, CLOCK, clockAt(progress(s)), sky.t);
-  // Lit signs, so they read in the dark.
+  drawPay(ctx, s, mood);
+  // Lit signs, so they read in the dark; the speaker and the screen show their state.
   drawSprite(ctx, S.exit, SIGNS.exit.x, SIGNS.exit.y);
   drawSprite(ctx, S.wc, SIGNS.wc.x, SIGNS.wc.y);
+  drawSprite(ctx, S.speaker, SIGNS.speaker.x, SIGNS.speaker.y, { frame: signs.muted ? 1 : 0 });
+  if (signs.fullscreen !== null) {
+    drawSprite(ctx, S.screen, SIGNS.screen.x, SIGNS.screen.y, { frame: signs.fullscreen ? 1 : 0 });
+  }
   if (mood.after) drawGarden(ctx, mood.since);
   drawSlab(ctx, 1, s, mood);
   drawSlab(ctx, 2, s, mood);

@@ -10,10 +10,7 @@
     "W": "#f4f0e0"
   },
   "variants": {
-    "winter": {
-      "F": "#f4f4f0",
-      "f": "#c8c8c0"
-    }
+    "winter": { "F": "#f4f4f0", "f": "#c8c8c0" }
   },
   "animations": {
     "sit": [0],
@@ -23,11 +20,11 @@
   "frames": [
     [
       ".......FF..FF.",
-      ".......FPF.FPF",
-      "........FPFFPF",
-      "........FFFFFF",
+      ".......FPF.FP.",
+      ".......FFPFFP.",
+      "........FFFFF.",
       "........FFKFFF",
-      "..FFFFFFFFFFFf",
+      "..FFFFFFFFFFPP",
       ".WFFFFFFFFFFF.",
       ".WFFFFFFFFFF..",
       "..FFFfFFFFf...",
@@ -36,12 +33,12 @@
     ],
     [
       "........FF.FF.",
-      "........FPFFPF",
-      ".........FFFFF",
-      ".........FFKFF",
-      "..FFFFFFFFFFFf",
+      "........FPFFP.",
+      ".........FFFF.",
+      "..FFFFFFFFFKFF",
+      ".WFFFFFFFFFFPP",
       ".WFFFFFFFFFFF.",
-      ".WFFFFFFFFFF..",
+      "..FFFFFFFFFF..",
       "..Ff.....fF...",
       ".ff.......ff..",
       "..............",
@@ -50,10 +47,10 @@
     [
       "..............",
       "........FF.FF.",
-      "........FPFFPF",
+      "........FPFFP.",
       "..FFFFFFFFFFFF",
       ".WFFFFFFFFFFFF",
-      ".WFFFFFFFFFKFF",
+      ".WFFFFFFFFFKPP",
       "..FFFFFFFFFFFf",
       "..FFFfFFFFff..",
       "..ff..ff.ff...",

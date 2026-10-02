@@ -2,7 +2,6 @@
   import DayReview from "$lib/components/DayReview.svelte";
   import FactoryStage from "$lib/components/FactoryStage.svelte";
   import Memo from "$lib/components/Memo.svelte";
-  import TopBar from "$lib/components/TopBar.svelte";
   import WeekReview from "$lib/components/WeekReview.svelte";
   import { debugDay } from "$lib/debug";
   import { week } from "$lib/factory/week.svelte";
@@ -20,36 +19,21 @@
 <svelte:head><title>kumitehdas · nahkarele</title></svelte:head>
 
 <div class="page">
-  <TopBar>
-    <dl class="hud">
-      <div>
-        <dt class="label">{week.current.name}</dt>
-        <dd class="num">
-          {week.screen === "shift" ? `${week.hud.left} to come` : "clocked out"}
-        </dd>
-      </div>
-      {#if week.screen === "shift"}
-        <div>
-          <dt class="label">belt</dt>
-          <dd class="num" class:fast={week.hud.pace > 1}>×{week.hud.pace.toFixed(1)}</dd>
-        </div>
-      {/if}
-      {#if week.screen === "shift"}
-        <div>
-          <dt class="label">in queue</dt>
-          <dd class="num">{week.hud.queued}</dd>
-        </div>
-        <div>
-          <dt class="label">dropped</dt>
-          <dd class="num">{week.hud.dropped}</dd>
-        </div>
-        <div>
-          <dt class="label">shipped</dt>
-          <dd class="num">{week.hud.shipped}</dd>
-        </div>
-      {/if}
-    </dl>
-  </TopBar>
+  <!-- The numbers are on the walls (calendar, TÄ'h's readout); this copy is for ears. -->
+  <dl class="sr-only" aria-label="shift">
+    <dt>day</dt>
+    <dd>{week.current.name}</dd>
+    {#if week.screen === "shift"}
+      <dt>to come</dt>
+      <dd>{week.hud.left}</dd>
+      <dt>belt</dt>
+      <dd>×{week.hud.pace.toFixed(1)}</dd>
+      <dt>in queue</dt>
+      <dd>{week.hud.queued}</dd>
+      <dt>shipped</dt>
+      <dd>{week.hud.shipped}</dd>
+    {/if}
+  </dl>
 
   <main>
     <!-- One stage for the whole week: the canvas and its loop survive every screen change. -->
@@ -77,23 +61,6 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-  }
-
-  .hud {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem 1.5rem;
-    margin: 0;
-  }
-
-  dd {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 500;
-  }
-
-  .fast {
-    color: var(--halo-accent);
   }
 
   .caption {

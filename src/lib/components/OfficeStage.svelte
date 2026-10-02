@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
 
   import { panOf, sfx } from "$lib/audio/sfx.svelte";
+  import { fullscreen } from "$lib/fullscreen.svelte";
   import { leaveKey } from "$lib/keys";
   import { birdCue, drawOffice, SIGNS } from "$lib/office/draw";
   import {
@@ -43,9 +44,13 @@
   const short = () => window.innerHeight < SHORT_PX;
 
   const onKey = (e: KeyboardEvent) => {
-    if (!staffed || leaveKey(e) || (e.key !== "w" && e.key !== "W")) return;
+    if (leaveKey(e)) return;
+    const k = e.key.toLowerCase();
+    if (k === "m") sfx.toggleMute();
+    else if (k === "f") fullscreen.toggle();
+    else if (k === "w" && staffed) officeWeek.toggleBreak();
+    else return;
     e.preventDefault();
-    officeWeek.toggleBreak();
   };
 
   $effect(() => {
@@ -132,7 +137,10 @@
       sfx.bed("drone", 0.012 + speed * 0.03, 1 + speed * 0.6);
       const k = el.width / SCENE_W;
       ctx.setTransform(k, 0, 0, k, 0, 0);
-      drawOffice(ctx, officeWeek.sim, officeWeek.mood);
+      drawOffice(ctx, officeWeek.sim, officeWeek.mood, {
+        muted: sfx.muted,
+        fullscreen: fullscreen.supported ? fullscreen.on : null,
+      });
       const focus = officeWeek.mood.after ? SCENE_W / 2 : focusOf(officeWeek.sim);
       const offset = camera.follow(fit, SCENE_W, focus, dt);
       if (frameEl && offset !== shown) {
@@ -158,7 +166,22 @@
       <div class="frame" bind:this={frameEl} style:width="{fit.sceneCss}px">
         <canvas bind:this={canvas} aria-label="an office: two AI slabs and a desk between them"
         ></canvas>
-        <SceneSign at={SIGNS.exit} scene={SCENE} label="exit" home />
+        <!-- Leaving is leaving: the next visit starts a new week. -->
+        <SceneSign at={SIGNS.exit} scene={SCENE} label="exit" home onclick={officeWeek.newWeek} />
+        <SceneSign
+          at={SIGNS.speaker}
+          scene={SCENE}
+          label={sfx.muted ? "sound on (m)" : "sound off (m)"}
+          onclick={sfx.toggleMute}
+        />
+        {#if fullscreen.supported}
+          <SceneSign
+            at={SIGNS.screen}
+            scene={SCENE}
+            label={fullscreen.on ? "leave fullscreen (f)" : "fullscreen (f)"}
+            onclick={fullscreen.toggle}
+          />
+        {/if}
         {#if staffed}
           <SceneSign
             at={SIGNS.wc}

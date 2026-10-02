@@ -5,6 +5,8 @@ import exit from "$lib/sprites/exit.json";
 import foreman from "$lib/sprites/foreman.json";
 import fx from "$lib/sprites/fx.json";
 import phone from "$lib/sprites/phone.json";
+import screen from "$lib/sprites/screen.json";
+import speaker from "$lib/sprites/speaker.json";
 import { type Flip, frameOf, type Sprite } from "$lib/sprites/sprite";
 import wc from "$lib/sprites/wc.json";
 import worker from "$lib/sprites/worker.json";
@@ -21,6 +23,8 @@ export const SPRITES = {
   fx: fx as Sprite,
   exit: exit as Sprite,
   wc: wc as Sprite,
+  speaker: speaker as Sprite,
+  screen: screen as Sprite,
 };
 
 export type Look = { sprite: Sprite; frame: number; variant?: string; flip?: Flip };

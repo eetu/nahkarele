@@ -5,7 +5,6 @@
   import OfficeMemo from "$lib/components/OfficeMemo.svelte";
   import OfficeStage from "$lib/components/OfficeStage.svelte";
   import Payslip from "$lib/components/Payslip.svelte";
-  import TopBar from "$lib/components/TopBar.svelte";
   import { debugDay } from "$lib/debug";
   import { eur } from "$lib/format";
   import { officeWeek } from "$lib/office/week.svelte";
@@ -24,24 +23,17 @@
 {#snippet desk()}<DeskPanel />{/snippet}
 
 <div class="page">
-  <TopBar>
-    <dl class="hud">
-      <div>
-        <dt class="label">{officeWeek.current.name}</dt>
-        <dd class="num">
-          {#if officeWeek.screen === "loop"}—{:else if officeWeek.screen === "shift"}{officeWeek.hud
-              .left}
-            to come{:else}clocked out{/if}
-        </dd>
-      </div>
-      {#if officeWeek.screen === "shift" || officeWeek.screen === "blast"}
-        <div>
-          <dt class="label">salary</dt>
-          <dd class="num">{eur(officeWeek.hud.salary)}</dd>
-        </div>
-      {/if}
-    </dl>
-  </TopBar>
+  <!-- The numbers are on the walls (calendar, the pay readout); this copy is for ears. -->
+  <dl class="sr-only" aria-label="shift">
+    <dt>day</dt>
+    <dd>{officeWeek.current.name}</dd>
+    {#if officeWeek.screen === "shift"}
+      <dt>to come</dt>
+      <dd>{officeWeek.hud.left}</dd>
+      <dt>salary</dt>
+      <dd>{eur(officeWeek.hud.salary)}</dd>
+    {/if}
+  </dl>
 
   <main>
     <!-- One stage for the whole week: the canvas and its loop survive every screen change. -->
@@ -75,19 +67,6 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-  }
-
-  .hud {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem 1.5rem;
-    margin: 0;
-  }
-
-  dd {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 500;
   }
 
   .after {

@@ -1,0 +1,46 @@
+{
+  "name": "speaker",
+  "w": 12,
+  "h": 12,
+  "palette": {
+    "K": "#3a3a3a",
+    "A": "#999999",
+    "D": "#1a1c1e",
+    "W": "#e8ecf0",
+    "R": "#d0342c"
+  },
+  "animations": {
+    "on": [0],
+    "muted": [1]
+  },
+  "frames": [
+    [
+      "KKKKKKKKKKKK",
+      "KDDDDDDDDDDK",
+      "KDDDDDWDDDDK",
+      "KDDDDWWDDWDK",
+      "KDWWWWWDDDWK",
+      "KDWWWWWDWDWK",
+      "KDWWWWWDWDWK",
+      "KDWWWWWDDDWK",
+      "KDDDDWWDDWDK",
+      "KDDDDDWDDDDK",
+      "KDDDDDDDDDDK",
+      "KKKKKKKKKKKK"
+    ],
+    [
+      "KKKKKKKKKKKK",
+      "KDDDDDDDDDDK",
+      "KDDDDDADDDDK",
+      "KDDDDAADDDDK",
+      "KDAAAAADDDDK",
+      "KDAAAAADDDDK",
+      "KDAAAAADDDDK",
+      "KDAAAAADDDDK",
+      "KDDDDAADDDDK",
+      "KDDDDDADDDDK",
+      "KDDDDDDDDDDK",
+      "KKKKKKKKKKKK"
+    ]
+  ]
+}

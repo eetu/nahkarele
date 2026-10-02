@@ -278,6 +278,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@glowbox/lcd@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "@glowbox/lcd@npm:1.12.0"
+  checksum: 10c0/1f1219c112561b411ec6fbb50cab766312d3387e9557a6d7dca264ee6b5aa96ac3070896843063450313d050a5e2241626f7e9b2bda76227d27a75e95007f5fa
+  languageName: node
+  linkType: hard
+
 "@glowbox/nixie@npm:^1.12.0":
   version: 1.12.0
   resolution: "@glowbox/nixie@npm:1.12.0"
@@ -1900,6 +1907,7 @@ __metadata:
     "@anarkisti/eslint-config": "npm:^1.1.0"
     "@fontsource/inter": "npm:^5.3.0"
     "@fontsource/space-grotesk": "npm:^5.3.0"
+    "@glowbox/lcd": "npm:^1.12.0"
     "@glowbox/nixie": "npm:^1.12.0"
     "@glowbox/seven-segment": "npm:^1.12.0"
     "@lucide/svelte": "npm:^1.48.0"

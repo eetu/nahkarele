@@ -18,6 +18,7 @@
     step,
   } from "$lib/factory/engine";
   import { week } from "$lib/factory/week.svelte";
+  import { fullscreen } from "$lib/fullscreen.svelte";
   import { leaveKey } from "$lib/keys";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
 
@@ -66,7 +67,9 @@
     const box = canvas.getBoundingClientRect();
     const x = ((e.clientX - box.left) / box.width) * SCENE_W;
     const y = ((e.clientY - box.top) / box.height) * SCENE_H;
-    const near = (b: { x: number; y: number }) => Math.hypot(x - b.x, y - b.y) <= BUTTONS.r + 3;
+    // A thumb is wider than a cursor: the buttons are drawn small, but reach further for touch.
+    const slack = e.pointerType === "touch" ? 12 : 3;
+    const near = (b: { x: number; y: number }) => Math.hypot(x - b.x, y - b.y) <= BUTTONS.r + slack;
     if (near(BUTTONS.stamp) || onCurrent(week.sim, x, y)) act(true);
     else if (near(BUTTONS.pass)) act(false);
   };
@@ -75,8 +78,12 @@
   const PASS_KEYS = new Set(["Enter", "ArrowRight", "d", "D"]);
 
   const onKey = (e: KeyboardEvent) => {
-    if (!staffed || leaveKey(e)) return;
-    if (e.key === "w" || e.key === "W") week.toggleBreak();
+    if (leaveKey(e)) return;
+    const k = e.key.toLowerCase();
+    if (k === "m") sfx.toggleMute();
+    else if (k === "f") fullscreen.toggle();
+    else if (!staffed) return;
+    else if (k === "w") week.toggleBreak();
     else if (STAMP_KEYS.has(e.key)) act(true);
     else if (PASS_KEYS.has(e.key)) act(false);
     else return;
@@ -90,7 +97,7 @@
     const resize = () => {
       // Room for the controls: below the scene, or beside it on a phone held sideways.
       const next = short()
-        ? fitScene(el.clientWidth - 200, SCENE_W, SCENE_H, window.innerHeight - 72)
+        ? fitScene(el.clientWidth - 80, SCENE_W, SCENE_H, window.innerHeight - 72)
         : fitScene(el.clientWidth, SCENE_W, SCENE_H, window.innerHeight - 220);
       fit = next;
       if (canvas) {
@@ -154,6 +161,11 @@
         if (week.screen === "shift") sfx.whistle();
       }
       // Reviews hold the last frame; nothing moves and nothing is redrawn.
+      // A sign toggled on a held frame (review) still has to show its new state.
+      const fs = fullscreen.supported ? fullscreen.on : null;
+      if (st.muted !== sfx.muted || st.fullscreen !== fs) dirty = true;
+      st.muted = sfx.muted;
+      st.fullscreen = fs;
       const live = week.screen === "shift" || week.screen === "memo";
       // Between shifts the line is heard from the door.
       sfx.duck(week.screen === "shift" ? 1 : 0.4);
@@ -216,7 +228,22 @@
         >
           <NixieClock value={week.hud.clock} />
         </div>
-        <SceneSign at={SIGNS.exit} scene={SCENE} label="exit" home />
+        <!-- Leaving is leaving: the next visit starts a new week. -->
+        <SceneSign at={SIGNS.exit} scene={SCENE} label="exit" home onclick={week.newWeek} />
+        <SceneSign
+          at={SIGNS.speaker}
+          scene={SCENE}
+          label={sfx.muted ? "sound on (m)" : "sound off (m)"}
+          onclick={sfx.toggleMute}
+        />
+        {#if fullscreen.supported}
+          <SceneSign
+            at={SIGNS.screen}
+            scene={SCENE}
+            label={fullscreen.on ? "leave fullscreen (f)" : "fullscreen (f)"}
+            onclick={fullscreen.toggle}
+          />
+        {/if}
         {#if staffed}
           <SceneSign
             at={SIGNS.wc}
@@ -239,18 +266,21 @@
       <button
         class="stamp"
         disabled={!ready}
+        aria-label="stamp"
         onmousedown={(e) => e.preventDefault()}
         onclick={() => act(true)}
       >
-        <Stamp size={18} /> stamp <kbd>space</kbd>
+        <Stamp size={18} /><span class="text">stamp</span> <kbd>space</kbd>
       </button>
       <button
         class="pass"
         disabled={!ready}
+        aria-label="pass"
         onmousedown={(e) => e.preventDefault()}
         onclick={() => act(false)}
       >
-        pass <ArrowRight size={18} /> <kbd>enter</kbd>
+        <span class="text">pass</span>
+        <ArrowRight size={18} /> <kbd>enter</kbd>
       </button>
     </div>
   {/if}
@@ -383,8 +413,15 @@
       flex-direction: column;
     }
 
+    /* Icons only: the labels would cost the scene its width. */
     .controls button {
       justify-content: center;
+      padding: 0.9rem;
+    }
+
+    .controls .text,
+    .controls kbd {
+      display: none;
     }
   }
 </style>
