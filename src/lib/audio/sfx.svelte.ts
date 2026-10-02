@@ -111,7 +111,8 @@ class Sfx {
         else if (!this.muted) void ctx.resume();
       });
     }
-    if (this.#ctx.state === "suspended" && !document.hidden) void this.#ctx.resume();
+    // iOS reports "interrupted" after a call or a trip to the background.
+    if (this.#ctx.state !== "running" && !document.hidden) void this.#ctx.resume();
   };
 
   toggleMute = () => {

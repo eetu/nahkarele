@@ -35,6 +35,8 @@
   };
 
   const toggle = () => {
+    // Play is the only gesture on the front page: the sound has to start from it.
+    sfx.unlock();
     if (mode === "play") {
       mode = "pause";
       return;

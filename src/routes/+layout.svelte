@@ -24,8 +24,15 @@
   });
 </script>
 
-<!-- Browsers only let sound start inside a gesture. -->
-<svelte:window onpointerdown={sfx.unlock} onkeydown={sfx.unlock} />
+<!-- Sound may only start inside a gesture. A touch counts when the finger lifts, not when it
+     lands, so pointerdown alone leaves phones silent. -->
+<svelte:window
+  onpointerdown={sfx.unlock}
+  onpointerup={sfx.unlock}
+  ontouchend={sfx.unlock}
+  onclick={sfx.unlock}
+  onkeydown={sfx.unlock}
+/>
 
 {@render children()}
 
