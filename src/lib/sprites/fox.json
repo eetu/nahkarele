@@ -1,0 +1,40 @@
+{
+  "name": "fox",
+  "w": 18,
+  "h": 10,
+  "palette": {
+    "R": "#c8622a",
+    "r": "#9a4720",
+    "W": "#f4f0e0",
+    "K": "#15120f"
+  },
+  "animations": {
+    "trot": [0, 1]
+  },
+  "frames": [
+    [
+      "..............RR..",
+      ".............RRRR.",
+      "RR...........RKRW.",
+      "RRRRRRRRRRRRRRRRW.",
+      "rRRRRRRRRRRRRRRRR.",
+      "rrRRRRRRRRRRRRRR..",
+      "WrRRRRRRRRRRRRR...",
+      "...rRR......rRR...",
+      "..rr..rr...rr..rr.",
+      ".K.....K..K.....K."
+    ],
+    [
+      "..............RR..",
+      ".............RRRR.",
+      ".RR..........RKRW.",
+      ".RRRRRRRRRRRRRRRW.",
+      "rRRRRRRRRRRRRRRRR.",
+      "rrRRRRRRRRRRRRRR..",
+      "WrRRRRRRRRRRRRR...",
+      "....rRR....rRR....",
+      "....rr.rr..rr.rr..",
+      "...K....K.K....K.."
+    ]
+  ]
+}

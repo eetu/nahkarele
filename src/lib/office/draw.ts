@@ -25,7 +25,7 @@ import {
   SCENE_W,
   TRAY,
 } from "./engine";
-import { drawTrees, drawWoodlife } from "./forest";
+import { drawGround, drawIvy, drawTrees, drawWoodlife, overgrown } from "./forest";
 
 const S = {
   specialist: specialist as Sprite,
@@ -245,6 +245,7 @@ const drawGarden = (ctx: CanvasRenderingContext2D, since: number) => {
   drawCracks(ctx);
   drawMoss(ctx, since);
   drawTrees(ctx, since);
+  drawGround(ctx, since);
   for (const t of TUFTS) {
     const h = Math.min(6, Math.max(0, (since - t.delay) * 0.25));
     if (h <= 0) continue;
@@ -397,7 +398,9 @@ const drawSlab = (ctx: CanvasRenderingContext2D, ai: 1 | 2, s: OfficeState, mood
     (e) => (e.stage === "fly-in" && e.from === ai) || (e.stage === "fly-out" && e.to === ai),
   );
   const breath = 0.35 + 0.25 * Math.sin((mood.after ? mood.since : s.t) * 2 + ai);
-  ctx.globalAlpha = active ? 1 : breath;
+  // Under the ivy, the light goes out.
+  const dim = mood.after ? 1 - overgrown(mood.since) * 0.85 : 1;
+  ctx.globalAlpha = (active ? 1 : breath) * dim;
   rect(ctx, "#57b6ff", x + w / 2 - 1, top + 30, 2, 40);
   ctx.globalAlpha = 1;
   if (mood.after) {
@@ -424,6 +427,7 @@ const drawSlab = (ctx: CanvasRenderingContext2D, ai: 1 | 2, s: OfficeState, mood
   ctx.textBaseline = "top";
   ctx.fillText(`AI #${ai}`, x + w / 2, bottom - 15);
   ctx.textAlign = "left";
+  if (mood.after) drawIvy(ctx, x, top, bottom, w, mood.since);
 };
 
 /** Friday's AIs talk directly: a crackling arc over the empty desk. */
@@ -431,7 +435,8 @@ const drawArc = (ctx: CanvasRenderingContext2D, since: number) => {
   const from = AI_X[1] + SLAB.w;
   const to = AI_X[2];
   ctx.strokeStyle = C.rune;
-  ctx.globalAlpha = 0.6 + 0.4 * Math.sin(since * 11);
+  // The arc fades as the ivy takes the slabs.
+  ctx.globalAlpha = (0.6 + 0.4 * Math.sin(since * 11)) * (1 - overgrown(since));
   ctx.beginPath();
   ctx.moveTo(from, 70);
   for (let x = from; x <= to; x += 6) {

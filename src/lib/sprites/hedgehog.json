@@ -1,0 +1,18 @@
+{
+  "name": "hedgehog",
+  "w": 11,
+  "h": 6,
+  "palette": {
+    "S": "#5e4726",
+    "s": "#3e2e18",
+    "F": "#b8a68e",
+    "K": "#15120f"
+  },
+  "animations": {
+    "shuffle": [0, 1]
+  },
+  "frames": [
+    ["..sSsSsSs..", ".sSsSsSsSs.", "sSsSsSsSsSF", "SsSsSsSsSFF", "sSsSsSsSsFK", ".F..F..F..."],
+    ["..sSsSsSs..", ".sSsSsSsSs.", "sSsSsSsSsSF", "SsSsSsSsSFF", "sSsSsSsSsFK", "..F..F..F.."]
+  ]
+}
