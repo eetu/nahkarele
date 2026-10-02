@@ -6,14 +6,15 @@
   import "@fontsource/space-grotesk/500.css";
   import "$lib/styles/halo.css";
 
-  import { updated } from "$app/state";
+  import { page, updated } from "$app/state";
   import { sfx } from "$lib/audio/sfx.svelte";
 
   let { children } = $props();
 
-  // Nothing in a shift is worth keeping across a deploy.
+  // A new deploy loads straight away on the front page, where nothing is lost. In a room the
+  // week stays; SvelteKit reloads on the next navigation anyway.
   $effect(() => {
-    if (updated.current) location.reload();
+    if (updated.current && page.url.pathname === "/") location.reload();
   });
 
   $effect(() => {
