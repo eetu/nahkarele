@@ -226,6 +226,7 @@
     flex: 1;
     justify-content: center;
     padding-block: 0.7rem;
+    min-height: 44px;
   }
 
   .approve:not(:disabled) {
@@ -245,6 +246,7 @@
   .pad .key {
     justify-content: center;
     padding: 0.35rem;
+    min-height: 44px;
     font-size: 1.05rem;
     font-variant-numeric: tabular-nums;
   }

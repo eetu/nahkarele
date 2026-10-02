@@ -59,11 +59,19 @@
     background: none;
     cursor: pointer;
     transition: backdrop-filter var(--halo-d-fast);
+    /* A long press on a sign is a mis-tap, not a request for a link preview. */
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
-  /* The sign under the button lights up a little; nothing is drawn around it. */
-  .sign:hover {
-    backdrop-filter: brightness(1.3);
+  /* The sign under the button lights up a little; nothing is drawn around it. A touch
+     screen has no hover, and a tapped sign would otherwise stay lit. */
+  @media (hover: hover) {
+    .sign:hover {
+      backdrop-filter: brightness(1.3);
+    }
   }
 
   .sign:focus-visible {

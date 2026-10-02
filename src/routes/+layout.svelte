@@ -48,6 +48,13 @@
     height: 100vh;
   }
 
+  /* A game page: a fast second tap next to a button must not zoom the page, and a drag
+     past the edge must not pull-to-refresh. Pinch zoom and scrolling stay. */
+  :global(html) {
+    touch-action: manipulation;
+    overscroll-behavior: none;
+  }
+
   :global(body) {
     margin: 0;
     background: var(--halo-body);
@@ -75,6 +82,9 @@
     transition:
       background var(--halo-d-fast),
       border-color var(--halo-d-fast);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   :global(button:hover:not(:disabled)) {

@@ -284,6 +284,9 @@
     image-rendering: pixelated;
     aspect-ratio: 320 / 180;
     touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   canvas.staffed {
@@ -335,6 +338,13 @@
     font-family: var(--halo-font-heading);
     font-size: 0.7rem;
     opacity: 0.7;
+  }
+
+  /* Key hints mean nothing to a finger. */
+  @media (hover: none) {
+    kbd {
+      display: none;
+    }
   }
 
   @media (max-width: 760px) {
