@@ -233,9 +233,24 @@ export const drawWindow = (
 
   if (extras.blast != null && extras.blast >= 0) drawBlast(ctx, g, extras.blast);
 
-  const town = mix("#262e3a", "#7a8a95", day);
-  for (const [fx, fy, fw, fh] of TOWN) rect(ctx, town, x + fx * w, y + fy * h, fw * w, fh * h + 1);
-  if (day < 0.5 && extras.blast == null) {
+  const ruined = extras.cracked === true;
+  const town = ruined ? mix("#1c1f24", "#4e565e", day) : mix("#262e3a", "#7a8a95", day);
+  TOWN.forEach(([fx, fy, fw, fh], i) => {
+    if (!ruined) {
+      rect(ctx, town, x + fx * w, y + fy * h, fw * w, fh * h + 1);
+      return;
+    }
+    // What the blast left: stumps at a third to two thirds of their height, tops bitten off.
+    const keep = 0.35 + ((i * 7) % 5) * 0.08;
+    const base = y + (fy + fh) * h + 1;
+    for (let px = 0; px < fw * w; px++) {
+      const hash = ((Math.imul(i * 131 + px * 17, 2654435761) >>> 0) % 100) / 100;
+      const stump = fh * h * keep * (0.6 + 0.4 * hash);
+      rect(ctx, town, x + fx * w + px, base - stump, 1, stump);
+    }
+  });
+  // No lights in a town that is no longer there.
+  if (day < 0.5 && extras.blast == null && !ruined) {
     ctx.globalAlpha = 1 - day * 2;
     for (const [fx, fy] of LIT) rect(ctx, "#f2c230", x + fx * w, y + fy * h, 1, 1);
     ctx.globalAlpha = 1;
