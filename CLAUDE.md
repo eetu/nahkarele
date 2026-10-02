@@ -42,6 +42,10 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   in the tray (max `DESK_CAPACITY`), overflow or slide onto the floor, and the drone carries
   those to the receiver. An answer only moves the accuracy bonus. Salary is time on shift.
   The office test runs idle, right, wrong and slow players against the same seed.
+- **The rooms have no header.** Numbers and switches live in the scene: a wall calendar for
+  the day and the count, TÄ'h's readout and the shredder/crate counters, the office pay under
+  the clock, and `SceneSign` buttons over sprites for EXIT, WC, sound and fullscreen. In-scene
+  text uses the 5x7 face in `scene/pixelfont.ts` (ASCII plus a euro sign).
 - **A toilet break hands the job to the machines.** The WC sign on the wall (or `w`) starts and
   ends it. `setAway` opens the factory gate (TÄ'h
   decides, correctly) or sends office tokens AI to AI; the stage runs time 3×. Whatever is
