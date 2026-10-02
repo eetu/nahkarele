@@ -31,7 +31,9 @@ const flipRows = (rows: string[], flip?: Flip): string[] => {
 export const frameOf = (s: Sprite, animation: string, step: number): number => {
   const run = s.animations?.[animation];
   if (!run?.length) return 0;
-  return run[Math.floor(step) % run.length];
+  // Wrapped both ways: a visitor still off the left edge steps through negative distance.
+  const n = run.length;
+  return run[((Math.floor(step) % n) + n) % n];
 };
 
 const baked = new Map<string, HTMLCanvasElement>();
