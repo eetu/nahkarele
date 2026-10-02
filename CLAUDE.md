@@ -73,6 +73,8 @@ builds only) ·
 `static/favicon.svg`, then `scripts/gen-icons.sh` (needs librsvg + ImageMagick). Tape: edit
 `src/lib/tape/orientation.json`, then `uv run scripts/gen-tape.py` (Piper on mini, ffmpeg); it
 re-sings each line on held notes and writes `static/tape/orientation.mp3` + `tape.json` cues.
+Link card: `yarn dev`, then `SITE=http://localhost:5173 node scripts/gen-og.mjs` (borrows a
+playwright install, see the script) captures both rooms into `static/og.jpg`.
 
 ## Out of scope
 
