@@ -680,7 +680,7 @@ class Sfx {
           src.playbackRate.setTargetAtTime(rate, now, 0.02);
           wobble.gain.setTargetAtTime(rate, now, 0.02);
         }
-        hg.gain.setTargetAtTime(0.0035 * rate, now, 0.05);
+        hg.gain.setTargetAtTime(0.002 * rate, now, 0.05);
       },
       stop,
     };

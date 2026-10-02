@@ -115,7 +115,7 @@ def sing(x: np.ndarray, fs: int, rng: np.random.Generator) -> np.ndarray:
     bins = sp.shape[1]
     src = np.clip(np.arange(bins) / 1.06, 0, bins - 1)
     sp = np.array([np.interp(src, np.arange(bins), frame) for frame in sp])
-    ap = ap**1.6
+    ap = ap**2.2
     return pw.synthesize(sung, sp, ap, fs, frame_period=FRAME_MS)
 
 
@@ -150,7 +150,11 @@ def main() -> None:
         [
             "highpass=f=150",
             "aecho=0.8:0.55:7|13:0.3|0.18",
-            "equalizer=f=3000:t=q:w=1.2:g=4",
+            "equalizer=f=3000:t=q:w=1.2:g=2",
+            # A tannoy has no top end; nor does the hiss, then.
+            "lowpass=f=6500",
+            # Even it out and bring it up: the voice sat 18 dB under the limiter.
+            "acompressor=threshold=-24dB:ratio=3:attack=10:release=200:makeup=8dB",
             "equalizer=f=350:t=q:w=1:g=-3",
             "alimiter=limit=0.9",
         ]
@@ -158,7 +162,7 @@ def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         ["ffmpeg", "-y", "-loglevel", "error", "-i", "pipe:0", "-af", chain, "-ac", "1"]
-        + ["-c:a", "libmp3lame", "-b:a", "48k", str(OUT)],
+        + ["-c:a", "libmp3lame", "-b:a", "40k", str(OUT)],
         input=wav.getvalue(),
         check=True,
     )
