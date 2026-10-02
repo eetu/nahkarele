@@ -1,7 +1,7 @@
 {
   "name": "rabbit",
-  "w": 12,
-  "h": 10,
+  "w": 14,
+  "h": 11,
   "palette": {
     "F": "#b8a68e",
     "f": "#8f7d66",
@@ -22,40 +22,43 @@
   },
   "frames": [
     [
-      "........F.F.",
-      "........FPFP",
-      "........F.F.",
-      "........FFF.",
-      "...FFFFFFKF.",
-      "..FFFFFFFFF.",
-      "..FFFFFFFF..",
-      ".WFFFFFFFF..",
-      "..FFFfFFf...",
-      "..ff..ff...."
+      ".......FF..FF.",
+      ".......FPF.FPF",
+      "........FPFFPF",
+      "........FFFFFF",
+      "........FFKFFF",
+      "..FFFFFFFFFFFf",
+      ".WFFFFFFFFFFF.",
+      ".WFFFFFFFFFF..",
+      "..FFFfFFFFf...",
+      "..ff..ff.ff...",
+      ".............."
     ],
     [
-      "........F.F.",
-      ".......FPFP.",
-      ".......F.F..",
-      "......FFFF..",
-      "..FFFFFFFKF.",
-      ".WFFFFFFFF..",
-      "..FFFFFFF...",
-      "..FFf..Ff...",
-      ".ff.....ff..",
-      "............"
+      "........FF.FF.",
+      "........FPFFPF",
+      ".........FFFFF",
+      ".........FFKFF",
+      "..FFFFFFFFFFFf",
+      ".WFFFFFFFFFFF.",
+      ".WFFFFFFFFFF..",
+      "..Ff.....fF...",
+      ".ff.......ff..",
+      "..............",
+      ".............."
     ],
     [
-      "............",
-      "........F.F.",
-      "........FPFP",
-      "...FFFFFF.F.",
-      "..FFFFFFFFF.",
-      "..FFFFFFFKF.",
-      ".WFFFFFFFFF.",
-      "..FFFfFFfFF.",
-      "..ff..ff..f.",
-      "............"
+      "..............",
+      "........FF.FF.",
+      "........FPFFPF",
+      "..FFFFFFFFFFFF",
+      ".WFFFFFFFFFFFF",
+      ".WFFFFFFFFFKFF",
+      "..FFFFFFFFFFFf",
+      "..FFFfFFFFff..",
+      "..ff..ff.ff...",
+      "..............",
+      ".............."
     ]
   ]
 }
