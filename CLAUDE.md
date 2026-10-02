@@ -11,7 +11,7 @@ shape), `../dice` (same SvelteKit stack), `eetu/scene` (origin of `src/lib/tape/
 
 ```
 src/lib/factory/     kumitehdas: engine (belt, gate, TÄ'h, floor bots), days, drawing, week store
-src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, week store
+src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, friday's wood (forest.ts), week store
 src/lib/audio/       synthesized sound for both rooms, the mute
 src/lib/scene/       shared: the winter window (sky, weather, blast, cracks) and the shift clock
 src/lib/sprites/     dab-format sprite JSON for both rooms + a reader
