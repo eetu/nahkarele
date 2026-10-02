@@ -134,7 +134,8 @@
       // The AIs' fans, and the drone's rotors pitched by how fast it is going.
       sfx.bed("fans", 0.03);
       const speed = Math.hypot(s.drone.vx, s.drone.vy) / 320;
-      sfx.bed("drone", 0.012 + speed * 0.03, 1 + speed * 0.6);
+      // Silent at rest: a hovering drone buzzing all through friday wore thin on a phone.
+      sfx.bed("drone", speed > 0.02 ? 0.004 + speed * 0.02 : 0, 1 + speed * 0.6);
       const k = el.width / SCENE_W;
       ctx.setTransform(k, 0, 0, k, 0, 0);
       drawOffice(ctx, officeWeek.sim, officeWeek.mood, {
