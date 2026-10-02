@@ -35,7 +35,9 @@
   };
 
   const toggle = () => {
-    // Play is the only gesture on the front page: the sound has to start from it.
+    // Play is the only gesture on the front page: the sound has to start from it, in the
+    // session that plays through the silent switch.
+    sfx.session("playback");
     sfx.unlock();
     if (mode === "play") {
       mode = "pause";
@@ -60,6 +62,7 @@
   };
 
   const stop = () => {
+    sfx.session("auto");
     mode = "stop";
     position = 0;
     release();
@@ -101,6 +104,7 @@
       if (mode === "play" || mode === "pause") {
         position = Math.min(TAPE_SECONDS, position + dt * deck.spin);
         if (position >= TAPE_SECONDS) {
+          sfx.session("auto");
           mode = "stop";
           release();
         }
@@ -143,6 +147,7 @@
       resize.disconnect();
       wake = null;
       unthread();
+      sfx.session("auto");
     };
   });
 

@@ -25,9 +25,8 @@
 </script>
 
 <!-- Sound may only start inside a gesture. A touch counts when the finger lifts, not when it
-     lands, so pointerdown alone leaves phones silent. -->
+     lands, and iOS wants the context created in a counted gesture: no pointerdown here. -->
 <svelte:window
-  onpointerdown={sfx.unlock}
   onpointerup={sfx.unlock}
   ontouchend={sfx.unlock}
   onclick={sfx.unlock}

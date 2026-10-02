@@ -3,6 +3,8 @@
 // and until then every call is a no-op: a frame loop can call freely from the first frame.
 
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
+/** The Audio Session API (Safari 17+), not yet in TypeScript's DOM types. */
+type SessionNavigator = Navigator & { audioSession?: { type: string } };
 
 const MUTE_KEY = "nahkarele:muted";
 
@@ -111,9 +113,27 @@ class Sfx {
         else if (!this.muted) void ctx.resume();
       });
     }
+    const ctx = this.#ctx;
     // iOS reports "interrupted" after a call or a trip to the background.
-    if (this.#ctx.state !== "running" && !document.hidden) void this.#ctx.resume();
+    if (ctx.state !== "running" && !document.hidden) {
+      void ctx.resume();
+      // WebKit lets a context sound only once something has started inside the gesture.
+      const blip = ctx.createBufferSource();
+      blip.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      blip.connect(ctx.destination);
+      blip.start();
+    }
   };
+
+  /**
+   * iOS plays Web Audio as "ambient", which the silent switch mutes. The tape asks for
+   * "playback" while it runs, as a media player would (it pauses other apps' audio); the game
+   * stays ambient.
+   */
+  session(type: "playback" | "auto") {
+    const nav = navigator as SessionNavigator;
+    if (nav.audioSession) nav.audioSession.type = type;
+  }
 
   toggleMute = () => {
     this.muted = !this.muted;
@@ -660,7 +680,7 @@ class Sfx {
           src.playbackRate.setTargetAtTime(rate, now, 0.02);
           wobble.gain.setTargetAtTime(rate, now, 0.02);
         }
-        hg.gain.setTargetAtTime(0.012 * rate, now, 0.05);
+        hg.gain.setTargetAtTime(0.0035 * rate, now, 0.05);
       },
       stop,
     };
