@@ -4,6 +4,8 @@
 term for a person placed inside an automated process to pass along what the machine
 already knows. The 2026 edition is the _meat proxy_: the human between two AI agents.
 
+[![the boot factory and the office, mid-shift](static/og.jpg)](https://nahkarele.invinite.tech)
+
 Two jobs:
 
 - **1978 · kumitehdas.** Rubber boots stop at your gate one by one. Stamp the defective
