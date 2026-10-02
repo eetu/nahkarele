@@ -43,6 +43,10 @@
 
   const staffed = $derived(week.screen === "shift");
   const SCENE = { w: SCENE_W, h: SCENE_H };
+  /** A viewport shorter than this (a phone on its side) puts the controls beside the scene. */
+  const SHORT_PX = 520;
+  const short = () => window.innerHeight < SHORT_PX;
+
   const st = createStagecraft();
 
   const act = (stampIt: boolean) => {
@@ -84,7 +88,10 @@
     const el = wrap;
     if (!el) return;
     const resize = () => {
-      const next = fitScene(el.clientWidth, SCENE_W, SCENE_H, window.innerHeight - 220);
+      // Room for the controls: below the scene, or beside it on a phone held sideways.
+      const next = short()
+        ? fitScene(el.clientWidth - 200, SCENE_W, SCENE_H, window.innerHeight - 72)
+        : fitScene(el.clientWidth, SCENE_W, SCENE_H, window.innerHeight - 220);
       fit = next;
       if (canvas) {
         canvas.width = SCENE_W * next.scale;
@@ -189,8 +196,8 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="stage" bind:this={wrap}>
-  <div class="box" style:width="{fit.viewCss}px">
-    <div class="viewport">
+  <div class="box">
+    <div class="viewport" style:width="{fit.viewCss}px">
       <div class="frame" bind:this={frameEl} style:width="{fit.sceneCss}px">
         <canvas
           bind:this={canvas}
@@ -348,6 +355,24 @@
 
     .controls {
       width: 100%;
+    }
+  }
+
+  /* A phone on its side: the scene takes the height, the buttons stack beside it. */
+  @media (max-height: 519px) and (orientation: landscape) {
+    .stage {
+      flex-direction: row;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .controls {
+      width: auto;
+      flex-direction: column;
+    }
+
+    .controls button {
+      justify-content: center;
     }
   }
 </style>

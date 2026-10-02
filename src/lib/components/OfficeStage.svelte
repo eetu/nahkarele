@@ -38,6 +38,9 @@
   let fit = $state<Fit>({ scale: 2, sceneCss: SCENE_W, viewCss: SCENE_W });
   const SCENE = { w: SCENE_W, h: SCENE_H };
   const staffed = $derived(officeWeek.screen === "shift");
+  /** A viewport shorter than this (a phone on its side) puts the desk beside the scene. */
+  const SHORT_PX = 520;
+  const short = () => window.innerHeight < SHORT_PX;
 
   const onKey = (e: KeyboardEvent) => {
     if (!staffed || leaveKey(e) || (e.key !== "w" && e.key !== "W")) return;
@@ -49,7 +52,10 @@
     const el = wrap;
     if (!el) return;
     const resize = () => {
-      const next = fitScene(el.clientWidth, SCENE_W, SCENE_H, window.innerHeight - reserve);
+      // Room for the desk: over or under the scene, or beside it on a phone held sideways.
+      const next = short()
+        ? fitScene(el.clientWidth - 320, SCENE_W, SCENE_H, window.innerHeight - 72)
+        : fitScene(el.clientWidth, SCENE_W, SCENE_H, window.innerHeight - reserve);
       fit = next;
       if (canvas) {
         canvas.width = SCENE_W * next.scale;
@@ -147,8 +153,8 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="stage" bind:this={wrap}>
-  <div class="box" style:width="{fit.viewCss}px">
-    <div class="viewport">
+  <div class="box">
+    <div class="viewport" style:width="{fit.viewCss}px">
       <div class="frame" bind:this={frameEl} style:width="{fit.sceneCss}px">
         <canvas bind:this={canvas} aria-label="an office: two AI slabs and a desk between them"
         ></canvas>
@@ -259,6 +265,24 @@
 
     .dock :global(.panel) {
       width: min(100%, 26rem);
+    }
+  }
+
+  /* A phone on its side: the scene takes the height, the desk sits beside it. */
+  @media (max-height: 519px) and (orientation: landscape) {
+    .box {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+
+    .dock {
+      position: static;
+      padding-top: 0;
+    }
+
+    .dock :global(.panel) {
+      width: 19rem;
     }
   }
 </style>
