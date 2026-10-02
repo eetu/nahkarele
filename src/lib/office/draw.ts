@@ -286,52 +286,8 @@ const DEER_CYCLE = 75;
 const DEER_SPEED = 16;
 /** Drawn at twice the sprite's size: a deer is big next to a desk. */
 const DEER_SCALE = 2;
-/** Scene px per full walk cycle, so the feet plant instead of sliding. */
+/** Scene px the deer covers in one pass through its walk frames. */
 const DEER_STRIDE = 22;
-const HOOF_Y = 21;
-
-type Leg = { x: number; hind: boolean; near: boolean; phase: number };
-/** A lateral walk: hind, fore, hind, fore, a quarter cycle apart. */
-const LEGS: Leg[] = [
-  { x: 5, hind: true, near: false, phase: Math.PI },
-  { x: 15, hind: false, near: false, phase: Math.PI * 1.5 },
-  { x: 6, hind: true, near: true, phase: 0 },
-  { x: 16, hind: false, near: true, phase: Math.PI * 0.5 },
-];
-
-/** One jointed leg in sprite coordinates, facing right: hip or shoulder, hock or knee, hoof. */
-const drawLeg = (ctx: CanvasRenderingContext2D, leg: Leg, cycle: number | null) => {
-  const phi = cycle === null ? 0 : cycle + leg.phase;
-  const moving = cycle !== null;
-  const swing = moving ? Math.sin(phi) * 2.5 : 0;
-  const lift = moving ? Math.max(0, Math.cos(phi)) * 1.6 : 0;
-  const top = { x: leg.x, y: 11 };
-  const hoof = { x: leg.x + swing, y: HOOF_Y - lift };
-  const mid = { x: (top.x + hoof.x) / 2, y: (top.y + hoof.y) / 2 + 0.5 };
-  // The hock points back, the knee forward; both fold further as the foot lifts.
-  const joint = leg.hind
-    ? { x: mid.x - 1.6 - lift * 0.6, y: mid.y - 0.5 }
-    : { x: mid.x + 0.4 + lift * 0.9, y: mid.y };
-  const upper = leg.near ? "#7a4e2c" : "#4f321c";
-  const lower = leg.near ? "#6a4426" : "#452b18";
-  const segment = (
-    a: { x: number; y: number },
-    b: { x: number; y: number },
-    c: string,
-    w: number,
-  ) => {
-    const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * 2));
-    ctx.fillStyle = c;
-    for (let i = 0; i <= n; i++) {
-      const t = i / n;
-      ctx.fillRect(Math.round(a.x + (b.x - a.x) * t), Math.round(a.y + (b.y - a.y) * t), w, 1);
-    }
-  };
-  segment(top, joint, upper, leg.hind ? 2 : 1);
-  segment(joint, hoof, lower, 1);
-  ctx.fillStyle = "#2a1a10";
-  ctx.fillRect(Math.round(hoof.x), Math.round(hoof.y), 1, 1);
-};
 
 const drawDeer = (ctx: CanvasRenderingContext2D, since: number) => {
   if (since < DEER_FROM) return;
@@ -367,15 +323,14 @@ const drawDeer = (ctx: CanvasRenderingContext2D, since: number) => {
   if (t >= 0) along = prev + t * DEER_SPEED;
   if (along > SCENE_W + w) return;
   const x = face > 0 ? along : SCENE_W - along - w;
-  const cycle = grazing ? null : (along / DEER_STRIDE) * Math.PI * 2;
+  // The walk frames are one stride, stepped by distance so the hooves plant instead of sliding.
+  const frame = grazing
+    ? frameOf(S.deer, "graze", since * 3)
+    : frameOf(S.deer, "walk", (along / DEER_STRIDE) * (S.deer.animations?.walk.length ?? 1));
   ctx.save();
-  // Mirrored as a whole, so the legs follow the body.
   ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 26 - S.deer.h * DEER_SCALE);
   ctx.scale(DEER_SCALE * face, DEER_SCALE);
-  for (const leg of LEGS) if (!leg.near) drawLeg(ctx, leg, cycle);
-  const frame = grazing ? frameOf(S.deer, "graze", since * 3) : frameOf(S.deer, "walk", 0);
   drawSprite(ctx, S.deer, 0, 0, { frame });
-  for (const leg of LEGS) if (leg.near) drawLeg(ctx, leg, cycle);
   ctx.restore();
 };
 
