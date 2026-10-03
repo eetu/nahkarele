@@ -27,9 +27,8 @@ type Pt = { x: number; y: number };
 /** A piece of wood from `a` to `b`, `w` px thick, there once the tree is `at` grown (0..1);
  *  `dead` (0..1) once its branch has died. */
 type Limb = { a: Pt; b: Pt; w: number; at: number; dead?: number };
-/** Leaves on a broadleaf; a layer of boughs on a spruce (`top`, a whorl's own); a tuft of
- *  needles on a pine. */
-type Clump = { x: number; y: number; r: number; at: number; top?: boolean };
+/** Leaves on a broadleaf; a spray of needles on a spruce; a tuft of needles on a pine. */
+type Clump = { x: number; y: number; r: number; at: number };
 
 export type Plan = {
   species: Species;
@@ -177,13 +176,16 @@ const barkColour = (plan: Plan, x: number, y: number, col: number, w: number, up
       return hash(x, 80) < 0.35 && w > 1 ? "#36302a" : col === 0 ? "#5e564e" : "#4e4640";
     case "maple":
       return col === 0 && w > 1 ? "#86827a" : "#6e6a62";
-    case "cherry":
-      // Reddish, banded with lenticels.
-      return y % 3 === 0 && w > 1 ? "#8a5a48" : "#6a3a2e";
+    case "cherry": {
+      // Reddish and glossy, with short pale lenticels across it here and there, not rings.
+      if (w > 2 && hash(y, 83) < 0.35 && hash(x >> 1, y, 84) < 0.45) return "#9a6a54";
+      return col === 0 && w > 1 ? "#7e4636" : "#6a3a2e";
+    }
     case "plum":
       return col === 0 && w > 1 ? "#5e4a42" : "#4a3a34";
     case "spruce":
-      return up > 0.85 ? NEEDLES.spruce.colours[0] : "#3e2c1e";
+      // Its branchlets and young shoots are all needles.
+      return up > 0.85 || w === 1 ? NEEDLES.spruce.colours[2] : "#3e2c1e";
     case "pine":
       return up > 0.45 ? (col === 0 ? "#c8783e" : "#b0643a") : col === 0 ? "#76604c" : "#5e4a3a";
   }
@@ -362,41 +364,6 @@ export const cap = (
   }
 };
 
-/**
- * One whorl of spruce boughs. Low and middle boughs sag, then sweep up at the tip; the high
- * ones rise all the way out. Branchlets hang under the middle of each.
- */
-const bough = (
-  ctx: CanvasRenderingContext2D,
-  c: Clump,
-  r: number,
-  up: number,
-  look: Look,
-  seed: number,
-) => {
-  const half = Math.max(1, Math.round(r));
-  const { colours, lit } = NEEDLES.spruce;
-  for (let dx = -half; dx <= half; dx++) {
-    const f = Math.abs(dx) / half;
-    const sag = up < 0.65 ? Math.round(f * 2.2 - Math.max(0, f - 0.7) * 7) : -Math.round(f * 1.5);
-    // Thick enough that one layer meets the next: needles, not hatching.
-    const thick = f > 0.85 ? 1 : f > 0.55 ? 2 : 3;
-    const x = Math.round(c.x) + dx;
-    const y0 = Math.round(c.y) + sag - 1;
-    for (let k = 0; k < thick; k++) {
-      const h = hash(x, y0 + k, seed);
-      rect(ctx, k === 0 && dx < 0 && h > 0.45 ? lit : colours[Math.floor(h * 97) % 3], x, y0 + k);
-    }
-    if (f > 0.2 && f < 0.85 && hash(x, seed, 12) < 0.5) {
-      rect(ctx, colours[2], x, y0 + thick, 1, 1 + Math.floor(hash(x, seed, 13) * 2));
-    }
-    // Snow settles on a whorl's outer boughs; the layers under it are in its lee.
-    if (look.snow > 0 && c.top && f > 0.35 && hash(seed, dx, 7) < look.snow * 0.9) {
-      rect(ctx, SNOW, x, y0 - 1);
-    }
-  }
-};
-
 /** How tall a leaf clump is against its width: feathery rowan, round birch, domed oak. */
 const ASPECT: Record<Broadleaf, number> = {
   birch: 1,
@@ -455,7 +422,19 @@ export const paintTreeParts = (
     const r = c.r * g;
     const seed = i * 131 + Math.round(plan.root.x);
     if (plan.species === "spruce") {
-      bough(needles, { ...c, ...q }, r, (plan.root.y - c.y) / Math.max(1, plan.height), look, seed);
+      // A spray of needles, darker in towards the trunk, a few strands hanging from it.
+      const { colours, lit } = NEEDLES.spruce;
+      const near = 1 - Math.min(1, Math.abs(q.x - plan.root.x) / 36);
+      clump(needles, q.x, q.y, r, 0.55, seed, 1, (h, l) =>
+        h < near * 0.6 ? colours[2] : l ? lit : colours[Math.floor(h * 97) % 3],
+      );
+      for (let k = 0; k < 3; k++) {
+        if (hash(seed, k, 14) < 0.4) continue;
+        const sx = Math.round(q.x + (hash(seed, k, 15) - 0.5) * r * 1.4);
+        const drop = 1 + Math.floor(hash(seed, k, 16) * 3);
+        rect(needles, colours[2], sx, Math.round(q.y + r * 0.55), 1, drop);
+      }
+      if (look.snow > 0) cap(ctx, q.x, q.y, r, r * 0.55, look.snow, seed);
     } else if (plan.species === "pine") {
       const { colours, lit } = NEEDLES.pine;
       clump(needles, q.x, q.y, r, 0.45, seed, 1, (h, l) =>

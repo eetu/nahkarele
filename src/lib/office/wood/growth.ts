@@ -26,9 +26,11 @@ type Habit = {
   forkAt: number;
   forks: [number, number];
   spread: number;
-  /** Branches a year: in a whorl at the year's node, or alternate along the year's shoot. */
+  /** Branches a year: in a whorl at the year's node, or alternate along the year's shoot; and,
+   *  for a spruce, shorter ones between the whorls. */
   whorl: boolean;
   perYear: [number, number];
+  between?: [number, number];
   /** A branch's lean off vertical where it sprouts, low on the tree and at the top. */
   angle: [number, number];
   /** How it curves (radians per 100 px, + droops away from the stem, − rises) and wanders. */
@@ -37,11 +39,14 @@ type Habit = {
   /** How long a branch gets, m, and how fast (per year). */
   reach: number;
   rate: number;
-  /** Twigs off a branch: every `every` px, `len` m long, leaning `angle` off it and curving. */
-  twig: { every: number; len: number; angle: number; bend: number } | null;
-  /** Leaf clump radius, px, and the outer share of a branch in leaf. */
+  /** Twigs off a branch: every `every` px, `len` m long, leaning `angle` off it and curving;
+   *  or `hang`ing straight down, the branchlets of a comb spruce. */
+  twig: { every: number; len: number; angle: number; bend: number; hang?: boolean } | null;
+  /** Leaf clump radius, px, the outer share of a branch in leaf, and the clumps' spacing along
+   *  it in radii (2: just touching; less for a dense conifer). */
   leaf: number;
   outer: number;
+  gap?: number;
   /** Trunk width per (years of wood) ^ 0.6, px. */
   girth: number;
   /** The share of its height in live crown, once grown, and over how many years it gets there. */
@@ -234,14 +239,16 @@ const HABITS: Record<Species, Habit> = {
     spread: 0,
     whorl: true,
     perYear: [2, 2],
-    angle: [1.5, 1.2],
-    bend: 0.35,
-    wander: 0.08,
+    between: [1, 2],
+    angle: [1.8, 1.15],
+    bend: -0.45,
+    wander: 0.12,
     reach: 2.4,
     rate: 0.12,
-    twig: null,
-    leaf: 0,
-    outer: 1,
+    twig: { every: 5, len: 0.32, angle: 0, bend: 0, hang: true },
+    leaf: 4.4,
+    outer: 0.85,
+    gap: 1.1,
     girth: 1.3,
     crown: 0.88,
     crownAge: 40,
@@ -460,8 +467,16 @@ export const archOf = (seed: number, root: Pt, species: Species, years: number, 
       const n = Math.max(1, Math.round(many / Math.sqrt(stems.length)));
       if (habit.whorl) for (let i = 0; i < n; i++) nodes.push(now - 1);
       else for (let i = 0; i < n; i++) nodes.push(was + ((i + 0.5) / n) * (now - was));
+      // Between a spruce's whorls, a few shorter branches up the year's shoot.
+      const whorled = nodes.length;
+      if (habit.between) {
+        const [lo, hi] = habit.between;
+        const m = lo + Math.floor(rand() * (hi - lo + 1));
+        for (let i = 0; i < m; i++)
+          nodes.push(was + ((i + 0.3 + 0.4 * rand()) / m) * (now - was - 2));
+      }
       let side: 1 | -1 = rand() < 0.5 ? 1 : -1;
-      for (const node of nodes) {
+      for (const [index, node] of nodes.entries()) {
         const base = pointAt(s.path, node);
         if (root.y - base.y < lowest) continue;
         const up = Math.min(1, (root.y - base.y) / (tall * 0.6));
@@ -473,7 +488,8 @@ export const archOf = (seed: number, root: Pt, species: Species, years: number, 
         // A conifer's lowest boughs are its longest; a broadleaf's low branches, in the shade
         // of the rest, stay short.
         const shade = habit.whorl ? 1 - 0.4 * up : 0.45 + 0.55 * Math.min(1, up * 2);
-        const cap = habit.reach * PX_M * (0.7 + 0.6 * rand()) * shade;
+        const short = index >= whorled ? 0.45 : 1;
+        const cap = habit.reach * PX_M * (0.7 + 0.6 * rand()) * shade * short;
         const path = lay(base, cap + 4, (t) =>
           Math.max(
             -Math.PI * 0.95,
@@ -625,7 +641,9 @@ export const planAt = (arch: Arch, age: number, cull = true): Plan => {
         const side = (k + i) % 2 ? 1 : -1;
         const tl = Math.min(twig.len * PX_M, (len - s) * 0.5);
         const from = pointAt(a.path, s);
-        const dir = directionAt(a.path, s) + side * twig.angle;
+        const dir = twig.hang
+          ? Math.PI * (hash(i, k, 38) < 0.5 ? 1 : -1) * (0.94 + 0.06 * hash(i, k, 39))
+          : directionAt(a.path, s) + side * twig.angle;
         // It curls away from the vertical (+, a birch's hang down) or toward it, in an arc: a
         // hard curl in three pieces, a light one in two.
         const pieces = Math.abs(twig.bend) > 2 ? 3 : 2;
@@ -647,8 +665,10 @@ export const planAt = (arch: Arch, age: number, cull = true): Plan => {
         if (!dead && habit.leaf) {
           const r = habit.leaf * (0.75 + 0.4 * hash(i, k, 32));
           leaf(tip.x, tip.y, r, limbs.length - 1, i * 512 + k);
-          // A birch's twigs hang in leaf all along.
+          // A birch's twigs hang in leaf all along, and a spruce's branchlets in needles.
           if (pieces > 2) leaf(pts[1].x, pts[1].y, r * 0.8, limbs.length - 3, i * 512 + 256 + k);
+          else if (twig.hang)
+            leaf(pts[1].x, pts[1].y, r * 0.8, limbs.length - 2, i * 512 + 256 + k);
         }
       }
     }
@@ -660,7 +680,7 @@ export const planAt = (arch: Arch, age: number, cull = true): Plan => {
       return;
     }
     // Clumps that touch rather than pile up: the crown reads the same, at half the pixels.
-    const gap = Math.max(4, habit.leaf * 2);
+    const gap = Math.max(3, habit.leaf * (habit.gap ?? 2));
     let n = 0;
     for (let s = len * (1 - habit.outer); s <= len; s += gap, n++) {
       const p = pointAt(a.path, s);
@@ -675,31 +695,6 @@ export const planAt = (arch: Arch, age: number, cull = true): Plan => {
       );
     }
   });
-
-  // A spruce's needles: a sagging bough every few px up its live crown, as long as the branches
-  // that age reach.
-  if (arch.species === "spruce" && drawn[0]) {
-    const trunk = axes[0];
-    const height = arch.heightAt(age);
-    const crown = height * (habit.crown + (1 - habit.crown) * Math.exp(-age / habit.crownAge));
-    // The years' whorls, where snow settles.
-    const whorls: number[] = [];
-    for (let y = 1; y <= age; y++) whorls.push(arch.heightAt(y));
-    for (let z = Math.max(4, height - crown); z < height - 2; z += 3) {
-      const at = pointAt(trunk.path, z);
-      if (cull && at.y < CULL_Y) break;
-      const years = Math.max(0, age - arch.ageAtHeight(z));
-      const r =
-        habit.reach *
-        PX_M *
-        (1 - Math.exp(-habit.rate * years)) *
-        (0.85 + 0.3 * hash(arch.seed, z, 34));
-      const top = whorls.some((w) => Math.abs(w - z) < 1.6);
-      clumps.push({ x: at.x, y: at.y, r: Math.max(1.5, r), at: 0, top });
-      clumpOn.push(hangOn(0, z).piece);
-      clumpIds.push(100000 + Math.round(z));
-    }
-  }
 
   const plan: Plan = {
     species: arch.species,
