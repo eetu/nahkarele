@@ -28,10 +28,13 @@ export const drawGarden = (
   { since, seed, knocks }: Friday,
   fallen: Fallen,
 ) => {
-  drawOnWall(ctx, drawCracks);
   drawMoss(ctx, since);
-  drawSillSnow(ctx, since, fixtureAt("window", since, seed, fallen.wall).on);
-  drawOnWall(ctx, (wall) => drawVines(wall, since, seed));
+  const sill = fixtureAt("window", since, seed, fallen.wall).on;
+  drawOnWall(ctx, (wall) => {
+    drawCracks(wall);
+    drawSillSnow(wall, since, sill);
+    drawVines(wall, since, seed);
+  });
   drawRubble(ctx, since, seed, fallen.wall, fallen.draw);
   drawTrees(ctx, since, seed, knocks, false);
   drawGround(ctx, since);

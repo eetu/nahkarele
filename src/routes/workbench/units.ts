@@ -12,6 +12,7 @@ import {
   planClimber,
 } from "$lib/office/wood/climbers";
 import { type GrassPlan, paintGrassParts, planGrass } from "$lib/office/wood/grass";
+import { archOf, fruitAt, planAt } from "$lib/office/wood/growth";
 import { drawPosed } from "$lib/office/wood/posed";
 import { rustleOf } from "$lib/office/wood/rustle";
 import { lookAt, SEASON_S, SEASONS_FROM } from "$lib/office/wood/seasons";
@@ -31,10 +32,10 @@ import {
 } from "$lib/office/wood/stand";
 import { poseOf } from "$lib/office/wood/sway";
 import {
+  FRUIT,
   paintFruit,
   paintTreeParts,
   type Plan,
-  planTree,
   SPECIES,
   type Species,
 } from "$lib/office/wood/trees";
@@ -90,66 +91,74 @@ const blowing = (v: Values, time: number) =>
     0.08 * Math.sin(1.6 * time + 1.1) +
     (str(v, "gusts") === "gusty" ? 0.8 * Math.max(0, Math.sin(time * 0.8)) ** 3 : 0));
 
-/** The bench's trees by their parameters, so a moving tree is planned once. */
+/** The bench's trees at an age, with that year's fruit, so a moving tree is planned once. */
 const plans = new Map<string, Plan>();
-const planOf = (seed: number, height: number, species: Species) => {
-  const key = `${seed}|${height}|${species}`;
+const planFor = (seed: number, species: Species, age: number, tall: boolean) => {
+  const key = `${seed}|${species}|${age}|${tall}`;
   let plan = plans.get(key);
   if (!plan) {
-    plan = planTree(seed, { x: 55, y: 153 }, height, species);
+    const h = tall ? TALL_H : SCENE_H;
+    const base = planAt(archOf(seed, { x: 130, y: h - 27 }, species, 41), age, false);
+    plan = { ...base, fruit: fruitAt(base, 0, FRUIT[species] ?? 0, age) };
     plans.set(key, plan);
   }
   return plan;
 };
+/** A bench tall enough to see a grown tree whole. */
+const TALL_H = 640;
 
-/** One tree in a wind of `wind` (friday's strength), steady or in gusts, moving as on friday. */
+/** One tree at an age, in a wind of `wind` (friday's strength), steady or in gusts, moving as
+ *  on friday. `room` shows it as the room would (180 px high) or whole. */
 const tree: Unit = {
   name: "tree",
   animated: true,
   defaults: {
     species: "birch",
     seed: 1,
-    growth: 1,
+    age: 5,
+    room: "room",
     season: "summer",
     through: 0.5,
-    height: 90,
     wind: 0.5,
     gusts: "gusty",
   },
   params: () => [
     { kind: "select", key: "species", options: SPECIES },
     { kind: "seed", key: "seed" },
-    { kind: "range", key: "growth", min: 0, max: 1, step: 0.025 },
+    { kind: "range", key: "age", min: 0, max: 40, step: 0.25 },
+    { kind: "select", key: "room", options: ["room", "whole"] },
     { kind: "select", key: "season", options: SEASONS },
     { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01 },
-    { kind: "range", key: "height", min: 30, max: 140, step: 5 },
     { kind: "range", key: "wind", min: -2, max: 2, step: 0.1 },
     { kind: "select", key: "gusts", options: ["steady", "gusty"] },
   ],
-  size: () => ({ w: 110, h: 160 }),
+  size: (v) => ({ w: 260, h: str(v, "room") === "whole" ? TALL_H : SCENE_H }),
   draw: (ctx, v, t) => {
+    const tall = str(v, "room") === "whole";
+    const h = tall ? TALL_H : SCENE_H;
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
-    office(ctx, 110, 160, 151);
+    office(ctx, 260, h, h - 29);
     if (look.snow > 0) {
       ctx.globalAlpha = look.snow;
       ctx.fillStyle = "#f4f7fa";
-      ctx.fillRect(0, 151, 110, 9);
+      ctx.fillRect(0, h - 29, 260, 9);
       ctx.globalAlpha = 1;
     }
     const seed = num(v, "seed");
-    const plan = planOf(seed, num(v, "height"), str(v, "species") as Species);
-    const g = num(v, "growth");
-    const pose = poseOf(plan, g, look, t, (_, ago) => blowing(v, t - ago));
-    const key = `${seed}|${num(v, "height")}|${plan.species}|${g}|${look.k}|${look.p}`;
+    const species = str(v, "species") as Species;
+    const age = num(v, "age");
+    const plan = planFor(seed, species, age, tall);
+    const pose = poseOf(plan, 1, look, t, (_, ago) => blowing(v, t - ago));
+    const key = `${seed}|${species}|${age}|${tall}|${look.k}|${look.p}`;
     drawPosed(
       ctx,
       `tree${seed}`,
       key,
-      (rec, part) => paintTreeParts(rec, plan, g, look, part),
+      (rec, part) => paintTreeParts(rec, plan, 1, look, part),
       pose,
     );
-    paintFruit(ctx, plan, g, look, pose.fruit);
+    paintFruit(ctx, plan, 1, look, pose.fruit);
   },
 };
 

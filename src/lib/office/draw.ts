@@ -571,7 +571,8 @@ let layer: HTMLCanvasElement | null = null;
 
 /**
  * `paint` drawn on a layer of its own, the layer shaded `alpha` of `colour` wherever it was
- * painted, then put over `ctx`: a shade for what was drawn and nothing behind it.
+ * painted, then put over `ctx`: a shade for what was drawn and nothing behind it. Painted at
+ * scene px, which is all anything in the room draws at.
  */
 const drawShadedLayer = (
   ctx: CanvasRenderingContext2D,
@@ -579,30 +580,23 @@ const drawShadedLayer = (
   alpha: number,
   colour: string,
 ) => {
-  const { width, height } = ctx.canvas;
   layer ??= document.createElement("canvas");
-  if (layer.width !== width || layer.height !== height) {
-    layer.width = width;
-    layer.height = height;
+  if (layer.width !== SCENE_W) {
+    layer.width = SCENE_W;
+    layer.height = SCENE_H;
   }
   const off = layer.getContext("2d");
   if (!off) return paint(ctx);
-  off.setTransform(1, 0, 0, 1, 0, 0);
-  off.clearRect(0, 0, width, height);
-  off.setTransform(ctx.getTransform());
+  off.clearRect(0, 0, SCENE_W, SCENE_H);
   off.imageSmoothingEnabled = false;
   paint(off);
-  off.setTransform(1, 0, 0, 1, 0, 0);
   off.globalCompositeOperation = "source-atop";
   off.globalAlpha = alpha;
   off.fillStyle = colour;
-  off.fillRect(0, 0, width, height);
+  off.fillRect(0, 0, SCENE_W, SCENE_H);
   off.globalCompositeOperation = "source-over";
   off.globalAlpha = 1;
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(layer, 0, 0);
-  ctx.restore();
 };
 
 /** Paint one frame. `ctx` is already scaled so one unit is one scene pixel. */

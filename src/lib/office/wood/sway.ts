@@ -48,25 +48,33 @@ export const rigOf = (plan: Plan): Rig => {
   if (known) return known;
   const n = plan.limbs.length;
   const salt = Math.round(plan.root.x * 7 + plan.root.y);
-  const joints = plan.limbs.map((l, k): Hang => {
-    // Generators lay a parent's pieces before its children's; a base at the root is a stem.
-    const up = nearest(plan, l.a, k);
-    const root = Math.hypot(l.a.x - plan.root.x, l.a.y - plan.root.y);
-    return root <= up.off + 1e-6 ? { piece: -1, t: 0 } : { piece: up.piece, t: up.t };
-  });
+  // A plan that knows where its pieces hang says so; otherwise generators lay a parent's pieces
+  // before its children's, and a base at the root is a stem.
+  const joints =
+    plan.parents ??
+    plan.limbs.map((l, k): Hang => {
+      const up = nearest(plan, l.a, k);
+      const root = Math.hypot(l.a.x - plan.root.x, l.a.y - plan.root.y);
+      return root <= up.off + 1e-6 ? { piece: -1, t: 0 } : { piece: up.piece, t: up.t };
+    });
   const hang = (p: Pt): Hang => {
     const { piece, t } = nearest(plan, p, n);
     return { piece, t };
   };
+  const on = (p: Pt, piece: number): Hang =>
+    piece < 0
+      ? { piece, t: 0 }
+      : { piece, t: alongOf(p, plan.limbs[piece].a, plan.limbs[piece].b) };
+  const id = (k: number) => plan.ids?.[k] ?? k;
   const rig: Rig = {
     joints,
     // Twigs, in leaf, are damped harder than the wood they hang from.
     answer: plan.limbs.map((l, k) =>
-      springOf(0.3 + 0.3 / l.w + 0.15 * hash(salt, k, 1), l.w <= 1 ? 0.45 : 0.3),
+      springOf(0.3 + 0.3 / l.w + 0.15 * hash(salt, id(k), 1), l.w <= 1 ? 0.45 : 0.3),
     ),
-    clumps: plan.clumps.map(hang),
+    clumps: plan.clumps.map((c, i) => (plan.clumpOn ? on(c, plan.clumpOn[i]) : hang(c))),
     fruit: plan.fruit.map(hang),
-    perch: hang(plan.perch),
+    perch: plan.perch ? hang(plan.perch) : { piece: -1, t: 0 },
   };
   rigs.set(plan, rig);
   return rig;
@@ -165,7 +173,7 @@ export const poseOf = (
   const flutter = flex * FLUTTER * Math.max(0, Math.abs(wind(plan.root.x, 0)) - 0.3);
   const clumps = rig.clumps.map((h, i) => {
     const d = hung(h);
-    const ph = 2 * Math.PI * hash(i, 3, Math.round(plan.root.x));
+    const ph = 2 * Math.PI * hash(plan.clumpIds?.[i] ?? i, 3, Math.round(plan.root.x));
     return {
       x: d.x + flutter * Math.sin(t * 6 + ph),
       y: d.y + flutter * 0.5 * Math.sin(t * 4.5 + ph * 1.7),

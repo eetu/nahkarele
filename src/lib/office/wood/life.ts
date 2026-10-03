@@ -12,8 +12,8 @@ import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 
 import { FLOOR_Y, SCENE_W } from "../engine";
 import { type Season, seasonAt, snowCover } from "./seasons";
-import { grownStep, growth, hedgehogApple, type Knocks, poseAt, standing } from "./stand";
-import { drawApple, perchOf } from "./trees";
+import { hedgehogApple, type Knocks, planOf, poseAt, standing } from "./stand";
+import { drawApple } from "./trees";
 import { windAt } from "./wind";
 
 const S = {
@@ -275,11 +275,13 @@ const OWL_TREE = 4;
 const HOOT_CYCLE = 23;
 const HOOT_S = 1.2;
 
+/** The owl's tree: its own while that has a branch in the room to sit on, else the tallest
+ *  that has. */
 const owlTree = (seed: number, since: number) => {
-  const grown = standing(seed, since).filter((l) => growth(l, since) >= 0.8);
+  const perched = standing(seed, since).filter((l) => planOf(l, since).perch);
   return (
-    grown.find((l) => l.slot === OWL_TREE) ??
-    grown.sort((a, b) => b.plan.height - a.plan.height)[0] ??
+    perched.find((l) => l.slot === OWL_TREE) ??
+    perched.sort((a, b) => planOf(b, since).height - planOf(a, since).height)[0] ??
     null
   );
 };
@@ -287,7 +289,8 @@ const owlTree = (seed: number, since: number) => {
 const drawOwl = (ctx: CanvasRenderingContext2D, since: number, seed: number, knocks: Knocks) => {
   const tree = since < OWL_FROM ? null : owlTree(seed, since);
   if (!tree) return;
-  const branch = perchOf(tree.plan, grownStep(tree, since));
+  const branch = planOf(tree, since).perch;
+  if (!branch) return;
   const moved = poseAt(tree, since, seed, knocks).perch;
   const perch = { x: Math.round(branch.x + moved.x), y: Math.round(branch.y + moved.y) };
   const c = (since - OWL_FROM) % HOOT_CYCLE;

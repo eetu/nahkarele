@@ -1,11 +1,10 @@
-// Friday's trees, grown from a seed: every friday a different stand of what takes a Finnish
-// floor. A plan is the full-grown tree in scene pixels; `paintTree` scales it from the root by
-// growth and lets limbs and leaves appear in the order they grew.
+// Friday's trees, painted: the kinds that take a Finnish floor, how each one's wood, leaves,
+// needles and fruit look in the season, and dead. A plan is a tree in scene pixels at one age
+// (`growth.ts` grows them); `paintTree` paints it and can scale it from the root by growth.
 
 import { hash, ramp, rect } from "$lib/scene/pixel";
 import { mix } from "$lib/scene/sky";
 
-import { SCENE_W } from "../engine";
 import type { Part } from "./posed";
 
 export type Species =
@@ -25,8 +24,9 @@ export const SPECIES: readonly Species[] = [
 ];
 
 type Pt = { x: number; y: number };
-/** A piece of wood from `a` to `b`, `w` px thick, there once the tree is `at` grown (0..1). */
-type Limb = { a: Pt; b: Pt; w: number; at: number };
+/** A piece of wood from `a` to `b`, `w` px thick, there once the tree is `at` grown (0..1);
+ *  `dead` (0..1) once its branch has died. */
+type Limb = { a: Pt; b: Pt; w: number; at: number; dead?: number };
 /** Leaves on a broadleaf; a layer of boughs on a spruce; a tuft of needles on a pine. */
 type Clump = { x: number; y: number; r: number; at: number };
 
@@ -37,10 +37,18 @@ export type Plan = {
   height: number;
   limbs: Limb[];
   clumps: Clump[];
-  /** A branch an owl could sit on. */
-  perch: Pt;
+  /** A branch an owl could sit on, if one is in the room. */
+  perch: Pt | null;
   /** Where apples hang, on an apple tree. */
   fruit: Pt[];
+  /** Where each piece hangs (its parent piece, -1 the root, and how far along it) and which
+   *  piece each clump hangs on, when the plan knows; otherwise the rig finds them. */
+  parents?: { piece: number; t: number }[];
+  clumpOn?: number[];
+  /** Ids for the pieces and the clumps that hold as the tree grows, so each keeps its own
+   *  spring and flutter from one age to the next. */
+  ids?: number[];
+  clumpIds?: number[];
 };
 
 /** What the year is doing to the trees: the season (0 summer … 3 spring), how far through it,
@@ -123,449 +131,8 @@ export const random = (seed: number) => {
   };
 };
 
-/** `len` from `p` at `angle` radians off vertical (positive leans right). */
-const ahead = (p: Pt, angle: number, len: number): Pt => ({
-  x: p.x + Math.sin(angle) * len,
-  y: p.y - Math.cos(angle) * len,
-});
-
-type Raw = { limbs: Limb[]; clumps: Clump[]; forks: Pt[] };
-type Rand = () => number;
-
-const empty = (): Raw => ({ limbs: [], clumps: [], forks: [] });
-
-type LimbShape = {
-  pieces: number;
-  /** Turn per piece, radians, away from vertical (an arch out and down); negative turns up. */
-  bend: number;
-  /** Random turn per piece, radians. */
-  wander: number;
-  /** Width of each piece, or of all of them. */
-  widths: number | number[];
-};
-
-/** A limb from `from` at `angle` (radians off vertical, negative leans left), `len` long, in
- *  pieces that turn as `shape` says. Returns the points along it, `from` first. */
-const limb = (
-  out: Raw,
-  rand: Rand,
-  from: Pt,
-  angle: number,
-  len: number,
-  at: number,
-  shape: LimbShape,
-) => {
-  const pts = [from];
-  const side = Math.sign(angle) || 1;
-  let a = angle;
-  for (let k = 0; k < shape.pieces; k++) {
-    a += side * shape.bend + (rand() - 0.5) * shape.wander;
-    const q = ahead(pts[k], a, len / shape.pieces);
-    const w = Array.isArray(shape.widths) ? (shape.widths[k] ?? 1) : shape.widths;
-    out.limbs.push({ a: pts[k], b: q, w, at });
-    pts.push(q);
-  }
-  return pts;
-};
-
-/** The point `share` (0..1) of the way along a run of points. */
-const along = (pts: Pt[], share: number): Pt => {
-  const t = Math.min(0.999, Math.max(0, share)) * (pts.length - 1);
-  const k = Math.floor(t);
-  const u = t - k;
-  return {
-    x: pts[k].x + (pts[k + 1].x - pts[k].x) * u,
-    y: pts[k].y + (pts[k + 1].y - pts[k].y) * u,
-  };
-};
-
-/**
- * Silver birch: a slender stem to near the top; main branches spread from it, steeper higher
- * up, in a loose oval crown; their thin twigs grow out, then turn down and hang in long arcs,
- * small leaves all along them.
- */
-const birch = (rand: Rand, root: Pt, h: number): Raw => {
-  const out = empty();
-  const leaf = 2.1 * (h / 90);
-  const stem = limb(out, rand, root, (rand() - 0.5) * 0.06, h * 0.92, 0, {
-    pieces: 8,
-    bend: 0,
-    wander: 0.07,
-    widths: [3, 3, 3, 2, 2, 2, 1, 1],
-  });
-  const base = 0.28 + 0.1 * rand();
-  const n = 9 + Math.floor(rand() * 4);
-  for (let i = 0; i < n; i++) {
-    const f = i / (n - 1);
-    const from = along(stem, base + (0.94 - base) * f);
-    const side = (i % 2 ? 1 : -1) * (rand() < 0.15 ? -1 : 1);
-    const angle = side * (0.8 - 0.4 * f + (rand() - 0.5) * 0.25);
-    const len = h * 0.3 * Math.sin(Math.PI * (0.15 + 0.8 * f)) ** 0.8 * (0.75 + 0.5 * rand());
-    const at = 0.12 + 0.45 * f;
-    out.forks.push(from);
-    const pts = limb(out, rand, from, angle, len, at, {
-      pieces: 3,
-      bend: 0.18,
-      wander: 0.15,
-      widths: f < 0.4 ? [2, 1, 1] : 1,
-    });
-    for (let k = 1; k < pts.length; k++) {
-      if (rand() < 0.2) continue;
-      const twig = limb(
-        out,
-        rand,
-        pts[k],
-        side * (1.6 + 0.3 * rand()),
-        h * (0.08 + 0.07 * rand()),
-        at + 0.15,
-        {
-          pieces: 3,
-          bend: 0.35,
-          wander: 0.1,
-          widths: 1,
-        },
-      );
-      for (const q of twig.slice(1)) {
-        out.clumps.push({
-          x: q.x,
-          y: q.y,
-          r: leaf * (0.8 + 0.5 * rand()),
-          at: Math.min(0.95, at + 0.25),
-        });
-      }
-    }
-    const tip = pts[pts.length - 1];
-    out.clumps.push({ x: tip.x, y: tip.y, r: leaf * 1.2, at: Math.min(0.95, at + 0.2) });
-  }
-  const top = stem[stem.length - 1];
-  out.clumps.push({ x: top.x, y: top.y + 1, r: leaf * 1.3, at: 0.6 });
-  return out;
-};
-
-/**
- * How a scaffold tree grows: a trunk (share of height) that splits into main limbs, between
- * `limbs` of them, fanned up to `span` radians off vertical; `reach` is their length (share of
- * height, the wider ones longer); `rise` turns them per piece (negative: up at the ends);
- * `wander` makes them gnarled; `shoots` is the chance of a leafy shoot at each point along them.
- */
-type Scaffold = {
-  trunk: number;
-  limbs: [number, number];
-  span: number;
-  reach: number;
-  rise: number;
-  wander: number;
-  leaf: number;
-  shoots: number;
-};
-
-const scaffolded =
-  (sh: Scaffold) =>
-  (rand: Rand, root: Pt, h: number): Raw => {
-    const out = empty();
-    const leaf = sh.leaf * (h / 80);
-    const trunk = limb(out, rand, root, (rand() - 0.5) * 0.15, h * sh.trunk, 0, {
-      pieces: 2,
-      bend: 0,
-      wander: sh.wander * 0.5,
-      widths: 3,
-    });
-    const head = trunk[trunk.length - 1];
-    const n = sh.limbs[0] + Math.floor(rand() * (sh.limbs[1] - sh.limbs[0] + 1));
-    for (let i = 0; i < n; i++) {
-      const angle = -sh.span + (2 * sh.span * (i + 0.5)) / n + (rand() - 0.5) * 0.25;
-      const len = h * sh.reach * (0.8 + (0.4 * Math.abs(angle)) / sh.span) * (0.85 + 0.3 * rand());
-      const pts = limb(out, rand, head, angle, len, 0.12, {
-        pieces: 3,
-        bend: sh.rise,
-        wander: sh.wander,
-        widths: [2, 2, 1],
-      });
-      out.forks.push(pts[1]);
-      for (let k = 1; k < pts.length; k++) {
-        // Leaves along the limb, and on the shoots that rise off it.
-        out.clumps.push({
-          x: pts[k].x,
-          y: pts[k].y - 1,
-          r: leaf * (0.8 + 0.4 * rand()),
-          at: 0.5 + 0.1 * k,
-        });
-        if (rand() > sh.shoots) continue;
-        const shoot = limb(
-          out,
-          rand,
-          pts[k],
-          angle * 0.3 + (rand() - 0.5) * 0.5,
-          h * (0.08 + 0.1 * rand()),
-          0.3 + 0.1 * k,
-          {
-            pieces: 2,
-            bend: 0,
-            wander: 0.3,
-            widths: 1,
-          },
-        );
-        const end = shoot[shoot.length - 1];
-        out.clumps.push({
-          x: end.x,
-          y: end.y,
-          r: leaf * (0.7 + 0.4 * rand()),
-          at: 0.55 + 0.25 * rand(),
-        });
-      }
-    }
-    return out;
-  };
-
-/**
- * How a forking tree grows: one stem, or two or three with chance `multi`, of `trunk` share of
- * height, forking `depth` times; each fork leans `spread` out and is pulled back toward the
- * vertical by `lift` of its parent's lean, which keeps the crown oval instead of flat.
- */
-type Fork = {
-  multi: number;
-  trunk: number;
-  spread: number;
-  lift: number;
-  depth: number;
-  leaf: number;
-};
-
-const forked =
-  (sh: Fork) =>
-  (rand: Rand, root: Pt, h: number): Raw => {
-    const out = empty();
-    const leaf = sh.leaf * (h / 80);
-    const grow = (from: Pt, angle: number, len: number, w: number, depth: number, at: number) => {
-      const pts = limb(out, rand, from, angle, len, at, {
-        pieces: depth === 0 ? 3 : 2,
-        bend: 0,
-        wander: 0.3,
-        widths: w,
-      });
-      const p = pts[pts.length - 1];
-      if (depth <= 1) out.forks.push(p);
-      const tip = depth >= sh.depth || len < 4;
-      if (depth >= 1) {
-        const r = leaf * (0.7 + 0.5 * rand()) * (tip ? 1.1 : 0.85);
-        out.clumps.push({ x: p.x, y: p.y, r, at: Math.min(0.95, at + 0.12) });
-      }
-      if (tip) return;
-      const n = rand() < 0.35 ? 3 : 2;
-      for (let c = 0; c < n; c++) {
-        const side = n === 2 ? c * 2 - 1 : c - 1;
-        const turn = side * sh.spread * (0.6 + 0.7 * rand()) - angle * sh.lift;
-        grow(
-          p,
-          angle + turn,
-          len * (0.62 + 0.2 * rand()),
-          Math.max(1, w * 0.65),
-          depth + 1,
-          at + 0.15,
-        );
-      }
-    };
-    const stems = rand() < sh.multi ? (rand() < 0.3 ? 3 : 2) : 1;
-    for (let k = 0; k < stems; k++) {
-      const angle =
-        stems === 1 ? (rand() - 0.5) * 0.15 : (k - (stems - 1) / 2) * 0.3 + (rand() - 0.5) * 0.1;
-      grow(root, angle, h * sh.trunk * (0.9 + 0.2 * rand()), stems > 1 ? 2 : 3, 0, 0);
-    }
-    return out;
-  };
-
-/** Rowan: often several stems, level-to-ascending branches, a broad loose oval of feathers. */
-const rowan = forked({ multi: 0.5, trunk: 0.3, spread: 0.42, lift: 0.3, depth: 3, leaf: 4 });
-
-/** Norway maple: one straight stem, ascending branches, a dense rounded crown. */
-const maple = forked({ multi: 0, trunk: 0.36, spread: 0.5, lift: 0.2, depth: 4, leaf: 4.6 });
-
-/** Apple: a short trunk, four or five scaffolds just above level, gnarled, up at the ends. */
-const apple = scaffolded({
-  trunk: 0.2,
-  limbs: [4, 5],
-  span: 1.35,
-  reach: 0.34,
-  rise: -0.05,
-  wander: 0.45,
-  leaf: 4.6,
-  shoots: 0.8,
-});
-
-/** Pedunculate oak: a short thick trunk, massive crooked limbs spreading wide, a broad dome. */
-const oak = scaffolded({
-  trunk: 0.32,
-  limbs: [3, 5],
-  span: 1.4,
-  reach: 0.4,
-  rise: 0.04,
-  wander: 0.7,
-  leaf: 6,
-  shoots: 0.85,
-});
-
-/** Cherry: a small tree, ascending scaffolds, a rounded crown. */
-const cherry = scaffolded({
-  trunk: 0.28,
-  limbs: [3, 4],
-  span: 1,
-  reach: 0.36,
-  rise: -0.06,
-  wander: 0.3,
-  leaf: 4.4,
-  shoots: 0.8,
-});
-
-/** Plum: steeper scaffolds than the cherry, an upright oval. */
-const plum = scaffolded({
-  trunk: 0.3,
-  limbs: [3, 4],
-  span: 0.55,
-  reach: 0.42,
-  rise: -0.04,
-  wander: 0.3,
-  leaf: 3.6,
-  shoots: 0.6,
-});
-
-/**
- * Norway spruce: a strong straight leader; level whorls of boughs from near the ground to the
- * top, widest at the bottom, that sag and sweep up at the tips, branchlets hanging from them.
- */
-const spruce = (rand: Rand, root: Pt, h: number): Raw => {
-  const out = empty();
-  const lean = (rand() - 0.5) * 0.04;
-  const top = { x: root.x + lean * h, y: root.y - h };
-  out.limbs.push({ a: root, b: top, w: 2, at: 0 });
-  const skirt = h * (0.03 + 0.04 * rand());
-  const width = h * (0.2 + 0.06 * rand());
-  // Bottom up, so each layer's tips fall over the one below.
-  for (let y = root.y - skirt; y > top.y + 3; y -= 2 + Math.floor(rand() * 2)) {
-    const f = (y - top.y) / (root.y - skirt - top.y);
-    const x = root.x + (root.y - y) * lean;
-    const r = Math.max(1.5, width * f ** 0.9 * (0.85 + 0.3 * rand()));
-    out.clumps.push({ x, y, r, at: 0.05 + 0.25 * rand() });
-    out.forks.push({ x: x + r * 0.7, y: y + 1 });
-  }
-  return out;
-};
-
-/**
- * Scots pine: a crooked stem that has shed its lower limbs (a few dead stubs show where), then
- * a high, irregular, flat-topped crown of gnarled near-level limbs carrying flat plates of
- * needles.
- */
-const pine = (rand: Rand, root: Pt, h: number): Raw => {
-  const out = empty();
-  const stem = limb(out, rand, root, (rand() - 0.5) * 0.1, h * 0.8, 0, {
-    pieces: 7,
-    bend: 0,
-    wander: 0.14,
-    widths: [3, 3, 3, 2, 2, 2, 2],
-  });
-  for (let i = 0; i < 3; i++) {
-    const from = along(stem, 0.3 + 0.25 * rand());
-    limb(out, rand, from, (rand() < 0.5 ? -1 : 1) * (1.3 + 0.3 * rand()), 2 + 2 * rand(), 0.4, {
-      pieces: 1,
-      bend: 0,
-      wander: 0,
-      widths: 1,
-    });
-  }
-  const n = 4 + Math.floor(rand() * 3);
-  for (let i = 0; i < n; i++) {
-    const f = i / (n - 1);
-    const from = along(stem, 0.62 + 0.36 * f);
-    const side = i % 2 ? 1 : -1;
-    const angle = side * (1.35 - 0.45 * f + (rand() - 0.5) * 0.3);
-    const len = h * (0.22 - 0.1 * f) * (0.7 + 0.6 * rand());
-    const pts = limb(out, rand, from, angle, len, 0.25 + 0.3 * f, {
-      pieces: 3,
-      bend: -0.12,
-      wander: 0.4,
-      widths: f < 0.5 ? [2, 1, 1] : 1,
-    });
-    out.forks.push(from);
-    for (const q of pts.slice(2)) {
-      out.clumps.push({
-        x: q.x,
-        y: q.y - 1,
-        r: h * (0.05 + 0.03 * rand()),
-        at: 0.4 + 0.3 * rand(),
-      });
-    }
-  }
-  const top = stem[stem.length - 1];
-  out.clumps.push({ x: top.x, y: top.y - 1, r: h * 0.09, at: 0.3 });
-  return out;
-};
-
-const GROW: Record<Species, (rand: Rand, root: Pt, h: number) => Raw> = {
-  birch,
-  rowan,
-  apple,
-  oak,
-  maple,
-  cherry,
-  plum,
-  spruce,
-  pine,
-};
-
 /** How many fruit a tree carries: apples fall (the wood drops them), cherries and plums hang. */
-const FRUIT: Partial<Record<Species, number>> = { apple: 16, cherry: 18, plum: 12 };
-
-/** The full-grown `species` rooted at `root`, about `h` tall, shaped by `seed`. */
-export const planTree = (seed: number, root: Pt, h: number, species: Species): Plan => {
-  const rand = random(seed);
-  const raw = GROW[species](rand, root, h);
-  // A crown that would leave the top or the sides of the room is the whole tree drawn smaller.
-  let top = root.y;
-  let left = root.x;
-  let right = root.x;
-  for (const l of raw.limbs) {
-    for (const q of [l.a, l.b]) {
-      top = Math.min(top, q.y);
-      left = Math.min(left, q.x);
-      right = Math.max(right, q.x);
-    }
-  }
-  for (const c of raw.clumps) {
-    top = Math.min(top, c.y - c.r);
-    left = Math.min(left, c.x - c.r);
-    right = Math.max(right, c.x + c.r);
-  }
-  const k = Math.min(
-    1,
-    (root.y - 6) / Math.max(1, root.y - top),
-    (root.x - 2) / Math.max(1, root.x - left),
-    (SCENE_W - 2 - root.x) / Math.max(1, right - root.x),
-  );
-  const fit = (q: Pt): Pt => ({ x: root.x + (q.x - root.x) * k, y: root.y + (q.y - root.y) * k });
-  const height = (root.y - top) * k;
-  // The owl's branch: the fork nearest three fifths of the way up.
-  const want = root.y - height * 0.6;
-  const perch = raw.forks
-    .map(fit)
-    .reduce((best, q) => (Math.abs(q.y - want) < Math.abs(best.y - want) ? q : best), {
-      x: root.x,
-      y: want,
-    });
-  // Fruit hangs under the outer clumps, one to most of them.
-  const fruit = raw.clumps
-    .filter((c) => c.at > 0.5 && rand() < 0.75)
-    .slice(0, FRUIT[species] ?? 0)
-    .map((c) => fit({ x: c.x + (rand() - 0.5) * c.r, y: c.y + rand() * c.r * 0.6 }));
-  return {
-    species,
-    root,
-    height,
-    limbs: raw.limbs.map((l) => ({ ...l, a: fit(l.a), b: fit(l.b) })),
-    clumps: raw.clumps.map((c) => ({ ...fit(c), r: c.r * k, at: c.at })),
-    perch,
-    fruit,
-  };
-};
+export const FRUIT: Partial<Record<Species, number>> = { apple: 16, cherry: 18, plum: 12 };
 
 /** Where a full-grown point of `plan` is while the tree is `g` grown. */
 export const grownAt =
@@ -575,16 +142,17 @@ export const grownAt =
     y: plan.root.y + (q.y - plan.root.y) * g,
   });
 
-export const perchOf = (plan: Plan, g: number): Pt => grownAt(plan, g)(plan.perch);
+export const perchOf = (plan: Plan, g: number): Pt | null =>
+  plan.perch && grownAt(plan, g)(plan.perch);
 
 /** The middle of the leaves, where falling leaves start. */
 export const crownOf = (plan: Plan, g: number): Pt => {
-  const n = Math.max(1, plan.clumps.length);
-  const mid = plan.clumps.reduce((s, c) => ({ x: s.x + c.x / n, y: s.y + c.y / n }), {
-    x: 0,
-    y: 0,
-  });
-  return grownAt(plan, g)(plan.clumps.length ? mid : plan.root);
+  // The leaves in the room; a crown grown out of it drops them from above.
+  const seen = plan.clumps.filter((c) => c.y > -6);
+  if (!seen.length) return plan.clumps.length ? { x: plan.root.x, y: -4 } : plan.root;
+  const n = seen.length;
+  const mid = seen.reduce((s, c) => ({ x: s.x + c.x / n, y: s.y + c.y / n }), { x: 0, y: 0 });
+  return grownAt(plan, g)(mid);
 };
 
 // --- Painting ---------------------------------------------------------------------------
@@ -640,7 +208,16 @@ const rusted = (ctx: CanvasRenderingContext2D, t: number) =>
     },
   });
 
-const wood = (ctx: CanvasRenderingContext2D, plan: Plan, a: Pt, b: Pt, w: number, look: Look) => {
+const wood = (
+  ctx: CanvasRenderingContext2D,
+  plan: Plan,
+  a: Pt,
+  b: Pt,
+  w: number,
+  look: Look,
+  died = 0,
+) => {
+  const dead = Math.max(look.dead ?? 0, died);
   const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y)));
   // Snow lies along the top of bare, level-ish wood.
   const snowy =
@@ -655,7 +232,7 @@ const wood = (ctx: CanvasRenderingContext2D, plan: Plan, a: Pt, b: Pt, w: number
     const up = (plan.root.y - y) / Math.max(1, plan.height);
     for (let col = 0; col < w; col++) {
       const bark = barkColour(plan, x0 + col, y, col, w, up);
-      rect(ctx, look.dead ? mix(bark, DEADWOOD, look.dead * 0.6) : bark, x0 + col, y);
+      rect(ctx, dead ? mix(bark, DEADWOOD, dead * 0.6) : bark, x0 + col, y);
     }
     if (snowy && hash(x0, y, 5) < look.snow) rect(ctx, SNOW, x0, y - 1, w, 1);
   }
@@ -672,7 +249,9 @@ const STONE = "#8a877e";
  */
 export const paintRootPlate = (ctx: CanvasRenderingContext2D, plan: Plan) => {
   const { x: cx, y: top } = plan.root;
-  const r = Math.max(4, Math.min(11, plan.height * 0.07));
+  // As wide as a few trunks: a big tree brings up a big plate.
+  const trunk = Math.max(1, ...plan.limbs.map((l) => l.w));
+  const r = Math.max(4, Math.min(18, trunk * 1.4 + 3));
   const depth = r * 0.75;
   for (let y = Math.round(top) + 1; y <= top + depth; y++) {
     const v = (y - top) / depth;
@@ -850,7 +429,7 @@ export const paintTreeParts = (
     const a = at(l.a);
     const b = at(l.b);
     part({ kind: "wood", i, a, b });
-    wood(ctx, plan, a, b, Math.max(1, Math.round(l.w * (0.4 + 0.6 * g))), look);
+    wood(ctx, plan, a, b, Math.max(1, Math.round(l.w * (0.4 + 0.6 * g))), look, l.dead);
   });
   // A dead broadleaf stays bare; a dead conifer rusts, then drops its needles.
   const dead = look.dead ?? 0;

@@ -193,6 +193,7 @@ export const drawPosed = (
   paint: Painter,
   pose: Pose,
   room?: Room,
+  sheet?: Sheet,
 ) => {
   let it = baked.get(name);
   if (!it || it.key !== key) {
@@ -201,13 +202,20 @@ export const drawPosed = (
     it = fresh;
     baked.set(name, it);
   }
-  const { parts, from, xs, ys, colours, under, rank, along, box, pixels } = it;
-  if (pose.still !== undefined && pose.still === it.posed) {
+  const { parts, from, xs, ys, colours, under, rank, along, box } = it;
+  if (!sheet && pose.still !== undefined && pose.still === it.posed) {
     ctx.drawImage(it.canvas, box.x, box.y);
     return;
   }
-  it.posed = pose.still;
-  pixels.fill(0);
+  it.posed = sheet ? undefined : pose.still;
+  // Posed into its own buffer, or straight into the sheet at scene px.
+  const pixels = sheet ? sheet.pixels : it.pixels;
+  const dx0 = sheet ? 0 : box.x;
+  const dy0 = sheet ? 0 : box.y;
+  const bw = sheet ? sheet.image.width : box.w;
+  const bh = sheet ? sheet.image.height : box.h;
+  if (sheet) grow(sheet, box);
+  else pixels.fill(0);
   const over = pose.over;
   const cos = over ? Math.cos(over.angle) : 1;
   const sin = over ? Math.sin(over.angle) : 0;
@@ -246,14 +254,82 @@ export const drawPosed = (
           word = mosses[Math.floor(rank[k] * 997) % mosses.length];
         }
       }
-      x -= box.x;
-      y -= box.y;
-      if (x < 0 || y < 0 || x >= box.w || y >= box.h) continue;
-      pixels[y * box.w + x] = word;
+      x -= dx0;
+      y -= dy0;
+      if (x < 0 || y < 0 || x >= bw || y >= bh) continue;
+      pixels[y * bw + x] = word;
       // Turned off the square, pixels spread apart; each covers its neighbour if that is bare.
-      if (tilted && x + 1 < box.w && !pixels[y * box.w + x + 1]) pixels[y * box.w + x + 1] = word;
+      if (tilted && x + 1 < bw && !pixels[y * bw + x + 1]) pixels[y * bw + x + 1] = word;
     }
   });
+  if (sheet) return;
   it.canvas.getContext("2d")?.putImageData(it.image, 0, 0);
   ctx.drawImage(it.canvas, box.x, box.y);
+};
+
+/**
+ * A scene-sized sheet that several paintings are posed into, in order, and then drawn at once
+ * (`drawSheet`): one upload and one blit for all of them, of only the part they covered,
+ * rather than one per painting.
+ */
+export type Sheet = {
+  image: ImageData;
+  pixels: Uint32Array;
+  canvas: HTMLCanvasElement;
+  /** What the paintings posed into it cover, scene px; empty while x1 < x0. */
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+};
+
+const sheets = new Map<string, Sheet>();
+
+/** The sheet `name`, `w` × `h`, cleared for a frame's paintings. */
+export const sheetOf = (name: string, w: number, h: number): Sheet => {
+  let sheet = sheets.get(name);
+  if (!sheet || sheet.image.width !== w || sheet.image.height !== h) {
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const image = new ImageData(w, h);
+    sheet = {
+      image,
+      pixels: new Uint32Array(image.data.buffer),
+      canvas,
+      x0: 0,
+      y0: 0,
+      x1: -1,
+      y1: -1,
+    };
+    sheets.set(name, sheet);
+  } else if (sheet.x1 >= sheet.x0) {
+    // Only what the last frame covered needs clearing.
+    for (let y = sheet.y0; y <= sheet.y1; y++) {
+      sheet.pixels.fill(0, y * w + sheet.x0, y * w + sheet.x1 + 1);
+    }
+  }
+  sheet.x0 = w;
+  sheet.y0 = h;
+  sheet.x1 = -1;
+  sheet.y1 = -1;
+  return sheet;
+};
+
+/** Widen what `sheet` covers by `box`, within the sheet. */
+const grow = (sheet: Sheet, box: Room) => {
+  const { width, height } = sheet.image;
+  sheet.x0 = Math.max(0, Math.min(sheet.x0, box.x));
+  sheet.y0 = Math.max(0, Math.min(sheet.y0, box.y));
+  sheet.x1 = Math.min(width - 1, Math.max(sheet.x1, box.x + box.w - 1));
+  sheet.y1 = Math.min(height - 1, Math.max(sheet.y1, box.y + box.h - 1));
+};
+
+/** Draw what was posed into `sheet` this frame. */
+export const drawSheet = (ctx: CanvasRenderingContext2D, sheet: Sheet) => {
+  if (sheet.x1 < sheet.x0 || sheet.y1 < sheet.y0) return;
+  const w = sheet.x1 - sheet.x0 + 1;
+  const h = sheet.y1 - sheet.y0 + 1;
+  sheet.canvas.getContext("2d")?.putImageData(sheet.image, 0, 0, sheet.x0, sheet.y0, w, h);
+  ctx.drawImage(sheet.canvas, sheet.x0, sheet.y0, w, h, sheet.x0, sheet.y0, w, h);
 };

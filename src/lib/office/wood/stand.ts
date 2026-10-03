@@ -1,25 +1,35 @@
 // Friday's stand: always an apple tree and five others, each kind and shape from the seed,
-// growing in at the cracks. A slot keeps a tree for good: one lives its years, dies standing,
+// growing in at the cracks. The first wood comes in fast, five years in a few minutes; from
+// then on a year is a year of friday's, and the trees grow as trees do (`growth.ts`), past the
+// top of the room in time. A slot keeps a tree for good: one lives its years, dies standing,
 // goes over and lies rotting into the floor, and a sapling of another kind comes up in the
 // gap (an apple tree's gap grows an apple tree). Their poses in the wind, and the apples.
 
 import { prefersReducedMotion } from "$lib/keys";
 import { hash, smooth } from "$lib/scene/pixel";
 
-import { FLOOR_Y, SCENE_W } from "../engine";
+import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
+import { type Arch, archOf, fruitAt, lifespanOf, planAt } from "./growth";
 import { mossesAt } from "./moss";
-import { drawPosed, type Painter, type Pose, type Pt, type Room } from "./posed";
+import {
+  drawPosed,
+  drawSheet,
+  type Painter,
+  type Pose,
+  type Pt,
+  type Room,
+  sheetOf,
+} from "./posed";
 import { lookAt, SEASON_S, SEASONS_FROM } from "./seasons";
 import { poseOf, type TreePose } from "./sway";
 import {
   appleOnTree,
   drawApple,
-  grownAt,
+  FRUIT,
   type Look,
   paintRootPlate,
   paintTreeParts,
   type Plan,
-  planTree,
   SPECIES,
   type Species,
 } from "./trees";
@@ -31,38 +41,27 @@ import { windAt } from "./wind";
  * slabs' and the desk's); those behind the desk keep behind it, so the desk still reads.
  */
 const SLOTS = [
-  { x: 62, h: 134, start: 60, front: true },
-  { x: 100, h: 142, start: 40, front: false },
-  { x: 140, h: 138, start: 95, front: false },
-  { x: 190, h: 124, start: 75, front: false },
-  { x: 232, h: 114, start: 55, front: true },
-  { x: 262, h: 98, start: 120, front: true },
+  { x: 62, start: 60, front: true },
+  { x: 100, start: 40, front: false },
+  { x: 140, start: 95, front: false },
+  { x: 190, start: 75, front: false },
+  { x: 232, start: 55, front: true },
+  { x: 262, start: 120, front: true },
 ];
 
 /** Whether `life` stands in front of the furniture or behind it. */
 const inLane = (life: Life, front: boolean) => SLOTS[life.slot].front === front;
-/** How tall each kind stands against its slot. */
-const SIZE: Record<Species, number> = {
-  birch: 1,
-  rowan: 0.8,
-  apple: 0.72,
-  oak: 1,
-  maple: 1,
-  cherry: 0.72,
-  plum: 0.75,
-  spruce: 1.05,
-  pine: 1.15,
-};
-/** Seconds from sapling to full crown: the first wood grows in fast, what comes after slowly. */
-const GROW_S = 180;
-const REGROW_S = 900;
-/** Growth is drawn in this many steps; a tree is re-baked when it reaches the next one. */
-const GROW_STEPS = 40;
+/** The first wood is this many years old when the year starts turning. */
+const GROWIN_Y = 5;
+/** A tree is drawn at this many steps a year: about a pixel of growth each. */
+const AGE_STEPS = 24;
+/** A tree is laid down this many years past its death, for what it grows while it stands dead. */
+const LAID_PAST = 1;
 
 const YEAR_S = 4 * SEASON_S;
-/** A tree lives this long at least, s, and up to `LIVES_S` more. */
-const LIFE_S = 1500;
-const LIVES_S = 1500;
+/** Some trees are crowded out early: this share, at this share of their years. */
+const CROWDED = 0.25;
+const CROWDED_AT: [number, number] = [0.4, 0.7];
 /** Dead, it stands this long at least, s, and up to `SNAG_S` more, dropping its twigs. */
 const DEAD_S = 300;
 const SNAG_S = 600;
@@ -78,13 +77,12 @@ const GAP_S = 240;
 
 /** One tree of a slot, seed to dust. Times are seconds into friday. */
 export type Life = {
-  plan: Plan;
+  /** Its whole growth, laid down from the seed (`growth.ts`). */
+  arch: Arch;
   slot: number;
   /** Which of the slot's trees: 0 the first. */
   n: number;
   born: number;
-  /** Seconds from sapling to full crown. */
-  grows: number;
   /** Its last spring: it does not come into leaf, and stands dead from then. */
   dies: number;
   /** When it goes over, and which way (+1 to the right). */
@@ -110,6 +108,28 @@ export const shuffled = <T>(items: T[], seed: number, salt: number): T[] => {
   return out;
 };
 
+/** When a tree of the `n`th generation born at `born` is `age` years old: the first wood
+ *  grows in over its first five years before the year starts turning. */
+const timeAt = (n: number, born: number, age: number) =>
+  n > 0
+    ? born + age * YEAR_S
+    : age <= GROWIN_Y
+      ? born + (age / GROWIN_Y) * (SEASONS_FROM - born)
+      : SEASONS_FROM + (age - GROWIN_Y) * YEAR_S;
+
+/** `life`'s age `since` seconds into friday, years; a dead tree grows no more. */
+export const ageAt = (life: Life, since: number) => {
+  const t = Math.min(since, life.dies);
+  if (t <= life.born) return 0;
+  if (life.n > 0) return (t - life.born) / YEAR_S;
+  return t < SEASONS_FROM
+    ? (GROWIN_Y * (t - life.born)) / (SEASONS_FROM - life.born)
+    : GROWIN_Y + (t - SEASONS_FROM) / YEAR_S;
+};
+/** Age as drawn: in steps, so a tree is painted afresh only now and then. */
+export const ageStep = (life: Life, since: number) =>
+  Math.floor(ageAt(life, since) * AGE_STEPS) / AGE_STEPS;
+
 /** Tree `n` of `slot`, a `species` coming up at `x` at `born`. */
 const lifeOf = (
   seed: number,
@@ -118,27 +138,27 @@ const lifeOf = (
   born: number,
   species: Species,
   x: number,
-  order = 0,
 ): Life => {
   const h = (salt: number) => hash(seed, slot + 16 * n, salt);
-  const plan = planTree(
+  // Its kind's years, or fewer if it is crowded out.
+  let years = lifespanOf(species, h(21));
+  if (h(28) < CROWDED) years *= CROWDED_AT[0] + (CROWDED_AT[1] - CROWDED_AT[0]) * h(29);
+  const dies = springAfter(timeAt(n, born, years));
+  const arch = archOf(
     Math.floor(h(9) * 2 ** 31),
     { x, y: FLOOR_Y + 3 },
-    SLOTS[slot].h * SIZE[species] * (0.9 + 0.2 * h(5)),
     species,
+    Math.ceil(years) + LAID_PAST,
+    0.85 + 0.3 * h(5),
   );
-  const grows = n === 0 ? GROW_S : REGROW_S * (0.8 + 0.4 * h(20));
-  // The first wood dies a tree a spring, in an order of the seed's; after that, as it may.
-  const dies = springAfter(born + LIFE_S + (n === 0 ? YEAR_S * order : LIVES_S * h(21)));
   // Most go over toward the middle of the room, where there is space to lie.
   const inward = x < SCENE_W / 2 ? 1 : -1;
   const side: Life["side"] = h(23) < 0.75 ? inward : inward === 1 ? -1 : 1;
   return {
-    plan,
+    arch,
     slot,
     n,
     born,
-    grows,
     dies,
     falls: dies + DEAD_S + SNAG_S * h(22),
     side,
@@ -149,7 +169,7 @@ const lifeOf = (
 /** The tree that comes up in `life`'s gap once it has gone over. */
 const nextOf = (seed: number, life: Life): Life => {
   const h = (salt: number) => hash(seed, life.slot + 16 * life.n, salt);
-  const was = life.plan.species;
+  const was = life.arch.species;
   const others = SPECIES.filter((k) => k !== "apple" && k !== was);
   return lifeOf(
     seed,
@@ -169,17 +189,17 @@ const slotsTo = (seed: number, since: number): Life[][] => {
     const rest = SPECIES.filter((k) => k !== "apple");
     const others = shuffled<Species>(rest, seed, 2).slice(0, SLOTS.length - 1);
     const kinds = shuffled<Species>(["apple", ...others], seed, 3);
-    const order = shuffled(
-      SLOTS.map((_, i) => i),
-      seed,
-      4,
-    );
-    stand = {
-      seed,
-      slots: SLOTS.map((slot, i) => [
-        lifeOf(seed, i, 0, slot.start, kinds[i], slot.x, order.indexOf(i)),
-      ]),
-    };
+    const first = SLOTS.map((slot, i) => lifeOf(seed, i, 0, slot.start, kinds[i], slot.x));
+    // The first wood dies a tree a spring at most: one that would share a spring waits a year.
+    const taken = new Set<number>();
+    for (const life of [...first].sort((a, b) => a.dies - b.dies)) {
+      while (taken.has(life.dies)) {
+        life.dies += YEAR_S;
+        life.falls += YEAR_S;
+      }
+      taken.add(life.dies);
+    }
+    stand = { seed, slots: first.map((life) => [life]) };
   }
   for (const lives of stand.slots) {
     while (lives[lives.length - 1].falls <= since)
@@ -200,12 +220,33 @@ export const fallen = (seed: number, since: number): Life[] =>
     lives.filter((l) => l.falls <= since && since < l.falls + FALL_S + l.rots),
   );
 
-/** How grown `life` is, 0..1; a dead tree grows no more. */
-export const growth = (life: Life, since: number) =>
-  smooth((Math.min(since, life.dies) - life.born) / life.grows);
-/** Growth as drawn: in steps, so a tree is painted afresh only now and then. */
-export const grownStep = (life: Life, since: number) =>
-  Math.round(growth(life, since) * GROW_STEPS) / GROW_STEPS;
+/** The calendar year `since` is in, counted from the first summer of the seasons; -1 before. */
+const yearOf = (since: number) =>
+  since < SEASONS_FROM ? -1 : Math.floor((since - SEASONS_FROM) / YEAR_S);
+
+const fruited = new WeakMap<Plan, Map<number, Plan>>();
+
+/**
+ * `life` as drawn `since` seconds into friday: its plan at its age step, with this calendar
+ * year's fruit on it. The fruit is placed from the tree as it was at the year's start, so it
+ * hangs still (and keeps its numbers for the knocks) while the tree grows on.
+ */
+export const planOf = (life: Life, since: number): Plan => {
+  const plan = planAt(life.arch, ageStep(life, since));
+  const count = FRUIT[life.arch.species] ?? 0;
+  const year = yearOf(since);
+  if (!count || year < 0) return plan;
+  let byYear = fruited.get(plan);
+  if (!byYear) fruited.set(plan, (byYear = new Map()));
+  let withFruit = byYear.get(year);
+  if (!withFruit) {
+    const start = Math.max(life.born, SEASONS_FROM + year * YEAR_S);
+    const age = ageStep(life, start);
+    withFruit = { ...plan, fruit: fruitAt(planAt(life.arch, age), year, count, age) };
+    byYear.set(year, withFruit);
+  }
+  return withFruit;
+};
 
 /** How long dead, 0 alive to 1 about to go over. */
 const deadness = (life: Life, since: number) =>
@@ -228,7 +269,7 @@ export const poseAt = (life: Life, since: number, seed: number, knocks: Knocks):
   const id = `${life.slot}:${life.n}`;
   const hit = poses.get(id);
   if (hit && hit.since === since) return hit.pose;
-  const { plan } = life;
+  const plan = planOf(life, since);
   // A tap is a hard push for a moment; the branches answer it with their own wobble.
   const tapped = plan.species === "apple" ? Math.max(-Infinity, ...Object.values(knocks)) : -1;
   const shake = (time: number) => {
@@ -239,7 +280,7 @@ export const poseAt = (life: Life, since: number, seed: number, knocks: Knocks):
   const calm = prefersReducedMotion() ? 0.3 : 1;
   const pose = poseOf(
     plan,
-    grownStep(life, since),
+    1,
     lookOf(life, since),
     since,
     (x, ago) => (windAt(since - ago, seed, x) + shake(since - ago)) * calm,
@@ -267,19 +308,27 @@ const restOf = (plan: Plan): Pose => {
   return rest;
 };
 
+/** The whole of `life` as it stood when it died, the part above the room too: it may fall
+ *  into the room. */
+const downOf = (life: Life) => planAt(life.arch, ageStep(life, life.dies), false);
+
 /** Where a tree goes over: the edge of its trunk on the side it falls to, on the ground. */
-const pivotOf = ({ plan, side }: Life): Pt => {
+const pivotOf = (plan: Plan, side: number): Pt => {
   // The trunk is the thickest wood there is.
   const trunk = Math.max(1, ...plan.limbs.map((l) => l.w));
   return { x: plan.root.x + side * (trunk / 2 + 0.5), y: plan.root.y };
 };
 
+/** Past the room's edges, a falling tree needs no room: nothing there is ever seen. */
+const BEYOND = 24;
+
 const rooms = new WeakMap<Plan, Room>();
-/** All the room a tree sweeps through as it goes over, and some for its sway. */
-const roomOf = (life: Life, about: Pt): Room => {
-  const known = rooms.get(life.plan);
+/** All the room a tree sweeps through as it goes over, and some for its sway, within the
+ *  scene. */
+const roomOf = (plan: Plan, side: number, about: Pt): Room => {
+  const known = rooms.get(plan);
   if (known) return known;
-  const { limbs, clumps } = life.plan;
+  const { limbs, clumps } = plan;
   const points = [
     ...limbs.flatMap((l) => [l.a, l.b]),
     ...clumps.flatMap((c) => [
@@ -289,7 +338,7 @@ const roomOf = (life: Life, about: Pt): Room => {
   ];
   let [x0, y0, x1] = [Infinity, Infinity, -Infinity];
   for (let k = 0; k <= 8; k++) {
-    const turn = (life.side * Math.PI * k) / 16;
+    const turn = (side * Math.PI * k) / 16;
     const [c, s] = [Math.cos(turn), Math.sin(turn)];
     for (const q of points) {
       const dx = q.x - about.x;
@@ -301,13 +350,11 @@ const roomOf = (life: Life, about: Pt): Room => {
     }
   }
   const pad = 12;
-  const room = {
-    x: Math.floor(x0 - pad),
-    y: Math.floor(y0 - pad),
-    w: Math.ceil(x1 - x0 + 2 * pad) + 1,
-    h: Math.ceil(about.y - y0 + pad) + 2,
-  };
-  rooms.set(life.plan, room);
+  const left = Math.max(-BEYOND, Math.floor(x0 - pad));
+  const top = Math.max(-BEYOND, Math.floor(y0 - pad));
+  const right = Math.min(SCENE_W + BEYOND, Math.ceil(x1 + pad));
+  const room = { x: left, y: top, w: right - left + 1, h: Math.ceil(about.y - top) + 2 };
+  rooms.set(plan, room);
   return room;
 };
 
@@ -315,28 +362,23 @@ const roomOf = (life: Life, about: Pt): Room => {
 const LIE = Math.PI / 2;
 
 /** A tree going over, then lying where it fell, mossing over and rotting into the floor. */
-const drawDown = (
-  ctx: CanvasRenderingContext2D,
-  life: Life,
-  since: number,
-  seed: number,
-  knocks: Knocks,
-) => {
+const drawDown = (ctx: CanvasRenderingContext2D, life: Life, since: number, seed: number) => {
   const t = since - life.falls;
-  const about = pivotOf(life);
-  const step = grownStep(life, life.dies);
+  const plan = downOf(life);
+  const about = pivotOf(plan, life.side);
   const paint: Painter = (rec, part) => {
-    paintTreeParts(rec, life.plan, step, DOWN, part);
+    paintTreeParts(rec, plan, 1, DOWN, part);
     part({ kind: "still" });
-    paintRootPlate(rec, life.plan);
+    paintRootPlate(rec, plan);
   };
-  const key = `${seed}|${life.n}|${step}`;
-  const room = roomOf(life, about);
+  const key = `${seed}|${life.n}|down`;
+  const room = roomOf(plan, life.side, about);
   const over = { about, sunk: 0, moss: 0, gone: 0, mosses: mossesAt(since) };
   if (t < FALL_S) {
     // Slowly at first, then all at once; the wind has it until it lands.
     const u = t / FALL_S;
-    const pose = poseAt(life, since, seed, knocks);
+    const calm = prefersReducedMotion() ? 0.3 : 1;
+    const pose = poseOf(plan, 1, DOWN, since, (x, ago) => windAt(since - ago, seed, x) * calm);
     drawPosed(
       ctx,
       `down${life.slot}`,
@@ -363,14 +405,7 @@ const drawDown = (
     v < 1
       ? undefined
       : `${lying.sunk}|${Math.round(lying.moss * 40)}|${Math.round(lying.gone * 40)}|${lying.mosses.join()}`;
-  drawPosed(
-    ctx,
-    `down${life.slot}`,
-    key,
-    paint,
-    { ...restOf(life.plan), over: lying, still },
-    room,
-  );
+  drawPosed(ctx, `down${life.slot}`, key, paint, { ...restOf(plan), over: lying, still }, room);
 };
 
 /** The trees in one lane, behind the furniture or in `front` of it. */
@@ -383,17 +418,29 @@ export const drawTrees = (
 ) => {
   // What has come down lies behind what stands.
   for (const life of fallen(seed, since)) {
-    if (inLane(life, front)) drawDown(ctx, life, since, seed, knocks);
+    if (inLane(life, front)) drawDown(ctx, life, since, seed);
   }
+  // The lane's standing trees share one sheet: one blit for all of them.
+  const sheet = sheetOf(`trees${front}`, SCENE_W, SCENE_H);
   for (const life of standing(seed, since)) {
     if (!inLane(life, front)) continue;
-    const step = grownStep(life, since);
+    const plan = planOf(life, since);
     const look = lookOf(life, since);
     const dead = look.dead ? Math.ceil(look.dead * 12) : 0;
-    const key = `${seed}|${life.n}|${step}|${look.k}|${Math.round(look.p * 24)}|${dead}`;
-    const paint: Painter = (rec, part) => paintTreeParts(rec, life.plan, step, look, part);
-    drawPosed(ctx, `tree${life.slot}`, key, paint, poseAt(life, since, seed, knocks));
+    const when = `${ageStep(life, since)}|${yearOf(since)}`;
+    const key = `${seed}|${life.n}|${when}|${look.k}|${Math.round(look.p * 24)}|${dead}`;
+    const paint: Painter = (rec, part) => paintTreeParts(rec, plan, 1, look, part);
+    drawPosed(
+      ctx,
+      `tree${life.slot}`,
+      key,
+      paint,
+      poseAt(life, since, seed, knocks),
+      undefined,
+      sheet,
+    );
   }
+  drawSheet(ctx, sheet);
 };
 
 /** A tree giving way at its foot, or landing, at scene x. */
@@ -405,11 +452,13 @@ export const fellCue = (from: number, to: number, seed: number): Fell[] => {
   if (to <= from) return [];
   return slotsTo(seed, to).flatMap((lives) =>
     lives.flatMap((l): Fell[] => {
-      const { root, height } = l.plan;
+      const { root } = l.arch;
       if (l.falls > from && l.falls <= to) return [{ x: root.x, kind: "crack" }];
       const lands = l.falls + FALL_S;
       if (lands > from && lands <= to) {
-        return [{ x: root.x + l.side * height * 0.6, kind: "crash" }];
+        // Where the crown comes down, as far as the room goes.
+        const reach = root.x + l.side * downOf(l).height * 0.6;
+        return [{ x: Math.max(0, Math.min(SCENE_W, reach)), kind: "crash" }];
       }
       return [];
     }),
@@ -420,10 +469,6 @@ export const fellCue = (from: number, to: number, seed: number): Fell[] => {
 export type Knocks = Record<string, number>;
 
 const APPLE_FALL_S = 0.6;
-
-/** The apple year `since` is in, counted from the first summer of the seasons; -1 before. */
-const yearOf = (since: number) =>
-  since < SEASONS_FROM ? -1 : Math.floor((since - SEASONS_FROM) / YEAR_S);
 
 const autumnOfYear = (y: number) => SEASONS_FROM + y * YEAR_S + SEASON_S;
 
@@ -437,10 +482,10 @@ const dropAt = (y: number, j: number, knocks: Knocks) =>
 /** By then the fallen apples are under the snow. */
 const buriedAt = (y: number) => SEASONS_FROM + y * YEAR_S + 2.3 * SEASON_S;
 
-/** The apple tree that bears at `since`: alive, and grown enough to. */
+/** The apple tree that bears at `since`: alive, and old enough to. */
 const appleTree = (seed: number, since: number) =>
   standing(seed, since).find(
-    (l) => l.plan.species === "apple" && since < l.dies && growth(l, since) >= 0.9,
+    (l) => l.arch.species === "apple" && since < l.dies && ageAt(l, since) >= 3,
   ) ?? null;
 
 /** Where apple `j` comes to rest, in the grass below where it hung. */
@@ -462,10 +507,8 @@ export const drawApples = (
   if (!tree || y < 0 || !inLane(tree, front)) return;
   const look = lookAt(since);
   const on = appleOnTree(look);
-  const at = grownAt(tree.plan, grownStep(tree, since));
   const moved = poseAt(tree, since, seed, knocks).fruit;
-  tree.plan.fruit.forEach((f, j) => {
-    const rest = at(f);
+  planOf(tree, since).fruit.forEach((rest, j) => {
     const hang = { x: Math.round(rest.x + moved[j].x), y: Math.round(rest.y + moved[j].y) };
     const drop = dropAt(y, j, knocks);
     if (since < drop) {
@@ -486,10 +529,9 @@ export const appleCue = (from: number, to: number, seed: number, knocks: Knocks)
   const tree = appleTree(seed, to);
   const y = yearOf(to);
   if (!tree || y < 0 || to <= from) return [];
-  const at = grownAt(tree.plan, growth(tree, to));
-  return tree.plan.fruit.flatMap((f, j) => {
+  return planOf(tree, to).fruit.flatMap((f, j) => {
     const landed = dropAt(y, j, knocks) + APPLE_FALL_S;
-    return landed > from && landed <= to ? [groundOf(at(f), y, j).x] : [];
+    return landed > from && landed <= to ? [groundOf(f, y, j).x] : [];
   });
 };
 
@@ -498,8 +540,8 @@ const ripeHanging = (since: number, seed: number, knocks: Knocks) => {
   const tree = appleTree(seed, since);
   const y = yearOf(since);
   if (!tree || y < 0 || !appleOnTree(lookAt(since))?.ripe) return [];
-  return tree.plan.fruit
-    .map((_, j) => ({ j, drop: dropAt(y, j, knocks) }))
+  return planOf(tree, since)
+    .fruit.map((_, j) => ({ j, drop: dropAt(y, j, knocks) }))
     .filter((a) => a.drop > since)
     .sort((a, b) => a.drop - b.drop)
     .map((a) => `${y}:${a.j}`);
@@ -509,12 +551,13 @@ const ripeHanging = (since: number, seed: number, knocks: Knocks) => {
 export const appleTreeAt = (since: number, seed: number, knocks: Knocks) => {
   const tree = appleTree(seed, since);
   if (!tree || !ripeHanging(since, seed, knocks).length) return null;
-  const at = grownAt(tree.plan, growth(tree, since));
-  const { clumps } = tree.plan;
-  const left = Math.min(...clumps.map((c) => at({ x: c.x - c.r, y: c.y }).x));
-  const right = Math.max(...clumps.map((c) => at({ x: c.x + c.r, y: c.y }).x));
-  const top = Math.min(...clumps.map((c) => at({ x: c.x, y: c.y - c.r }).y));
-  const bottom = Math.max(...clumps.map((c) => at({ x: c.x, y: c.y + c.r }).y));
+  // The crown as far as it is in the room.
+  const clumps = planOf(tree, since).clumps.filter((c) => c.y > 0);
+  if (!clumps.length) return null;
+  const left = Math.min(...clumps.map((c) => c.x - c.r));
+  const right = Math.max(...clumps.map((c) => c.x + c.r));
+  const top = Math.max(0, Math.min(...clumps.map((c) => c.y - c.r)));
+  const bottom = Math.max(...clumps.map((c) => c.y + c.r));
   return {
     x: Math.round(left),
     y: Math.round(top),

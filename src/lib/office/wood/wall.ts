@@ -692,31 +692,26 @@ let onWall: HTMLCanvasElement | null = null;
 
 /**
  * `paint` as something on the wall (a crack, a climber): what it puts where the wall has gone,
- * as last drawn, is not drawn; it went down with the wall.
+ * as last drawn, is not drawn; it went down with the wall. Painted at scene px, which is all
+ * anything here ever draws at.
  */
 export const drawOnWall = (
   ctx: CanvasRenderingContext2D,
   paint: (ctx: CanvasRenderingContext2D) => void,
 ) => {
   if (!holes) return paint(ctx);
-  const { width, height } = ctx.canvas;
   onWall ??= document.createElement("canvas");
-  if (onWall.width !== width || onWall.height !== height) {
-    onWall.width = width;
-    onWall.height = height;
+  if (onWall.width !== SCENE_W) {
+    onWall.width = SCENE_W;
+    onWall.height = SCENE_H;
   }
   const off = onWall.getContext("2d");
   if (!off) return paint(ctx);
-  off.setTransform(1, 0, 0, 1, 0, 0);
-  off.clearRect(0, 0, width, height);
-  off.setTransform(ctx.getTransform());
+  off.clearRect(0, 0, SCENE_W, SCENE_H);
   off.imageSmoothingEnabled = false;
   paint(off);
   off.globalCompositeOperation = "destination-out";
   off.drawImage(holes.mask, 0, 0);
   off.globalCompositeOperation = "source-over";
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(onWall, 0, 0);
-  ctx.restore();
 };

@@ -23,7 +23,7 @@ describe("friday's stand", () => {
       for (const lives of livesOf(seed)) {
         lives.forEach((l, k) => {
           expect(l.n).toBe(k);
-          expect(l.born + l.grows).toBeLessThan(l.dies);
+          expect(l.born).toBeLessThan(l.dies);
           expect(l.dies).toBeLessThan(l.falls);
           expect(((l.dies - SEASONS_FROM) / SEASON_S) % 4).toBeCloseTo(3);
           if (k > 0) expect(l.born).toBeGreaterThan(lives[k - 1].falls);
@@ -35,14 +35,14 @@ describe("friday's stand", () => {
   it("keeps the apple tree's slot for apple trees, and changes the others' kind", () => {
     for (let seed = 1; seed <= 6; seed++) {
       const slots = livesOf(seed);
-      const apple = slots.filter((lives) => lives[0].plan.species === "apple");
+      const apple = slots.filter((lives) => lives[0].arch.species === "apple");
       expect(apple).toHaveLength(1);
-      expect(apple[0].every((l) => l.plan.species === "apple")).toBe(true);
+      expect(apple[0].every((l) => l.arch.species === "apple")).toBe(true);
       for (const lives of slots) {
-        if (lives[0].plan.species === "apple") continue;
+        if (lives[0].arch.species === "apple") continue;
         lives.forEach((l, k) => {
-          expect(l.plan.species).not.toBe("apple");
-          if (k > 0) expect(l.plan.species).not.toBe(lives[k - 1].plan.species);
+          expect(l.arch.species).not.toBe("apple");
+          if (k > 0) expect(l.arch.species).not.toBe(lives[k - 1].arch.species);
         });
       }
     }
@@ -60,18 +60,18 @@ describe("friday's stand", () => {
 
   it("cracks as a tree starts to go over, and crashes as it lands", () => {
     const l = [...livesOf(1).flat()].sort((a, b) => a.falls - b.falls)[0];
-    expect(fellCue(l.falls - 0.5, l.falls + 0.5, 1)).toEqual([{ x: l.plan.root.x, kind: "crack" }]);
+    expect(fellCue(l.falls - 0.5, l.falls + 0.5, 1)).toEqual([{ x: l.arch.root.x, kind: "crack" }]);
     const crash = fellCue(l.falls + 1, l.falls + 3, 1);
     expect(crash.map((c) => c.kind)).toEqual(["crash"]);
-    expect(Math.sign(crash[0].x - l.plan.root.x)).toBe(l.side);
+    expect(Math.sign(crash[0].x - l.arch.root.x)).toBe(l.side);
     expect(fellCue(l.falls + 3, l.falls + 60, 1)).toEqual([]);
   });
 
   it("is the same wood whatever moment is asked about first", () => {
-    const late = standing(2, 15000).map((l) => [l.slot, l.n, l.born, l.plan.species]);
+    const late = standing(2, 15000).map((l) => [l.slot, l.n, l.born, l.arch.species]);
     standing(3, 100);
     standing(2, 100);
     standing(2, 5000);
-    expect(standing(2, 15000).map((l) => [l.slot, l.n, l.born, l.plan.species])).toEqual(late);
+    expect(standing(2, 15000).map((l) => [l.slot, l.n, l.born, l.arch.species])).toEqual(late);
   });
 });
