@@ -567,8 +567,10 @@ export const planAt = (arch: Arch, age: number, cull = true): Plan => {
     if (age < a.born) return;
     if (a.parent >= 0 && !drawn[a.parent]) return;
     const gone = age >= a.drops;
-    // A dead branch grows no more.
-    const grown = lengthOf(arch.heightAt, a, a.stem ? age : Math.min(age, a.dies));
+    // A dead branch grows no more, and its brittle tips break off as it hangs on.
+    const lived = lengthOf(arch.heightAt, a, a.stem ? age : Math.min(age, a.dies));
+    const brittle = a.stem || age < a.dies ? 0 : (age - a.dies) / (a.drops - a.dies);
+    const grown = lived * (1 - 0.55 * Math.min(1, brittle));
     const len = gone ? (habit.stubs ? Math.min(3, a.cap) : 0) : grown;
     if (len < 0.5) return;
     const base = a.path[0];
@@ -579,7 +581,7 @@ export const planAt = (arch: Arch, age: number, cull = true): Plan => {
     drawn[i] = mine;
     const branchW = Math.max(
       1,
-      Math.round(0.55 * Math.max(0, Math.min(age, a.dies) - a.born) ** 0.6),
+      Math.round(0.4 * Math.max(0, Math.min(age, a.dies) - a.born) ** 0.6),
     );
     for (let s0 = 0; s0 < len; s0 += piece) {
       const s1 = Math.min(len, s0 + piece);
@@ -680,6 +682,9 @@ export const planAt = (arch: Arch, age: number, cull = true): Plan => {
     const trunk = axes[0];
     const height = arch.heightAt(age);
     const crown = height * (habit.crown + (1 - habit.crown) * Math.exp(-age / habit.crownAge));
+    // The years' whorls, where snow settles.
+    const whorls: number[] = [];
+    for (let y = 1; y <= age; y++) whorls.push(arch.heightAt(y));
     for (let z = Math.max(4, height - crown); z < height - 2; z += 3) {
       const at = pointAt(trunk.path, z);
       if (cull && at.y < CULL_Y) break;
@@ -689,7 +694,8 @@ export const planAt = (arch: Arch, age: number, cull = true): Plan => {
         PX_M *
         (1 - Math.exp(-habit.rate * years)) *
         (0.85 + 0.3 * hash(arch.seed, z, 34));
-      clumps.push({ x: at.x, y: at.y, r: Math.max(1.5, r), at: 0 });
+      const top = whorls.some((w) => Math.abs(w - z) < 1.6);
+      clumps.push({ x: at.x, y: at.y, r: Math.max(1.5, r), at: 0, top });
       clumpOn.push(hangOn(0, z).piece);
       clumpIds.push(100000 + Math.round(z));
     }
@@ -740,7 +746,8 @@ export const shedOf = (arch: Arch): Shed[] => {
   const out: Shed[] = [];
   for (const a of arch.axes) {
     if (a.stem || a.drops === NEVER || a.path[0].y < -10) continue;
-    const len = lengthOf(arch.heightAt, a, a.dies);
+    // What is left of it by then: its tips went first.
+    const len = lengthOf(arch.heightAt, a, a.dies) * 0.45;
     if (len < 6) continue;
     const pts: Pt[] = [];
     for (let s = 0; s <= len; s += STEP) pts.push(pointAt(a.path, s));

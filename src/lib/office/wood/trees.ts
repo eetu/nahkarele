@@ -27,8 +27,9 @@ type Pt = { x: number; y: number };
 /** A piece of wood from `a` to `b`, `w` px thick, there once the tree is `at` grown (0..1);
  *  `dead` (0..1) once its branch has died. */
 type Limb = { a: Pt; b: Pt; w: number; at: number; dead?: number };
-/** Leaves on a broadleaf; a layer of boughs on a spruce; a tuft of needles on a pine. */
-type Clump = { x: number; y: number; r: number; at: number };
+/** Leaves on a broadleaf; a layer of boughs on a spruce (`top`, a whorl's own); a tuft of
+ *  needles on a pine. */
+type Clump = { x: number; y: number; r: number; at: number; top?: boolean };
 
 export type Plan = {
   species: Species;
@@ -218,23 +219,31 @@ const wood = (
   died = 0,
 ) => {
   const dead = Math.max(look.dead ?? 0, died);
-  const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y)));
-  // Snow lies along the top of bare, level-ish wood.
-  const snowy =
-    look.snow > 0.5 &&
-    deciduous(plan.species) &&
-    look.leaves < 0.3 &&
-    Math.abs(b.y - a.y) < Math.abs(b.x - a.x) * 1.5;
-  for (let k = 0; k <= n; k++) {
-    const t = k / n;
-    const x0 = Math.round(a.x + (b.x - a.x) * t - w / 2);
-    const y = Math.round(a.y + (b.y - a.y) * t);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const n = Math.max(1, Math.ceil(Math.hypot(dx, dy)));
+  // A steep limb is thick across, a shallow one top to bottom: either way, as thick as it is.
+  const steep = Math.abs(dy) >= Math.abs(dx);
+  // Snow lies along the top edge of bare, shallow wood, and nowhere inside it.
+  const snowy = !steep && look.snow > 0.5 && deciduous(plan.species) && look.leaves < 0.3;
+  const paint = (x: number, y: number, col: number) => {
     const up = (plan.root.y - y) / Math.max(1, plan.height);
-    for (let col = 0; col < w; col++) {
-      const bark = barkColour(plan, x0 + col, y, col, w, up);
-      rect(ctx, dead ? mix(bark, DEADWOOD, dead * 0.6) : bark, x0 + col, y);
+    const bark = barkColour(plan, x, y, col, w, up);
+    rect(ctx, dead ? mix(bark, DEADWOOD, dead * 0.6) : bark, x, y);
+  };
+  for (let k = 0; k <= n; k++) {
+    const cx = a.x + dx * (k / n);
+    const cy = a.y + dy * (k / n);
+    if (steep) {
+      const x0 = Math.round(cx - w / 2);
+      const y = Math.round(cy);
+      for (let col = 0; col < w; col++) paint(x0 + col, y, col);
+    } else {
+      const x = Math.round(cx);
+      const y0 = Math.round(cy - w / 2);
+      for (let row = 0; row < w; row++) paint(x, y0 + row, row);
+      if (snowy && hash(x, y0, 5) < look.snow) rect(ctx, SNOW, x, y0 - 1);
     }
-    if (snowy && hash(x0, y, 5) < look.snow) rect(ctx, SNOW, x0, y - 1, w, 1);
   }
 };
 
@@ -370,7 +379,8 @@ const bough = (
   for (let dx = -half; dx <= half; dx++) {
     const f = Math.abs(dx) / half;
     const sag = up < 0.65 ? Math.round(f * 2.2 - Math.max(0, f - 0.7) * 7) : -Math.round(f * 1.5);
-    const thick = f > 0.85 ? 1 : 2;
+    // Thick enough that one layer meets the next: needles, not hatching.
+    const thick = f > 0.85 ? 1 : f > 0.55 ? 2 : 3;
     const x = Math.round(c.x) + dx;
     const y0 = Math.round(c.y) + sag - 1;
     for (let k = 0; k < thick; k++) {
@@ -380,7 +390,10 @@ const bough = (
     if (f > 0.2 && f < 0.85 && hash(x, seed, 12) < 0.5) {
       rect(ctx, colours[2], x, y0 + thick, 1, 1 + Math.floor(hash(x, seed, 13) * 2));
     }
-    if (look.snow > 0 && hash(seed, dx, 7) < look.snow * 0.9) rect(ctx, SNOW, x, y0 - 1);
+    // Snow settles on a whorl's outer boughs; the layers under it are in its lee.
+    if (look.snow > 0 && c.top && f > 0.35 && hash(seed, dx, 7) < look.snow * 0.9) {
+      rect(ctx, SNOW, x, y0 - 1);
+    }
   }
 };
 
