@@ -3,6 +3,7 @@
 // growth and lets limbs and leaves appear in the order they grew.
 
 import { hash, ramp, rect } from "$lib/scene/pixel";
+import { mix } from "$lib/scene/sky";
 
 import { SCENE_W } from "../engine";
 import type { Part } from "./posed";
@@ -44,7 +45,14 @@ export type Plan = {
 
 /** What the year is doing to the trees: the season (0 summer … 3 spring), how far through it,
  *  how much of a broadleaf crown is in leaf, and how much snow lies about (0..1). */
-export type Look = { k: 0 | 1 | 2 | 3; p: number; leaves: number; snow: number };
+export type Look = {
+  k: 0 | 1 | 2 | 3;
+  p: number;
+  leaves: number;
+  snow: number;
+  /** How long dead, 0..1: a dead tree has dropped its leaves, then its twigs, and greys. */
+  dead?: number;
+};
 
 export const deciduous = (s: Species): s is Broadleaf => s !== "spruce" && s !== "pine";
 
@@ -612,6 +620,26 @@ const barkColour = (plan: Plan, x: number, y: number, col: number, w: number, up
   }
 };
 
+/** What bark turns to, dead and weathered. */
+const DEADWOOD = "#8c877e";
+/** Dead needles: rust, gone once the tree is this far dead. */
+const RUST = "#9a5a2a";
+const NEEDLES_DROP = 0.35;
+
+/** `ctx` with everything painted through it taken `t` of the way to rust. */
+const rusted = (ctx: CanvasRenderingContext2D, t: number) =>
+  new Proxy(ctx, {
+    set(target, key, value) {
+      if (key === "fillStyle") target.fillStyle = mix(value as string, RUST, Math.min(1, t) * 0.8);
+      else Reflect.set(target, key, value);
+      return true;
+    },
+    get(target, key) {
+      const v = Reflect.get(target, key) as unknown;
+      return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+    },
+  });
+
 const wood = (ctx: CanvasRenderingContext2D, plan: Plan, a: Pt, b: Pt, w: number, look: Look) => {
   const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y)));
   // Snow lies along the top of bare, level-ish wood.
@@ -625,9 +653,44 @@ const wood = (ctx: CanvasRenderingContext2D, plan: Plan, a: Pt, b: Pt, w: number
     const x0 = Math.round(a.x + (b.x - a.x) * t - w / 2);
     const y = Math.round(a.y + (b.y - a.y) * t);
     const up = (plan.root.y - y) / Math.max(1, plan.height);
-    for (let col = 0; col < w; col++)
-      rect(ctx, barkColour(plan, x0 + col, y, col, w, up), x0 + col, y);
+    for (let col = 0; col < w; col++) {
+      const bark = barkColour(plan, x0 + col, y, col, w, up);
+      rect(ctx, look.dead ? mix(bark, DEADWOOD, look.dead * 0.6) : bark, x0 + col, y);
+    }
     if (snowy && hash(x0, y, 5) < look.snow) rect(ctx, SNOW, x0, y - 1, w, 1);
+  }
+};
+
+const EARTH = ["#4a3a2a", "#54422f", "#3e3024"];
+const ROOTS = "#6e5a44";
+const STONE = "#8a877e";
+
+/**
+ * What a tree pulls up with it when it goes over: the plate of its roots and the earth in
+ * them, a ragged bowl under the ground at its foot while it stands, roots poking out round
+ * the rim and a stone or two in it.
+ */
+export const paintRootPlate = (ctx: CanvasRenderingContext2D, plan: Plan) => {
+  const { x: cx, y: top } = plan.root;
+  const r = Math.max(4, Math.min(11, plan.height * 0.07));
+  const depth = r * 0.75;
+  for (let y = Math.round(top) + 1; y <= top + depth; y++) {
+    const v = (y - top) / depth;
+    const half = r * Math.sqrt(Math.max(0, 1 - v * v)) * (0.85 + 0.3 * hash(y, cx, 91));
+    const x0 = Math.round(cx - half);
+    const x1 = Math.round(cx + half);
+    for (let x = x0; x <= x1; x++) {
+      const h = hash(x, y, 92);
+      rect(ctx, h < 0.05 ? STONE : h < 0.2 ? ROOTS : EARTH[Math.floor(hash(x, y, 93) * 3)], x, y);
+    }
+    // Roots torn off where the plate ends.
+    for (const [x, out] of [
+      [x0, -1],
+      [x1, 1],
+    ]) {
+      const n = Math.floor(hash(y, x, 94) * 4) - 1;
+      for (let k = 1; k <= n; k++) rect(ctx, ROOTS, x + out * k, y + (k > 1 && v > 0.5 ? 1 : 0));
+    }
   }
 };
 
@@ -781,11 +844,18 @@ export const paintTreeParts = (
   // Wood first, the oldest out to the youngest, then what grows on it.
   plan.limbs.forEach((l, i) => {
     if (l.at > g) return;
+    // Dead a while, the twigs go first.
+    if ((look.dead ?? 0) > 0.5 && l.w <= 1 && hash(i, 17, Math.round(plan.root.x)) < look.dead!)
+      return;
     const a = at(l.a);
     const b = at(l.b);
     part({ kind: "wood", i, a, b });
     wood(ctx, plan, a, b, Math.max(1, Math.round(l.w * (0.4 + 0.6 * g))), look);
   });
+  // A dead broadleaf stays bare; a dead conifer rusts, then drops its needles.
+  const dead = look.dead ?? 0;
+  if (dead && (deciduous(plan.species) || dead >= NEEDLES_DROP)) return;
+  const needles = dead ? rusted(ctx, dead / NEEDLES_DROP) : ctx;
   plan.clumps.forEach((c, i) => {
     if (c.at > g) return;
     part({ kind: "clump", i });
@@ -793,10 +863,12 @@ export const paintTreeParts = (
     const r = c.r * g;
     const seed = i * 131 + Math.round(plan.root.x);
     if (plan.species === "spruce") {
-      bough(ctx, { ...c, ...q }, r, (plan.root.y - c.y) / Math.max(1, plan.height), look, seed);
+      bough(needles, { ...c, ...q }, r, (plan.root.y - c.y) / Math.max(1, plan.height), look, seed);
     } else if (plan.species === "pine") {
       const { colours, lit } = NEEDLES.pine;
-      clump(ctx, q.x, q.y, r, 0.45, seed, 1, (h, l) => (l ? lit : colours[Math.floor(h * 97) % 3]));
+      clump(needles, q.x, q.y, r, 0.45, seed, 1, (h, l) =>
+        l ? lit : colours[Math.floor(h * 97) % 3],
+      );
       if (look.snow > 0) cap(ctx, q.x, q.y, r, r * 0.45, look.snow, seed);
     } else {
       const species = plan.species;
@@ -813,7 +885,7 @@ export const paintTreeParts = (
     }
   });
   // Cherries and plums hang on the tree in their season; apples are the wood's to drop.
-  if (g < 0.9) return;
+  if (g < 0.9 || look.dead) return;
   const cherries = plan.species === "cherry" && look.k === 0 && look.p > 0.45 && look.p < 0.95;
   const plums =
     plan.species === "plum" && ((look.k === 0 && look.p > 0.8) || (look.k === 1 && look.p < 0.4));

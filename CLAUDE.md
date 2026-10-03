@@ -71,7 +71,10 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   bird, drone) as functions of time; there is nothing to finish. The trees (`wood/trees.ts`:
   always an apple tree, plus five of birch, rowan, oak, maple, cherry, plum, spruce, pine,
   each grown the way the species grows) are generated from `mood.seed`, so each friday grows
-  its own wood and a reload keeps it. In dev a shuttle under the room runs friday's clock
+  its own wood and a reload keeps it. Each slot (`wood/stand.ts`) keeps a tree for good: one
+  lives a few years, dies in a spring and stands dead, goes over (its root plate with it) and
+  rots into the floor while a sapling of another kind comes up; an apple tree's slot regrows
+  an apple tree. In dev a shuttle under the room runs friday's clock
   ahead or back while held, faster the further it is pulled. Apples ripen, fall
   through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
   early (`mood.knocks`), the one thing on friday that answers the player. The wind

@@ -319,7 +319,7 @@ const wood: Unit = {
   defaults: { seed: 1, since: SEASONS_FROM + 0.85 * SEASON_S },
   params: () => [
     { kind: "seed", key: "seed" },
-    { kind: "range", key: "since", min: 0, max: SEASONS_FROM + 4 * SEASON_S, step: 5 },
+    { kind: "range", key: "since", min: 0, max: SEASONS_FROM + 80 * SEASON_S, step: 5 },
   ],
   size: () => ({ w: SCENE_W, h: SCENE_H }),
   animated: true,

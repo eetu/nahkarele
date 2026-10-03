@@ -7,7 +7,7 @@ import type { Weather } from "$lib/scene/sky";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
 import { dayAt } from "./daylight";
 import { litter, type Season, seasonAt, SEASONS_FROM, snowCover, STORM_S } from "./seasons";
-import { growth, standOf } from "./stand";
+import { growth, standing } from "./stand";
 import { autumnOf, crownOf, deciduous } from "./trees";
 import { driftOf } from "./wind";
 
@@ -159,14 +159,14 @@ const drawFallingLeaves = (
   const on =
     season.k === 1 ? ramp(season.p, 0.3, 0.5) : season.k === 2 ? 1 - ramp(season.p, 0, 0.15) : 0;
   if (on <= 0) return;
-  const plans = standOf(seed);
-  const shedding = plans.flatMap((plan, i) => (deciduous(plan.species) ? [i] : []));
+  // Only the living shed; a dead tree's leaves came down the autumn before.
+  const shedding = standing(seed, since).filter((l) => deciduous(l.plan.species) && since < l.dies);
   if (!shedding.length) return;
   for (let i = 0; i < 28; i++) {
     if (hash(i, 41) > on) continue;
     const tree = shedding[Math.floor(hash(i, 42) * shedding.length)];
-    const from = crownOf(plans[tree], growth(tree, since));
-    const colours = autumnOf(plans[tree].species);
+    const from = crownOf(tree.plan, growth(tree, since));
+    const colours = autumnOf(tree.plan.species);
     const x0 = from.x + (hash(i, 43) - 0.5) * 30;
     const y0 = from.y - 10 + hash(i, 44) * 20;
     const period = 5 + 3 * hash(i, 45);

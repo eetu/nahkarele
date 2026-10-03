@@ -12,7 +12,7 @@ import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 
 import { FLOOR_Y, SCENE_W } from "../engine";
 import { type Season, seasonAt, snowCover } from "./seasons";
-import { grownStep, growth, hedgehogApple, type Knocks, poseAt, standOf } from "./stand";
+import { grownStep, growth, hedgehogApple, type Knocks, poseAt, standing } from "./stand";
 import { drawApple, perchOf } from "./trees";
 import { windAt } from "./wind";
 
@@ -273,16 +273,26 @@ const drawHedgehog = (ctx: CanvasRenderingContext2D, since: number, season: Seas
 // --- The owl --------------------------------------------------------------------------
 
 const OWL_FROM = 200;
-/** The owl takes the tree by the clock, on a branch three fifths of the way up. */
+/** The owl keeps to the tree in this slot, on a branch three fifths of the way up; while
+ *  that is down or growing, to the tallest that stands. */
 const OWL_TREE = 4;
 const HOOT_CYCLE = 23;
 const HOOT_S = 1.2;
 
+const owlTree = (seed: number, since: number) => {
+  const grown = standing(seed, since).filter((l) => growth(l, since) >= 0.8);
+  return (
+    grown.find((l) => l.slot === OWL_TREE) ??
+    grown.sort((a, b) => b.plan.height - a.plan.height)[0] ??
+    null
+  );
+};
+
 const drawOwl = (ctx: CanvasRenderingContext2D, since: number, seed: number, knocks: Knocks) => {
-  const g = growth(OWL_TREE, since);
-  if (since < OWL_FROM || g < 0.8) return;
-  const branch = perchOf(standOf(seed)[OWL_TREE], grownStep(OWL_TREE, since));
-  const moved = poseAt(OWL_TREE, since, seed, knocks).perch;
+  const tree = since < OWL_FROM ? null : owlTree(seed, since);
+  if (!tree) return;
+  const branch = perchOf(tree.plan, grownStep(tree, since));
+  const moved = poseAt(tree, since, seed, knocks).perch;
   const perch = { x: Math.round(branch.x + moved.x), y: Math.round(branch.y + moved.y) };
   const c = (since - OWL_FROM) % HOOT_CYCLE;
   const frame =
@@ -293,8 +303,8 @@ const drawOwl = (ctx: CanvasRenderingContext2D, since: number, seed: number, kno
 };
 
 /** What the owl says between two moments of friday, if anything. */
-export const owlCue = (from: number, to: number): "hoot" | null => {
-  if (to <= from || to < OWL_FROM || growth(OWL_TREE, to) < 0.8) return null;
+export const owlCue = (from: number, to: number, seed: number): "hoot" | null => {
+  if (to <= from || to < OWL_FROM || !owlTree(seed, to)) return null;
   const a = (from - OWL_FROM) % HOOT_CYCLE;
   const b = (to - OWL_FROM) % HOOT_CYCLE;
   return b < a ? "hoot" : null;

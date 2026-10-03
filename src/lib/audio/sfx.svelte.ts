@@ -662,6 +662,50 @@ class Sfx {
     this.#hiss(ctx, t + 0.08, { filter: "bandpass", f0: 2600, q: 2, peak: 0.02, dur: 0.3, pan });
   }
 
+  /** A dead tree going over: the wood cracking at its foot, then the crash as it lands. */
+  timber(kind: "crack" | "crash", pan = 0) {
+    const ctx = this.#live();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    if (kind === "crack") {
+      // Fibres giving, one after another, and the long groan of the trunk leaning.
+      for (let i = 0; i < 7; i++) {
+        this.#hiss(ctx, t + i * 0.07 + Math.random() * 0.04, {
+          filter: "bandpass",
+          f0: 900 + Math.random() * 900,
+          q: 4,
+          peak: 0.08 * (1 - i / 9),
+          dur: 0.04,
+          pan,
+        });
+      }
+      this.#tone(ctx, t + 0.2, {
+        type: "sawtooth",
+        f0: 90,
+        f1: 60,
+        peak: 0.04,
+        dur: 1.6,
+        attack: 0.4,
+        cutoff: 500,
+        pan,
+      });
+      return;
+    }
+    this.#tone(ctx, t, { f0: 70, f1: 30, peak: 0.35, dur: 0.6, attack: 0.01, pan });
+    this.#hiss(ctx, t, { filter: "lowpass", f0: 1800, f1: 200, peak: 0.16, dur: 0.7, pan });
+    // The branches snapping under it, and settling.
+    for (let i = 0; i < 6; i++) {
+      this.#hiss(ctx, t + 0.04 + i * 0.06 + Math.random() * 0.05, {
+        filter: "bandpass",
+        f0: 1600 + Math.random() * 1400,
+        q: 3,
+        peak: 0.05 * (1 - i / 8),
+        dur: 0.03,
+        pan,
+      });
+    }
+  }
+
   /** A beak on a glass lid. */
   peck() {
     const ctx = this.#live();

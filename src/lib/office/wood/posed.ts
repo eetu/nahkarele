@@ -18,7 +18,32 @@ export type Part =
  * How far each part has moved from rest, px: both ends of each piece of wood, each clump,
  * each fruit. `turned` is the share of a clump's leaves turned over to their paler undersides.
  */
-export type Pose = { a: Pt[]; b: Pt[]; clumps: Pt[]; fruit: Pt[]; turned?: number[] };
+export type Pose = {
+  a: Pt[];
+  b: Pt[];
+  clumps: Pt[];
+  fruit: Pt[];
+  turned?: number[];
+  /** The whole thing turned about a point on the ground (a tree going over); see `Over`. */
+  over?: Over;
+  /** A pose that names itself is posed once and drawn as it was while the name holds. */
+  still?: string;
+};
+
+/**
+ * Turned `angle` (radians, + clockwise) about `about`, a point on the ground, and sunk `sunk`
+ * px into it; what ends up below the ground is not drawn. Down, it rots (0..1 each): moss
+ * climbs it from the ground (`moss`, in the colours `mosses`), and it crumbles (`gone`),
+ * what sticks up first and what lies on the ground last.
+ */
+export type Over = {
+  about: Pt;
+  angle: number;
+  sunk: number;
+  moss: number;
+  gone: number;
+  mosses: string[];
+};
 
 /** Paints at rest into `ctx`, calling `part` before each part. */
 export type Painter = (ctx: CanvasRenderingContext2D, part: (p: Part) => void) => void;
@@ -50,10 +75,14 @@ type Baked = {
   canvas: HTMLCanvasElement;
   image: ImageData;
   pixels: Uint32Array;
+  /** The `still` pose last drawn. */
+  posed?: string;
 };
 
 /** Room around the painting for it to move into, px. */
 const MARGIN = 12;
+/** What lies higher off the ground than this, px, rots first. */
+const ROT_REACH = 14;
 
 let probe: CanvasRenderingContext2D | null = null;
 const rgba = new Map<string, number>();
@@ -81,7 +110,10 @@ const underOf = (word: number) => {
   return ((word & 0xff000000) | mix(16, 214) | mix(8, 226) | mix(0, 206)) >>> 0;
 };
 
-const bake = (key: string, paint: Painter): Baked | null => {
+/** The box, scene px, a painting is posed into when it needs more room than its own. */
+export type Room = { x: number; y: number; w: number; h: number };
+
+const bake = (key: string, paint: Painter, room?: Room): Baked | null => {
   const parts: Part[] = [];
   const from: number[] = [];
   const xs: number[] = [];
@@ -116,7 +148,7 @@ const bake = (key: string, paint: Painter): Baked | null => {
   if (!xs.length) return null;
   const x0 = Math.min(...xs) - MARGIN;
   const y0 = Math.min(...ys) - MARGIN;
-  const box = {
+  const box = room ?? {
     x: x0,
     y: y0,
     w: Math.max(...xs) + MARGIN - x0 + 1,
@@ -160,16 +192,27 @@ export const drawPosed = (
   key: string,
   paint: Painter,
   pose: Pose,
+  room?: Room,
 ) => {
   let it = baked.get(name);
   if (!it || it.key !== key) {
-    const fresh = bake(key, paint);
+    const fresh = bake(key, paint, room);
     if (!fresh) return;
     it = fresh;
     baked.set(name, it);
   }
   const { parts, from, xs, ys, colours, under, rank, along, box, pixels } = it;
+  if (pose.still !== undefined && pose.still === it.posed) {
+    ctx.drawImage(it.canvas, box.x, box.y);
+    return;
+  }
+  it.posed = pose.still;
   pixels.fill(0);
+  const over = pose.over;
+  const cos = over ? Math.cos(over.angle) : 1;
+  const sin = over ? Math.sin(over.angle) : 0;
+  const mosses = over?.mosses.map(wordOf) ?? [];
+  const tilted = over ? Math.abs(Math.sin(2 * over.angle)) > 0.05 : false;
   parts.forEach((p, j) => {
     let still = { x: 0, y: 0 };
     let move: { a: Pt; b: Pt } | null = null;
@@ -179,18 +222,36 @@ export const drawPosed = (
       still = pose.clumps[p.i];
       turned = pose.turned?.[p.i] ?? 0;
     } else if (p.kind === "fruit") still = pose.fruit[p.i];
-    const sx = Math.round(still.x) - box.x;
-    const sy = Math.round(still.y) - box.y;
+    const sx = Math.round(still.x);
+    const sy = Math.round(still.y);
     for (let k = from[j]; k < from[j + 1]; k++) {
       let x = xs[k] + sx;
       let y = ys[k] + sy;
       if (move) {
         const u = along[k];
-        x = xs[k] + Math.round(move.a.x + (move.b.x - move.a.x) * u) - box.x;
-        y = ys[k] + Math.round(move.a.y + (move.b.y - move.a.y) * u) - box.y;
+        x = xs[k] + Math.round(move.a.x + (move.b.x - move.a.x) * u);
+        y = ys[k] + Math.round(move.a.y + (move.b.y - move.a.y) * u);
       }
+      let word = rank[k] < turned ? under[k] : colours[k];
+      if (over) {
+        const dx = x - over.about.x;
+        const dy = y - over.about.y;
+        x = Math.round(over.about.x + dx * cos - dy * sin);
+        y = Math.round(over.about.y + dx * sin + dy * cos) + over.sunk;
+        if (y > over.about.y) continue;
+        // How near the ground: 1 on it, 0 a hand's height above.
+        const low = 1 - Math.min(1, (over.about.y - y) / ROT_REACH);
+        if (over.gone > 0.4 * rank[k] + 0.6 * low) continue;
+        if (over.moss > (1 - low) * 0.8 + rank[k] * 0.25) {
+          word = mosses[Math.floor(rank[k] * 997) % mosses.length];
+        }
+      }
+      x -= box.x;
+      y -= box.y;
       if (x < 0 || y < 0 || x >= box.w || y >= box.h) continue;
-      pixels[y * box.w + x] = rank[k] < turned ? under[k] : colours[k];
+      pixels[y * box.w + x] = word;
+      // Turned off the square, pixels spread apart; each covers its neighbour if that is bare.
+      if (tilted && x + 1 < box.w && !pixels[y * box.w + x + 1]) pixels[y * box.w + x + 1] = word;
     }
   });
   it.canvas.getContext("2d")?.putImageData(it.image, 0, 0);

@@ -22,6 +22,12 @@ export const mossColour = (x: number, y: number, top: boolean, since: number) =>
   return top || hash(x, y, 71) > 0.85 ? m.lit : m.body[Math.floor(hash(x, y, 72) * 3)];
 };
 
+/** The season's moss, for what it grows over: its body, its lit tops more rarely. */
+export const mossesAt = (since: number) => {
+  const m = MOSS[seasonAt(since).k];
+  return [...m.body, ...m.body, m.lit];
+};
+
 /** Seconds a cushion takes to swell to full size once the moss reaches it. */
 const SWELL_S = 5;
 

@@ -15,7 +15,7 @@
   } from "$lib/office/engine";
   import { officeWeek } from "$lib/office/week.svelte";
   import { owlCue } from "$lib/office/wood/life";
-  import { appleCue, appleTreeAt, shakeApple } from "$lib/office/wood/stand";
+  import { appleCue, appleTreeAt, fellCue, shakeApple } from "$lib/office/wood/stand";
   import { windAt } from "$lib/office/wood/wind";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
 
@@ -146,11 +146,14 @@
         const cue = birdCue(before.since, mood.since);
         if (cue === "chirp") sfx.chirp();
         else if (cue === "peck") sfx.peck();
-        if (owlCue(before.since, mood.since)) sfx.hoot();
+        if (owlCue(before.since, mood.since, mood.seed)) sfx.hoot();
         for (const x of appleCue(before.since, mood.since, mood.seed, mood.knocks)) {
           sfx.apple(pan(x));
         }
         for (const hit of wallCue(before.since, mood.since, mood)) sfx.crumble(pan(hit.x), hit.big);
+        for (const fell of fellCue(before.since, mood.since, mood.seed)) {
+          sfx.timber(fell.kind, pan(fell.x));
+        }
         // The tree takes a tap while it has ripe apples; the rect changes rarely.
         const tree = appleTreeAt(mood.since, mood.seed, mood.knocks);
         const key = tree ? `${tree.x},${tree.y},${tree.w},${tree.h}` : "";
