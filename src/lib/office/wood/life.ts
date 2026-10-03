@@ -187,9 +187,12 @@ const visit = (c: number, w: number, speed: number, stops: number[], waits: numb
 const FOX_FROM = 480;
 const FOX_CYCLE = 140;
 const FOX_SPEED = 44;
+/** How far a trot cycle carries the fox, px: what a paw on the ground sweeps through its
+ *  stance in the sprite, so the paws stay put while it passes over them. */
+const FOX_STRIDE = 16.8;
 
-/** The fox's place this moment, or null while it is away. */
-const foxAt = (since: number): { x: number; face: 1 | -1 } | null => {
+/** The fox's place this moment and how far it has come, or null while it is away. */
+const foxAt = (since: number): { x: number; along: number; face: 1 | -1 } | null => {
   if (since < FOX_FROM) return null;
   const n = Math.floor((since - FOX_FROM) / FOX_CYCLE);
   const c = (since - FOX_FROM) % FOX_CYCLE;
@@ -197,7 +200,7 @@ const foxAt = (since: number): { x: number; face: 1 | -1 } | null => {
   const face: 1 | -1 = hash(n, 71) < 0.5 ? 1 : -1;
   const v = visit(c, w, FOX_SPEED, [], []);
   if (v.done) return null;
-  return { x: face > 0 ? v.x : SCENE_W - v.x - w, face };
+  return { x: face > 0 ? v.x : SCENE_W - v.x - w, along: v.x, face };
 };
 
 const drawFox = (ctx: CanvasRenderingContext2D, since: number) => {
@@ -207,7 +210,8 @@ const drawFox = (ctx: CanvasRenderingContext2D, since: number) => {
   ctx.save();
   ctx.translate(Math.round(f.x) + (f.face < 0 ? w : 0), FLOOR_Y + 6 - S.fox.h);
   ctx.scale(f.face, 1);
-  drawSprite(ctx, S.fox, 0, 0, { frame: frameOf(S.fox, "trot", since * 8) });
+  const trot = S.fox.animations?.trot.length ?? 1;
+  drawSprite(ctx, S.fox, 0, 0, { frame: frameOf(S.fox, "trot", (f.along / FOX_STRIDE) * trot) });
   ctx.restore();
 };
 
