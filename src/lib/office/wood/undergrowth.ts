@@ -23,7 +23,8 @@ const BACK = [
 const FRONT = [
   { x: 292, y: FLOOR_Y + 13, start: 85 },
   { x: 28, y: FLOOR_Y + 15, start: 55 },
-  { x: 160, y: FLOOR_Y + 23, start: 110 },
+  // Off to the side of where the exit sign lands, so it does not grow over it.
+  { x: 122, y: FLOOR_Y + 23, start: 110 },
 ];
 const TALL: Shrub[] = ["lilac", "raspberry", "juniper"];
 const LOW: Shrub[] = ["bilberry", "juniper", "raspberry"];

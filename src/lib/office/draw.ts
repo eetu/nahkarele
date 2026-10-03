@@ -39,7 +39,7 @@ import {
   TRAY,
 } from "./engine";
 import { crowAtJar, crowCue, drawCrow } from "./wood/crow";
-import { drawAir, drawFloor, drawGarden, drawGlow } from "./wood/garden";
+import { drawAir, drawFloor, drawForeground, drawGarden, drawGlow } from "./wood/garden";
 import { outsideOf } from "./wood/outside";
 import { drawCreeperOver, overgrown } from "./wood/overgrowth";
 import type { Knocks } from "./wood/stand";
@@ -535,7 +535,7 @@ export const drawOffice = (
       if (name === "screen" && signs.fullscreen === null) continue;
       const at = fixtureOf(name, mood);
       if (onWall && !at.on) continue;
-      // Down off the wall, the exit sign lies in front of the desk, over the grass.
+      // Down off the wall, the exit sign lies in front of the desk, drawn with the floor.
       if (!onWall && name === "exit" && !at.on) continue;
       const frame =
         name === "speaker"
@@ -554,9 +554,10 @@ export const drawOffice = (
     const at = fixtureOf("exit", mood);
     if (!at.on) drawSprite(ctx, S.exit, at.rect.x, at.rect.y);
   };
-  // Everything that stands in the room, back to front.
-  const drawNear = (ctx: CanvasRenderingContext2D) => {
-    const fallen = { wall: WALL, draw: drawFallen(mood.since) };
+  // Everything that stands in the room, back to front, in two parts: the room and its floor,
+  // then what walks and flies over the exit sign lying there.
+  const fallen = { wall: WALL, draw: drawFallen(mood.since) };
+  const drawStanding = (ctx: CanvasRenderingContext2D) => {
     if (mood.after) drawGarden(ctx, mood, fallen);
     drawSigns(ctx, false);
     drawSlab(ctx, 1, s, mood);
@@ -565,27 +566,36 @@ export const drawOffice = (
     if (mood.after) {
       drawArc(ctx, mood.since);
       drawFloor(ctx, mood, fallen);
-      drawFallenExit(ctx);
-      drawVisitors(ctx, mood);
-      drawCrow(ctx, mood.since, mood.seed, WALL, mood.knocks, "desk");
-      drawAir(ctx, mood, fallen);
     }
   };
+  const drawOver = (ctx: CanvasRenderingContext2D) => {
+    drawForeground(ctx, mood, fallen);
+    drawVisitors(ctx, mood);
+    drawCrow(ctx, mood.since, mood.seed, WALL, mood.knocks, "desk");
+    drawAir(ctx, mood, fallen);
+  };
   // Friday's night shades the wood as well as the room, but not the world through the gaps and
-  // the window: the wall takes it with those cut out, and what stands in the room on a layer of
-  // its own, so whatever is in front of a gap is shaded and the gap is not.
+  // the window: the wall takes it with those cut out, and what stands in the room on layers of
+  // its own, so whatever is in front of a gap is shaded and the gap is not. The exit sign keeps
+  // its light wherever it lies, under whatever passes over it.
   const night = mood.after ? (1 - daylight(sky.progress)) * 0.32 : 0;
   if (night > 0) {
     drawShade(ctx, night, NIGHT, fixtureOf("window", mood).on ? GLASS : null);
-    drawShadedLayer(ctx, drawNear, night, NIGHT);
-  } else drawNear(ctx);
+    drawShadedLayer(ctx, drawStanding, night, NIGHT);
+    drawFallenExit(ctx);
+    drawShadedLayer(ctx, drawOver, night, NIGHT);
+  } else {
+    drawStanding(ctx);
+    if (mood.after) {
+      drawFallenExit(ctx);
+      drawOver(ctx);
+    }
+  }
   if (mood.after) {
     // What lights itself shows through.
     if (night > 0) {
       if (fixtureOf("clock", mood).on) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
       drawSigns(ctx, true);
-      // An exit sign keeps its light wherever it lies.
-      drawFallenExit(ctx);
     }
     drawGlow(ctx, mood);
   } else {

@@ -1,7 +1,8 @@
 // Friday, later: the office becomes a wood, and then the wood has seasons. Everything here is
 // a function of `since`, the seconds since friday began, and of friday's `seed`, which shapes
 // the trees; the only state is caches. This is the order the room is drawn in; the office
-// lays its slabs, desk and arc between the garden and the floor, and its bird before the air.
+// lays its slabs, desk and arc between the garden and the floor, what fell in front of the desk
+// between the floor and the foreground, and its bird before the air.
 
 import { crowTook, drawCrow } from "./crow";
 import { drawDeer, drawFliers, drawGlowing, drawSmallLife } from "./life";
@@ -54,8 +55,7 @@ export const drawGarden = (
 };
 
 /** What is in front of it, back to front: the trees that stand clear of the desk and their
- *  apples, snow on the furniture, the small animals, the low shrubs along the near edge, the
- *  deer. */
+ *  apples, snow on the furniture. */
 export const drawFloor = (
   ctx: CanvasRenderingContext2D,
   { since, seed, knocks }: Friday,
@@ -65,6 +65,15 @@ export const drawFloor = (
   drawTrees(ctx, since, seed, knocks, true);
   drawApples(ctx, since, seed, knocks, true, takenBy(since, seed, fallen, knocks));
   drawSnowCaps(ctx, since);
+};
+
+/** What goes over whatever lies on the floor, back to front: the small animals, the low shrubs
+ *  along the near edge, the deer. */
+export const drawForeground = (
+  ctx: CanvasRenderingContext2D,
+  { since, seed, knocks }: Friday,
+  fallen: Fallen,
+) => {
   drawSmallLife(ctx, since, (x, y) => climbTo(x, y, since, seed, fallen.wall));
   drawCrow(ctx, since, seed, fallen.wall, knocks, "floor");
   drawFrontShrubs(ctx, since, seed);
