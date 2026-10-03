@@ -9,10 +9,24 @@
     "K": "#15120f"
   },
   "animations": {
-    "shuffle": [0, 1]
+    "shuffle": [0,1]
   },
   "frames": [
-    ["..sSsSsSs..", ".sSsSsSsSs.", "sSsSsSsSsSF", "SsSsSsSsSFF", "sSsSsSsSsFK", ".F..F..F..."],
-    ["..sSsSsSs..", ".sSsSsSsSs.", "sSsSsSsSsSF", "SsSsSsSsSFF", "sSsSsSsSsFK", "..F..F..F.."]
+    [
+      "..sSsSsSs..",
+      ".sSsSsSsSs.",
+      "sSsSsSsSsSF",
+      "SsSsSsSsSFF",
+      "sSsSsSsSsFK",
+      ".F..F..F..."
+    ],
+    [
+      "..sSsSsSs..",
+      ".sSsSsSsSs.",
+      "sSsSsSsSsSF",
+      "SsSsSsSsSFF",
+      "sSsSsSsSsFK",
+      "..F..F..F.."
+    ]
   ]
 }

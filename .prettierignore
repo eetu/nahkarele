@@ -6,3 +6,6 @@ yarn.lock
 *.png
 *.svg
 *.webmanifest
+
+# Sprites are written by dab (one frame row per line); a formatter would reflow them.
+src/lib/sprites/*.json

@@ -10,12 +10,12 @@
     "W": "#f4f0e0"
   },
   "variants": {
-    "winter": { "F": "#f4f4f0", "f": "#c8c8c0" }
+    "winter": {"F":"#f4f4f0","f":"#c8c8c0"}
   },
   "animations": {
     "sit": [0],
     "hop": [1],
-    "nibble": [0, 2, 0, 2, 2]
+    "nibble": [0,2,0,2,2]
   },
   "frames": [
     [

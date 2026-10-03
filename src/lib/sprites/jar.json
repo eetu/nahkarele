@@ -12,7 +12,7 @@
     "O": "#d8fff0"
   },
   "animations": {
-    "bubble": [0, 1, 2, 3]
+    "bubble": [0,1,2,3]
   },
   "frames": [
     [
