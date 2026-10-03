@@ -148,6 +148,7 @@
         if (cue === "chirp") sfx.chirp();
         else if (cue === "peck") sfx.peck();
         else if (cue === "alarm") sfx.alarm();
+        else if (cue === "song") sfx.song();
         for (const x of crowCaws(before.since, mood.since, mood)) sfx.caw(pan(x));
         if (owlCue(before.since, mood.since, mood.seed)) sfx.hoot();
         for (const x of appleCue(before.since, mood.since, mood.seed, mood.knocks)) {

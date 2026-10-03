@@ -13,7 +13,7 @@ import { FLOOR_Y, SCENE_W } from "../engine";
 import type { Pt } from "./posed";
 import { SEASON_S, SEASONS_FROM } from "./seasons";
 import { applesDown, type Knocks, planOf, standing } from "./stand";
-import { cycleAt } from "./tit";
+import { birdAt, cycleAt } from "./tit";
 import { drawApple } from "./trees";
 import { climbTo, type Setting } from "./wall";
 import { windowAt } from "./weather";
@@ -78,7 +78,8 @@ const jarLanding = (n: number, seed: number) => {
   // While the tit is on the lid: seven seconds into one of its visits, and still by day.
   const touch = start + FLY_S;
   const land = touch + ((((7 - cycleAt(touch)) % 26) + 26) % 26);
-  return byDay(start) && byDay(land) ? land : null;
+  // And only if the tit is there to be scared: at dusk it may have gone to roost.
+  return byDay(start) && byDay(land) && birdAt(land - 0.1)?.sit ? land : null;
 };
 
 const plan = (n: number, seed: number, setting: Setting, knocks: Knocks): Visit | null => {

@@ -43,7 +43,15 @@ import { drawAir, drawFloor, drawGarden, drawGlow } from "./wood/garden";
 import { outsideOf } from "./wood/outside";
 import { drawCreeperOver, overgrown } from "./wood/overgrowth";
 import type { Knocks } from "./wood/stand";
-import { birdAt, birdCue as titCue, cycleAt, drawBird, SEED_FALL_S, SEEDS } from "./wood/tit";
+import {
+  birdAt,
+  birdCue as titCue,
+  cycleAt,
+  drawBird,
+  SEED_FALL_S,
+  SEEDS,
+  youngAt,
+} from "./wood/tit";
 import { drawShade, drawWall, fixtureAt, type Rect, rubbleCue, type Setting } from "./wood/wall";
 import { windowAt } from "./wood/weather";
 import { windAt } from "./wood/wind";
@@ -429,7 +437,9 @@ export const crowCaws = (from: number, to: number, mood: Mood) =>
 
 const drawVisitors = (ctx: CanvasRenderingContext2D, mood: Mood) => {
   const { since, seed } = mood;
-  const b = birdAt(since, crowAtJar(seed, since));
+  const startled = crowAtJar(seed, since);
+  const b = birdAt(since, startled);
+  const young = youngAt(since, startled);
   const perched = b?.sit ?? false;
   const c = cycleAt(since);
   // The drone idles about the room, and drifts over the jar to feed the bird when it lands.
@@ -449,7 +459,9 @@ const drawVisitors = (ctx: CanvasRenderingContext2D, mood: Mood) => {
       ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
     }
   }
-  if (b) drawBird(ctx, b.x, b.y, b.sit ? null : since * 18, b.face, b.peck);
+  if (young)
+    drawBird(ctx, young.x, young.y, young.sit ? null : since * 20, young.face, false, young.dress);
+  if (b) drawBird(ctx, b.x, b.y, b.sit ? null : since * 18, b.face, b.peck, b.dress);
 };
 
 /** The room's shade at night. */

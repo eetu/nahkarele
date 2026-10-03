@@ -604,6 +604,20 @@ class Sfx {
     }
   }
 
+  /** The tit in spring: its ti-ti-tyy, two quick high notes and a longer lower one. */
+  song() {
+    const ctx = this.#live();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    for (const [at, f, dur] of [
+      [0, 5400, 0.05],
+      [0.13, 5400, 0.05],
+      [0.26, 4100, 0.16],
+    ]) {
+      this.#tone(ctx, t + at, { f0: f, f1: f * 0.97, peak: 0.035, dur, attack: 0.005 });
+    }
+  }
+
   /** The tit scared off the lid: a sharp chink-chink. */
   alarm() {
     const ctx = this.#live();
