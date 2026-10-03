@@ -564,6 +564,47 @@ const drawVisitors = (ctx: CanvasRenderingContext2D, since: number) => {
   if (b) drawBird(ctx, b.x, b.y, b.sit ? null : since * 18, b.face, b.peck);
 };
 
+/** The room's shade at night. */
+const NIGHT = "#0a0f1c";
+
+let layer: HTMLCanvasElement | null = null;
+
+/**
+ * `paint` drawn on a layer of its own, the layer shaded `alpha` of `colour` wherever it was
+ * painted, then put over `ctx`: a shade for what was drawn and nothing behind it.
+ */
+const drawShadedLayer = (
+  ctx: CanvasRenderingContext2D,
+  paint: (ctx: CanvasRenderingContext2D) => void,
+  alpha: number,
+  colour: string,
+) => {
+  const { width, height } = ctx.canvas;
+  layer ??= document.createElement("canvas");
+  if (layer.width !== width || layer.height !== height) {
+    layer.width = width;
+    layer.height = height;
+  }
+  const off = layer.getContext("2d");
+  if (!off) return paint(ctx);
+  off.setTransform(1, 0, 0, 1, 0, 0);
+  off.clearRect(0, 0, width, height);
+  off.setTransform(ctx.getTransform());
+  off.imageSmoothingEnabled = false;
+  paint(off);
+  off.setTransform(1, 0, 0, 1, 0, 0);
+  off.globalCompositeOperation = "source-atop";
+  off.globalAlpha = alpha;
+  off.fillStyle = colour;
+  off.fillRect(0, 0, width, height);
+  off.globalCompositeOperation = "source-over";
+  off.globalAlpha = 1;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(layer, 0, 0);
+  ctx.restore();
+};
+
 /** Paint one frame. `ctx` is already scaled so one unit is one scene pixel. */
 export const drawOffice = (
   ctx: CanvasRenderingContext2D,
@@ -583,21 +624,18 @@ export const drawOffice = (
   const dark = roomDarkness(sky) + (mood.after ? 0.15 : 0);
   if (dark > 0 && mood.after) {
     // On friday the room darkens, but not the world through its gaps and window.
-    drawShade(ctx, dark, "#0a0f1c", fixtureOf("window", mood).on ? GLASS : null);
+    drawShade(ctx, dark, NIGHT, fixtureOf("window", mood).on ? GLASS : null);
   } else if (dark > 0) {
     ctx.globalAlpha = dark;
-    rect(ctx, "#0a0f1c", 0, 0, SCENE_W, SCENE_H);
+    rect(ctx, NIGHT, 0, 0, SCENE_W, SCENE_H);
     ctx.globalAlpha = 1;
   }
   if (!mood.after) drawLedClock(ctx, CLOCK, clockAt(progress(s)), sky.t);
   else if (fixtureOf("clock", mood).on) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
   if (fixtureOf("pay", mood).on) drawPay(ctx, s, mood);
-  if (mood.after) {
-    drawGarden(ctx, mood, { wall: WALL, draw: drawFallen(mood.since) });
-  }
   // Lit signs, so they read in the dark, and through friday's leaves: the speaker and the screen
   // show their state. On friday they hang where the wall still holds them, or lie where they fell.
-  const drawSigns = (onWall: boolean) => {
+  const drawSigns = (ctx: CanvasRenderingContext2D, onWall: boolean) => {
     for (const name of ["exit", "wc", "speaker", "screen"] as const) {
       if (name === "screen" && signs.fullscreen === null) continue;
       const at = fixtureOf(name, mood);
@@ -615,23 +653,33 @@ export const drawOffice = (
       drawSprite(ctx, S[name], at.rect.x, at.rect.y, { frame });
     }
   };
-  drawSigns(false);
-  drawSlab(ctx, 1, s, mood);
-  drawSlab(ctx, 2, s, mood);
-  drawDesk(ctx, s, mood);
+  // Everything that stands in the room, back to front.
+  const drawNear = (ctx: CanvasRenderingContext2D) => {
+    if (mood.after) drawGarden(ctx, mood, { wall: WALL, draw: drawFallen(mood.since) });
+    drawSigns(ctx, false);
+    drawSlab(ctx, 1, s, mood);
+    drawSlab(ctx, 2, s, mood);
+    drawDesk(ctx, s, mood);
+    if (mood.after) {
+      drawArc(ctx, mood.since);
+      drawFloor(ctx, mood);
+      drawVisitors(ctx, mood.since);
+      drawAir(ctx, mood);
+    }
+  };
+  // Friday's night shades the wood as well as the room, but not the world through the gaps and
+  // the window: the wall takes it with those cut out, and what stands in the room on a layer of
+  // its own, so whatever is in front of a gap is shaded and the gap is not.
+  const night = mood.after ? (1 - daylight(sky.progress)) * 0.32 : 0;
+  if (night > 0) {
+    drawShade(ctx, night, NIGHT, fixtureOf("window", mood).on ? GLASS : null);
+    drawShadedLayer(ctx, drawNear, night, NIGHT);
+  } else drawNear(ctx);
   if (mood.after) {
-    drawArc(ctx, mood.since);
-    drawFloor(ctx, mood);
-    drawVisitors(ctx, mood.since);
-    drawAir(ctx, mood);
-    // Friday's night shades the wood as well as the room; what lights itself shows through.
-    const night = (1 - daylight(sky.progress)) * 0.32;
+    // What lights itself shows through.
     if (night > 0) {
-      ctx.globalAlpha = night;
-      rect(ctx, "#0a0f1c", 0, 0, SCENE_W, SCENE_H);
-      ctx.globalAlpha = 1;
       if (fixtureOf("clock", mood).on) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
-      drawSigns(true);
+      drawSigns(ctx, true);
     }
     drawGlow(ctx, mood);
   } else {
