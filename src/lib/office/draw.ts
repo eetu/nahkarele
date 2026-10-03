@@ -38,10 +38,12 @@ import {
   SCENE_W,
   TRAY,
 } from "./engine";
+import { crowAtJar, crowCue, drawCrow } from "./wood/crow";
 import { drawAir, drawFloor, drawGarden, drawGlow } from "./wood/garden";
 import { outsideOf } from "./wood/outside";
 import { drawCreeperOver, overgrown } from "./wood/overgrowth";
 import type { Knocks } from "./wood/stand";
+import { birdAt, birdCue as titCue, cycleAt, drawBird, SEED_FALL_S, SEEDS } from "./wood/tit";
 import { drawShade, drawWall, fixtureAt, type Rect, rubbleCue, type Setting } from "./wood/wall";
 import { windowAt } from "./wood/weather";
 import { windAt } from "./wood/wind";
@@ -417,131 +419,17 @@ const drawVerdict = (ctx: CanvasRenderingContext2D, s: OfficeState) => {
 
 // --- Friday's visitors ---------------------------------------------------------------
 
-const BIRD = {
-  cap: "#111214",
-  cheek: "#f4f4f0",
-  back: "#6f8a3a",
-  tail: "#4f6a2a",
-  belly: "#e8c53a",
-  underside: "#d0ad2a",
-  wing: "#5a7fa8",
-  wingTip: "#3f5f86",
-  beak: "#3a3a3a",
-};
+/** What the tit says between two moments of friday, if anything; the crow may scare it. */
+export const birdCue = (from: number, to: number, mood: Mood) =>
+  titCue(from, to, crowAtJar(mood.seed, to));
 
-/**
- * A great tit (talitiainen), facing right in a 10 × 8 box at x, y. `flap` is the wing
- * phase; `null` folds the wing along the back and puts the bird on its feet.
- */
-const drawBird = (
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  flap: number | null,
-  face: 1 | -1,
-  peck = false,
-) => {
-  ctx.save();
-  ctx.translate(Math.round(x) + (face < 0 ? 10 : 0), Math.round(y));
-  ctx.scale(face, 1);
-  const px = (c: string, dx: number, dy: number, w = 1, h = 1) => rect(ctx, c, dx, dy, w, h);
-  px(BIRD.tail, 0, 4, 2, 1);
-  px(BIRD.tail, 0, 5);
-  px(BIRD.back, 2, 3, 5, 1);
-  px(BIRD.belly, 3, 4, 4, 2);
-  px(BIRD.cap, 6, 4, 1, 2);
-  px(BIRD.underside, 4, 6, 3, 1);
-  if (peck) {
-    // Head down and forward, beak to the lid.
-    px(BIRD.cap, 7, 3, 3, 3);
-    px(BIRD.cheek, 8, 4, 2, 1);
-    px(BIRD.beak, 10, 5);
-  } else {
-    px(BIRD.cap, 6, 1, 3, 3);
-    px(BIRD.cheek, 7, 2, 2, 1);
-    px(BIRD.beak, 9, 2);
-  }
-  if (flap === null) {
-    px(BIRD.wing, 3, 3, 3, 1);
-    px(BIRD.wingTip, 2, 4, 2, 1);
-    px(BIRD.beak, 4, 7);
-    px(BIRD.beak, 6, 7);
-  } else {
-    // One wing, hinged at the shoulder, sweeping from high over the back to low under it.
-    const lift = Math.sin(flap);
-    for (let i = 1; i <= 5; i++) {
-      const wx = 5 - i * 0.6;
-      const wy = 3 - lift * i * 1.3;
-      px(i >= 4 ? BIRD.wingTip : BIRD.wing, Math.round(wx), Math.round(wy), 2, 1);
-    }
-  }
-  ctx.restore();
-};
+/** Where the crow cawed between two moments of friday. */
+export const crowCaws = (from: number, to: number, mood: Mood) =>
+  crowCue(from, to, mood.seed, WALL, mood.knocks);
 
-/** The bird's visit, one cycle every 26 s: in, perch on the jar, get fed, peck, off. */
-const CYCLE_S = 26;
-const PERCH = { x: 151, y: DESK.y - 28 };
-/** Seeds the drone drops onto the jar lid, in front of the bird's beak. */
-const SEEDS = [161, 163, 162, 164, 161].map((x, k) => ({
-  x,
-  y: DESK.y - 21,
-  drop: 5.2 + k * 0.35,
-  eat: 7 + k * 0.9,
-}));
-const SEED_FALL_S = 0.45;
-const cycleAt = (since: number) => (since + 6) % CYCLE_S;
-
-/** When in its cycle the bird is heard: on landing, at each seed, and taking off. */
-const BIRD_CUES = [
-  { at: 2.8, cue: "chirp" as const },
-  ...SEEDS.map((sd) => ({ at: sd.eat - 0.1, cue: "peck" as const })),
-  { at: 12.9, cue: "chirp" as const },
-];
-
-/** What the bird says between two moments of friday, if anything. */
-export const birdCue = (from: number, to: number): "chirp" | "peck" | null => {
-  if (to <= from) return null;
-  const a = cycleAt(from);
-  const b = cycleAt(to);
-  const hit = BIRD_CUES.find(({ at }) => (a <= b ? at > a && at <= b : at > a || at <= b));
-  return hit?.cue ?? null;
-};
-
-const birdAt = (since: number) => {
-  const c = cycleAt(since);
-  if (c < 3) {
-    const q = c / 3;
-    return {
-      x: -10 + (PERCH.x + 10) * q,
-      y: 40 + (PERCH.y - 40) * q - Math.sin(q * Math.PI) * 10,
-      sit: false,
-      peck: false,
-      face: 1 as const,
-    };
-  }
-  if (c < 13) {
-    // Each peck is a quick dip of the head as a seed disappears.
-    const peck = SEEDS.some((sd) => c > sd.eat - 0.18 && c < sd.eat + 0.06);
-    const fed = c > SEEDS[SEEDS.length - 1].eat;
-    // Only once the lid is clear does it glance about.
-    const face = fed && Math.floor(c * 2) % 3 === 0 ? -1 : 1;
-    return { x: PERCH.x, y: PERCH.y, sit: true, peck, face: face as 1 | -1 };
-  }
-  if (c < 17) {
-    const q = (c - 13) / 4;
-    return {
-      x: PERCH.x + (SCENE_W + 10 - PERCH.x) * q,
-      y: PERCH.y - q * 60,
-      sit: false,
-      peck: false,
-      face: 1 as const,
-    };
-  }
-  return null;
-};
-
-const drawVisitors = (ctx: CanvasRenderingContext2D, since: number) => {
-  const b = birdAt(since);
+const drawVisitors = (ctx: CanvasRenderingContext2D, mood: Mood) => {
+  const { since, seed } = mood;
+  const b = birdAt(since, crowAtJar(seed, since));
   const perched = b?.sit ?? false;
   const c = cycleAt(since);
   // The drone idles about the room, and drifts over the jar to feed the bird when it lands.
@@ -658,8 +546,9 @@ export const drawOffice = (
     if (mood.after) {
       drawArc(ctx, mood.since);
       drawFloor(ctx, mood, fallen);
-      drawVisitors(ctx, mood.since);
-      drawAir(ctx, mood);
+      drawVisitors(ctx, mood);
+      drawCrow(ctx, mood.since, mood.seed, WALL, mood.knocks, "desk");
+      drawAir(ctx, mood, fallen);
     }
   };
   // Friday's night shades the wood as well as the room, but not the world through the gaps and

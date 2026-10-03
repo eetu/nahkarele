@@ -4,7 +4,7 @@
   import { panOf, sfx } from "$lib/audio/sfx.svelte";
   import { fullscreen } from "$lib/fullscreen.svelte";
   import { leaveKey } from "$lib/keys";
-  import { birdCue, drawOffice, signAt, SIGNS, wallCue } from "$lib/office/draw";
+  import { birdCue, crowCaws, drawOffice, signAt, SIGNS, wallCue } from "$lib/office/draw";
   import {
     AI_MOUTH,
     FLY_S,
@@ -144,9 +144,11 @@
       for (const e of s.events.splice(0)) play(e);
       if (before.blast === null && mood.blast !== null) sfx.blast();
       if (mood.after) {
-        const cue = birdCue(before.since, mood.since);
+        const cue = birdCue(before.since, mood.since, mood);
         if (cue === "chirp") sfx.chirp();
         else if (cue === "peck") sfx.peck();
+        else if (cue === "alarm") sfx.alarm();
+        for (const x of crowCaws(before.since, mood.since, mood)) sfx.caw(pan(x));
         if (owlCue(before.since, mood.since, mood.seed)) sfx.hoot();
         for (const x of appleCue(before.since, mood.since, mood.seed, mood.knocks)) {
           sfx.apple(pan(x));

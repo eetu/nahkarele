@@ -3,6 +3,7 @@
 // the trees; the only state is caches. This is the order the room is drawn in; the office
 // lays its slabs, desk and arc between the garden and the floor, and its bird before the air.
 
+import { crowTook, drawCrow } from "./crow";
 import { drawDeer, drawFliers, drawGlowing, drawSmallLife } from "./life";
 import { drawCracks, drawGrass, drawMoss, drawVines } from "./overgrowth";
 import { drawSticks } from "./shedding";
@@ -12,6 +13,12 @@ import { climbTo, drawOnWall, drawRubble, fixtureAt, type Setting } from "./wall
 import { drawFalling, drawGround, drawSillSnow, drawSnowCaps } from "./weather";
 
 export type Friday = { since: number; seed: number; knocks: Knocks };
+
+/** The apples the crow has carried off, for the stand to leave out. */
+const takenBy = (since: number, seed: number, fallen: Fallen, knocks: Knocks) => {
+  const took = crowTook(since, seed, fallen.wall, knocks);
+  return (key: string) => took.get(key);
+};
 
 /** The back wall's room, and how to draw what has fallen off it. */
 export type Fallen = {
@@ -42,7 +49,7 @@ export const drawGarden = (
   drawGround(ctx, since);
   drawBackShrubs(ctx, since, seed);
   drawGrass(ctx, since, seed);
-  drawApples(ctx, since, seed, knocks, false);
+  drawApples(ctx, since, seed, knocks, false, takenBy(since, seed, fallen, knocks));
 };
 
 /** What is in front of it, back to front: the trees that stand clear of the desk and their
@@ -55,16 +62,22 @@ export const drawFloor = (
 ) => {
   drawSticks(ctx, since, seed, true);
   drawTrees(ctx, since, seed, knocks, true);
-  drawApples(ctx, since, seed, knocks, true);
+  drawApples(ctx, since, seed, knocks, true, takenBy(since, seed, fallen, knocks));
   drawSnowCaps(ctx, since);
   drawSmallLife(ctx, since, (x, y) => climbTo(x, y, since, seed, fallen.wall));
+  drawCrow(ctx, since, seed, fallen.wall, knocks, "floor");
   drawFrontShrubs(ctx, since, seed);
   drawDeer(ctx, since);
 };
 
 /** What flies and falls, over everything. */
-export const drawAir = (ctx: CanvasRenderingContext2D, { since, seed, knocks }: Friday) => {
+export const drawAir = (
+  ctx: CanvasRenderingContext2D,
+  { since, seed, knocks }: Friday,
+  fallen: Fallen,
+) => {
   drawFliers(ctx, since, seed, knocks);
+  drawCrow(ctx, since, seed, fallen.wall, knocks, "air");
   drawFalling(ctx, since, seed);
 };
 

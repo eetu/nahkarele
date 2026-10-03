@@ -501,12 +501,16 @@ const groundOf = (hang: { x: number }, y: number, j: number) => ({
 });
 
 /** The apples, hanging, falling, and lying in the grass. Drawn with the trees, behind the desk. */
+/** When each fallen apple was carried off, by `year:apple`, or nothing. */
+export type Taken = (key: string) => number | undefined;
+
 export const drawApples = (
   ctx: CanvasRenderingContext2D,
   since: number,
   seed: number,
   knocks: Knocks,
   front: boolean,
+  taken: Taken = () => undefined,
 ) => {
   const tree = appleTree(seed, since);
   const y = yearOf(since);
@@ -521,12 +525,28 @@ export const drawApples = (
       if (on) drawApple(ctx, hang.x, hang.y, on.size, on.ripe, j);
       return;
     }
-    if (since >= buriedAt(y)) return;
+    if (since >= buriedAt(y) || since >= (taken(`${y}:${j}`) ?? Infinity)) return;
     const ground = groundOf(rest, y, j);
     const u = Math.min(1, (since - drop) / APPLE_FALL_S);
     const fx = hang.x + (ground.x - hang.x) * u;
     const fy = hang.y + (ground.y - hang.y) * u * u;
     drawApple(ctx, fx, fy, 2, true, j);
+  });
+};
+
+/** An apple lying in the grass: its knock key, where, and from when until the snow has it. */
+export type Lying = { key: string; j: number; x: number; y: number; landed: number; gone: number };
+
+/** The apples lying in the grass `since` s into friday. */
+export const applesDown = (since: number, seed: number, knocks: Knocks): Lying[] => {
+  const tree = appleTree(seed, since);
+  const y = yearOf(since);
+  if (!tree || y < 0) return [];
+  return planOf(tree, since).fruit.flatMap((rest, j) => {
+    const landed = dropAt(y, j, knocks) + APPLE_FALL_S;
+    const gone = buriedAt(y);
+    if (since < landed || since >= gone) return [];
+    return [{ key: `${y}:${j}`, j, ...groundOf(rest, y, j), landed, gone }];
   });
 };
 

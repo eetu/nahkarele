@@ -604,6 +604,44 @@ class Sfx {
     }
   }
 
+  /** The tit scared off the lid: a sharp chink-chink. */
+  alarm() {
+    const ctx = this.#live();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    for (let i = 0; i < 2; i++) {
+      this.#tone(ctx, t + i * 0.11, { f0: 4600, f1: 4200, peak: 0.04, dur: 0.04, attack: 0.002 });
+    }
+  }
+
+  /** The hooded crow: a hoarse, falling "kraa", the throat in it as much as the voice. */
+  caw(pan = 0) {
+    const ctx = this.#live();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const f = 520 + Math.random() * 60;
+    this.#tone(ctx, t, {
+      type: "sawtooth",
+      f0: f,
+      f1: f * 0.8,
+      peak: 0.05,
+      dur: 0.34,
+      attack: 0.02,
+      cutoff: 1400,
+      pan,
+    });
+    this.#hiss(ctx, t, {
+      filter: "bandpass",
+      f0: 1300,
+      f1: 1000,
+      q: 3,
+      peak: 0.05,
+      dur: 0.32,
+      attack: 0.02,
+      pan,
+    });
+  }
+
   /** The owl in the tallest tree: two soft notes, the second lower. */
   hoot() {
     const ctx = this.#live();
