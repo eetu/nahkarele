@@ -12,9 +12,10 @@ shape), `../dice` (same SvelteKit stack), `eetu/scene` (origin of `src/lib/tape/
 ```
 src/lib/factory/     kumitehdas: engine (belt, gate, TÄ'h, floor bots), days, drawing, week store
 src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, week store
-  wood/              friday's wood: garden (draw order) · seasons · wind · trees + sway (trees and
-                     how they move) · shrubs, climbers, grass + sprawl + rustle (the soft plants
-                     and how they move) · posed (draws both) · stand (the six trees, apples) ·
+  wood/              friday's wood: garden (draw order) · seasons · wind · growth + trees + sway
+                     (how trees grow, look and move) · shedding (dead branches coming down) ·
+                     shrubs, climbers, grass + sprawl + rustle (the soft plants and how they
+                     move) · posed (draws both) · stand (the six trees' lives, apples) ·
                      undergrowth (the shrubs) · overgrowth (cracks, grass, climbers) · moss ·
                      wall (the back wall coming down) · outside (the world behind it) ·
                      weather · life
@@ -70,11 +71,16 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   `../dice`). Engines push what can be heard onto `state.events`; the stage drains it each
   frame and plays it. Nothing audible feeds back into the engine.
 - **Friday in the office is a loop, not a day.** `mood.since` drives everything (grass, vines,
-  bird, drone) as functions of time; there is nothing to finish. The trees (`wood/trees.ts`:
-  always an apple tree, plus five of birch, rowan, oak, maple, cherry, plum, spruce, pine,
-  each grown the way the species grows) are generated from `mood.seed`, so each friday grows
-  its own wood and a reload keeps it. Each slot (`wood/stand.ts`) keeps a tree for good: one
-  lives a few years, dies in a spring and stands dead, goes over (its root plate with it) and
+  bird, drone) as functions of time; there is nothing to finish. The trees (always an apple
+  tree, plus five of birch, rowan, oak, maple, cherry, plum, spruce, pine) are generated from
+  `mood.seed`, so each friday grows its own wood and a reload keeps it. Trees are at the room's
+  scale (40 px to the metre, the desk's) and grow as trees do (`wood/growth.ts`): a tree's
+  whole life is laid down once from its seed, stems gaining height and girth year by year,
+  branches sprouting from each year's growth, the crown rising and what it leaves below dying
+  and dropping (`wood/shedding.ts`); `planAt` reads a plan off it at any age. The first wood
+  comes in five years old in a few minutes, then grows a year a friday year, past the top of
+  the room. Each slot (`wood/stand.ts`) keeps a tree for good: one lives its kind's years (a
+  few friday hours), dies in a spring and stands dead, goes over (its root plate with it) and
   rots into the floor while a sapling of another kind comes up; an apple tree's slot regrows
   an apple tree. In dev a shuttle under the room runs friday's clock
   ahead or back while held, faster the further it is pulled. Apples ripen, fall
