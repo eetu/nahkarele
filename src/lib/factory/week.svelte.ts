@@ -11,9 +11,9 @@ import {
   ITEM_W,
   queued,
   setAway,
+  shiftProgress,
   type Tally,
 } from "./engine";
-import { shiftProgress } from "./sky";
 
 export type Screen = "memo" | "shift" | "review" | "week";
 

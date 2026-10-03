@@ -5,6 +5,8 @@
 
 import { prefersReducedMotion } from "$lib/keys";
 
+import { rect } from "./pixel";
+
 export type Weather = "clear" | "snow" | "rain" | "storm";
 
 export type SkyInput = {
@@ -23,6 +25,9 @@ export type WindowExtras = {
   cracked?: boolean;
   /** Seconds since a blast on the horizon, or null. */
   blast?: number | null;
+  /** What the window looks out on, painted in scene coordinates in place of its own sky, sun
+   *  and town; it still has its weather and its cracks. */
+  scenery?: (ctx: CanvasRenderingContext2D) => void;
 };
 
 type Key = { at: number; top: string; low: string };
@@ -95,18 +100,6 @@ export const roomDarkness = (sky: SkyInput): number => {
   const day = daylight(sky.progress);
   const grey = sky.weather === "clear" ? 0 : 0.35;
   return Math.max(0, (1 - day) * 0.28 + grey * day * 0.12 - flash(sky) * 0.25);
-};
-
-const rect = (
-  ctx: CanvasRenderingContext2D,
-  c: string,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-) => {
-  ctx.fillStyle = c;
-  ctx.fillRect(Math.round(x), Math.round(y), w, h);
 };
 
 // Skyline, lit windows and stars as fractions of the glass, so any window size works.
@@ -189,6 +182,35 @@ const drawCracks = (ctx: CanvasRenderingContext2D, g: Glass) => {
   }
 };
 
+/**
+ * The sky itself over `g`: its colours for the time of day and the weather, top to bottom in
+ * `bands` steps, a lightning flash, stars on a clear night. What a window shows before the town
+ * and the weather; what a hole in a wall shows, too.
+ */
+export const drawOpenSky = (ctx: CanvasRenderingContext2D, sky: SkyInput, g: Glass, bands = 2) => {
+  const p = sky.progress;
+  const grey = sky.weather === "clear" ? 0 : sky.weather === "storm" ? 1 : 0.8;
+  const lit = flash(sky);
+  const { x, y, w, h } = g;
+  const colours = skyAt(p, grey);
+  for (let i = 0; i < bands; i++) {
+    const top = Math.round((h * i) / bands);
+    const next = Math.round((h * (i + 1)) / bands);
+    rect(ctx, mix(colours.top, colours.low, i / (bands - 1)), x, y + top, w, next - top);
+  }
+  if (lit) {
+    ctx.globalAlpha = 0.7 * lit;
+    rect(ctx, "#e8ecf4", x, y, w, h);
+    ctx.globalAlpha = 1;
+  }
+  if (!grey && daylight(p) === 0) {
+    for (const [fx, fy] of STARS) {
+      if (Math.floor(sky.t * 2 + fx * 50) % 7 !== 0)
+        rect(ctx, "#cfd8e8", x + fx * w, y + fy * h, 1, 1);
+    }
+  }
+};
+
 export const drawWindow = (
   ctx: CanvasRenderingContext2D,
   sky: SkyInput,
@@ -200,7 +222,6 @@ export const drawWindow = (
   const { weather } = sky;
   const grey = weather === "clear" ? 0 : weather === "storm" ? 1 : 0.8;
   const day = daylight(p);
-  const lit = flash(sky);
   const { x, y, w, h } = g;
 
   rect(ctx, frame, x - 2, y - 2, w + 4, h + 4);
@@ -209,23 +230,10 @@ export const drawWindow = (
   ctx.rect(x, y, w, h);
   ctx.clip();
 
-  const colours = skyAt(p, grey);
-  rect(ctx, colours.top, x, y, w, h / 2);
-  rect(ctx, colours.low, x, y + h / 2, w, h / 2);
-  if (lit) {
-    ctx.globalAlpha = 0.7 * lit;
-    rect(ctx, "#e8ecf4", x, y, w, h);
-    ctx.globalAlpha = 1;
-  }
-
-  if (!grey && day === 0) {
-    for (const [fx, fy] of STARS) {
-      if (Math.floor(sky.t * 2 + fx * 50) % 7 !== 0)
-        rect(ctx, "#cfd8e8", x + fx * w, y + fy * h, 1, 1);
-    }
-  }
+  if (extras.scenery) extras.scenery(ctx);
+  else drawOpenSky(ctx, sky, g);
   // A low winter sun that barely clears the rooftops.
-  if (!grey && p > 0.18 && p < 0.7) {
+  if (!extras.scenery && !grey && p > 0.18 && p < 0.7) {
     const q = (p - 0.18) / 0.52;
     ctx.fillStyle = "#f6d27a";
     ctx.beginPath();
@@ -238,6 +246,7 @@ export const drawWindow = (
   const ruined = extras.cracked === true;
   const town = ruined ? mix("#1c1f24", "#4e565e", day) : mix("#262e3a", "#7a8a95", day);
   TOWN.forEach(([fx, fy, fw, fh], i) => {
+    if (extras.scenery) return;
     if (!ruined) {
       rect(ctx, town, x + fx * w, y + fy * h, fw * w, fh * h + 1);
       return;

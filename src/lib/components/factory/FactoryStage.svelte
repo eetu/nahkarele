@@ -22,8 +22,8 @@
   import { leaveKey } from "$lib/keys";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
 
+  import SceneSign from "../SceneSign.svelte";
   import NixieClock from "./NixieClock.svelte";
-  import SceneSign from "./SceneSign.svelte";
 
   type Props = {
     children?: Snippet;

@@ -23,7 +23,7 @@
   // Dev only, and loaded only in dev: a production build drops this branch and the bar with it.
   let DevBar = $state<Component | null>(null);
   if (import.meta.env.DEV) {
-    void import("$lib/components/DevBar.svelte").then((m) => (DevBar = m.default));
+    void import("$lib/components/dev/DevBar.svelte").then((m) => (DevBar = m.default));
   }
 
   /** Set when the key opened the workbench, so the same key goes back to where it was. */

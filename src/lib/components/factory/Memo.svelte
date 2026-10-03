@@ -6,7 +6,7 @@
   import { week } from "$lib/factory/week.svelte";
   import { leaveKey } from "$lib/keys";
 
-  import SpriteIcon from "./SpriteIcon.svelte";
+  import SpriteIcon from "../SpriteIcon.svelte";
 
   const day = $derived(week.current);
   const stamps = $derived<Defect[]>([...day.defects, ...(day.foreign ? ["foreign" as const] : [])]);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SCENE_W } from "../engine";
+import { SCENE_W } from "../../engine";
 import { SEASON_S, SEASONS_FROM } from "../seasons";
 import { driftOf, windAt, windDir } from "../wind";
 

@@ -429,6 +429,10 @@ export const onCurrent = (s: FactoryState, x: number, y: number): boolean => {
   return x >= item.x - 2 && x <= item.x + ITEM_W + 2;
 };
 
+/** How far through the day's boots the shift is, 0..1: the clock on the wall reads it. */
+export const shiftProgress = (s: FactoryState): number =>
+  Number.isFinite(s.total) && s.total > 0 ? Math.min(1, s.spawned / s.total) : 0;
+
 /** Boots waiting behind the gate, the current one included. */
 export const queued = (s: FactoryState): number => onBelt(s).filter((i) => !i.decided).length;
 

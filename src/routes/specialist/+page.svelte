@@ -1,10 +1,10 @@
 <script lang="ts">
   import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 
-  import DeskPanel from "$lib/components/DeskPanel.svelte";
-  import OfficeMemo from "$lib/components/OfficeMemo.svelte";
-  import OfficeStage from "$lib/components/OfficeStage.svelte";
-  import Payslip from "$lib/components/Payslip.svelte";
+  import DeskPanel from "$lib/components/office/DeskPanel.svelte";
+  import OfficeMemo from "$lib/components/office/OfficeMemo.svelte";
+  import OfficeStage from "$lib/components/office/OfficeStage.svelte";
+  import Payslip from "$lib/components/office/Payslip.svelte";
   import { debugDay } from "$lib/debug";
   import { eur } from "$lib/format";
   import { officeWeek } from "$lib/office/week.svelte";

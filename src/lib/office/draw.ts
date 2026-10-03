@@ -1,10 +1,10 @@
 import { prefersReducedMotion } from "$lib/keys";
-import { drawCalendar } from "$lib/scene/calendar";
+import { CALENDAR, drawCalendar } from "$lib/scene/calendar";
 import { drawLedClock } from "$lib/scene/led";
+import { rect } from "$lib/scene/pixel";
 import { drawPixelText } from "$lib/scene/pixelfont";
 import { clockAt, drawWindow, flash, mix, roomDarkness, type SkyInput } from "$lib/scene/sky";
 import cake from "$lib/sprites/cake.json";
-import deer from "$lib/sprites/deer.json";
 import drone from "$lib/sprites/drone.json";
 import exit from "$lib/sprites/exit.json";
 import fx from "$lib/sprites/fx.json";
@@ -30,25 +30,18 @@ import {
   SCENE_W,
   TRAY,
 } from "./engine";
-import {
-  drawApples,
-  drawGround,
-  drawGroundlife,
-  drawIvy,
-  drawTrees,
-  drawWoodlife,
-  type Knocks,
-  overgrown,
-  snowCover,
-  windowAt,
-} from "./forest";
-import { windAt } from "./wind";
+import { drawAir, drawFloor, drawGarden } from "./wood/garden";
+import { outsideOf } from "./wood/outside";
+import { drawCreeperOver, overgrown } from "./wood/overgrowth";
+import type { Knocks } from "./wood/stand";
+import { drawWall, fixtureAt, type Rect, rubbleCue } from "./wood/wall";
+import { windowAt } from "./wood/weather";
+import { windAt } from "./wood/wind";
 
 const S = {
   specialist: specialist as Sprite,
   jar: jar as Sprite,
   cake: cake as Sprite,
-  deer: deer as Sprite,
   drone: drone as Sprite,
   token: token as Sprite,
   fx: fx as Sprite,
@@ -89,6 +82,33 @@ const CALENDAR_AT = { x: 61, y: 24 };
 /** The pay readout under the clock: the one number the job is really about. */
 const PAY = { x: CLOCK.x, y: CLOCK.y + CLOCK.h + 5, w: CLOCK.w, h: 11 };
 
+/**
+ * What hangs on the back wall, as the wall knows it: each goes down with the piece it hangs
+ * from (`wood/wall.ts`). The window fills an opening in the wall; the rest hang on it.
+ */
+const FIXTURES = {
+  window: { x: GLASS.x - 2, y: GLASS.y - 2, w: GLASS.w + 4, h: GLASS.h + 4 },
+  clock: { x: CLOCK.x - 2, y: CLOCK.y - 2, w: CLOCK.w + 4, h: CLOCK.h + 4 },
+  pay: { x: PAY.x - 2, y: PAY.y - 2, w: PAY.w + 4, h: PAY.h + 4 },
+  calendar: { x: CALENDAR_AT.x, y: CALENDAR_AT.y - 2, w: CALENDAR.w, h: CALENDAR.h + 2 },
+  ...SIGNS,
+};
+type Fixture = keyof typeof FIXTURES;
+const OPENINGS = ["window"];
+
+/** Where fixture `name` is: on the wall where it always was, or, on friday, on its way down. */
+const fixtureOf = (name: Fixture, mood: Mood) =>
+  mood.after
+    ? fixtureAt(name, mood.since, mood.seed, FIXTURES, OPENINGS)
+    : { on: true, rect: FIXTURES[name] };
+
+/** Where a sign is now, for its button. */
+export const signAt = (name: keyof typeof SIGNS, mood: Mood): Rect => fixtureOf(name, mood).rect;
+
+/** What came down off the wall between two moments of friday, and where: for the thuds. */
+export const wallCue = (from: number, to: number, mood: Mood) =>
+  rubbleCue(from, to, mood.seed, FIXTURES, OPENINGS);
+
 /** What the wall signs show: the speaker's state, and fullscreen (null where unsupported). */
 export type Signs = { muted: boolean; fullscreen: boolean | null };
 const SLAB = { w: 44, top: 22, bottom: 150 };
@@ -113,25 +133,8 @@ const C = {
   chair: "#2a2d31",
   crt: "#9aa0a6",
   crtDark: "#6b7075",
-  crack: "#23262c",
-  grass: "#5f9a3a",
-  grassDark: "#3f7a2a",
-  vine: "#3f6a2a",
-  leaf: "#6aa84a",
   rune: "#b77cff",
   seed: "#e8d6a0",
-};
-
-const rect = (
-  ctx: CanvasRenderingContext2D,
-  c: string,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-) => {
-  ctx.fillStyle = c;
-  ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 };
 
 const skyOf = (s: OfficeState, mood: Mood): SkyInput =>
@@ -145,16 +148,69 @@ const drawRoom = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => 
   rect(ctx, C.wallLow, 0, 100, SCENE_W, FLOOR_Y - 100);
   rect(ctx, C.floor, 0, FLOOR_Y, SCENE_W, SCENE_H - FLOOR_Y);
   for (let y = FLOOR_Y + 6; y < SCENE_H; y += 8) rect(ctx, C.floorLine, 0, y, SCENE_W, 1);
-  drawWindow(ctx, skyOf(s, mood), GLASS, C.frame, { cracked: mood.after, blast: mood.blast });
-  // Clock housing; the digits are drawn after the room darkens, so they stay lit.
-  rect(ctx, C.frame, CLOCK.x - 2, CLOCK.y - 2, CLOCK.w + 4, CLOCK.h + 4);
-  rect(ctx, "#140807", CLOCK.x - 1, CLOCK.y - 1, CLOCK.w + 2, CLOCK.h + 2);
-  // The pay readout's housing, under the clock, lit the same way.
-  rect(ctx, C.frame, PAY.x - 2, PAY.y - 2, PAY.w + 4, PAY.h + 4);
-  rect(ctx, "#140807", PAY.x - 1, PAY.y - 1, PAY.w + 2, PAY.h + 2);
+  const sky = skyOf(s, mood);
+  if (!mood.after) drawWindow(ctx, sky, GLASS, C.frame, { blast: mood.blast });
+  else {
+    // After the blast the wall comes down piece by piece, and the world outside shows through
+    // the gaps and the window alike.
+    const outside = outsideOf(sky, mood.since, mood.seed);
+    drawWall(ctx, outside, mood.since, mood.seed, FIXTURES, OPENINGS);
+    if (fixtureOf("window", mood).on) {
+      const scenery = outside
+        ? (c: CanvasRenderingContext2D) => c.drawImage(outside, 0, 0)
+        : undefined;
+      drawWindow(ctx, sky, GLASS, C.frame, { cracked: true, blast: mood.blast, scenery });
+    }
+  }
+  // The clock's and the pay readout's housings; their digits are drawn after the room darkens,
+  // so they stay lit.
+  if (fixtureOf("clock", mood).on) drawHousing(ctx, FIXTURES.clock.x, FIXTURES.clock.y, CLOCK);
+  if (fixtureOf("pay", mood).on) drawHousing(ctx, FIXTURES.pay.x, FIXTURES.pay.y, PAY);
   const left = mood.after ? null : s.day.messages - s.spawned;
-  drawCalendar(ctx, CALENDAR_AT.x, CALENDAR_AT.y, s.day.name, left);
+  if (fixtureOf("calendar", mood).on)
+    drawCalendar(ctx, CALENDAR_AT.x, CALENDAR_AT.y, s.day.name, left);
 };
+
+/** A readout's housing, its corner at `x`, `y`, for a face the size of `face`. */
+const drawHousing = (ctx: CanvasRenderingContext2D, x: number, y: number, face: Rect) => {
+  rect(ctx, C.frame, x, y, face.w + 4, face.h + 4);
+  rect(ctx, "#140807", x + 1, y + 1, face.w + 2, face.h + 2);
+};
+
+/** The window as it lands: its frame, the panes empty but for a few shards. */
+const drawFallenWindow = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+  const { w, h } = FIXTURES.window;
+  rect(ctx, C.frame, x, y, w, 2);
+  rect(ctx, C.frame, x, y + h - 2, w, 2);
+  rect(ctx, C.frame, x, y, 2, h);
+  rect(ctx, C.frame, x + w - 2, y, 2, h);
+  rect(ctx, C.frame, x + Math.floor(w / 2) - 1, y, 2, h);
+  rect(ctx, C.frame, x, y + Math.floor(h / 2) - 1, w, 2);
+  for (const [dx, dy, len] of [
+    [2, 2, 5],
+    [w - 7, 2, 4],
+    [2, h - 4, 3],
+    [Math.floor(w / 2) + 1, Math.floor(h / 2) + 1, 4],
+  ]) {
+    for (let k = 0; k < len; k++) rect(ctx, "#9aa8b4", x + dx + k, y + dy + (k % 2), 1, 1);
+  }
+};
+
+/**
+ * A fixture that has come off the wall, drawn where it is, its corner at `x`, `y`: the clock
+ * still showing 12:00, the readout its dashes. The signs are drawn with the room's other signs.
+ */
+const drawFallen =
+  (since: number) => (ctx: CanvasRenderingContext2D, name: string, x: number, y: number) => {
+    if (name === "window") drawFallenWindow(ctx, x, y);
+    else if (name === "clock") {
+      drawHousing(ctx, x, y, CLOCK);
+      drawLedClock(ctx, { ...CLOCK, x: x + 2, y: y + 2 }, "12:00", since, true);
+    } else if (name === "pay") {
+      drawHousing(ctx, x, y, PAY);
+      drawPixelText(ctx, "-.--€", x + 2 + PAY.w - 2, y + 4, "#3a1410", { align: "right" });
+    } else if (name === "calendar") drawCalendar(ctx, x, y + 2, "fri", null);
+  };
 
 /** Salary so far in red segments' colours, or a dead readout on friday. */
 const drawPay = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => {
@@ -162,289 +218,6 @@ const drawPay = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => {
   drawPixelText(ctx, text, PAY.x + PAY.w - 2, PAY.y + 2, mood.after ? "#3a1410" : "#ff3b2a", {
     align: "right",
   });
-};
-
-// --- Friday: cracks, grass, vines -------------------------------------------------
-
-const CRACKS: [number, number][][] = [
-  [
-    [60, 152],
-    [72, 158],
-    [70, 166],
-    [84, 174],
-    [88, 180],
-  ],
-  [
-    [140, 154],
-    [132, 162],
-    [138, 170],
-    [128, 180],
-  ],
-  [
-    [204, 151],
-    [214, 160],
-    [230, 163],
-    [238, 172],
-  ],
-  [
-    [262, 156],
-    [252, 166],
-    [258, 180],
-  ],
-];
-const TUFTS = CRACKS.flatMap((c, i) =>
-  c.slice(1).map(([x, y], j) => ({ x, y, delay: 4 + i * 3 + j * 5 })),
-);
-const VINES = [
-  { x: 58, delay: 10 },
-  { x: 104, delay: 22 },
-  { x: 218, delay: 16 },
-  { x: 262, delay: 30 },
-];
-
-const PETALS = ["#e89aa8", "#f4f4f0", "#b77cff", "#f78f08", "#e0443a"];
-/** Where on each vine a flower opens, how long after, and in what colour. */
-const FLOWERS = VINES.map((_, vi) =>
-  Array.from({ length: 40 }, (_, k) => {
-    const h = (Math.imul(vi * 977 + k * 131, 2654435761) >>> 0) / 4294967296;
-    return {
-      d: 12 + Math.floor(h * (FLOOR_Y - 30)),
-      side: h < 0.5 ? 2 : -2,
-      wait: 4 + ((h * 1000) % 1) * 30,
-      colour: PETALS[Math.floor(((h * 7919) % 1) * PETALS.length)],
-      bloom: (h * 104729) % 1 < 0.2,
-    };
-  }).filter((f) => f.bloom),
-);
-
-const drawCracks = (ctx: CanvasRenderingContext2D) => {
-  ctx.strokeStyle = C.crack;
-  ctx.lineWidth = 1;
-  for (const c of CRACKS) {
-    ctx.beginPath();
-    ctx.moveTo(c[0][0] + 0.5, c[0][1] + 0.5);
-    for (const [x, y] of c.slice(1)) ctx.lineTo(x + 0.5, y + 0.5);
-    ctx.stroke();
-  }
-};
-
-/**
- * Moss creeps outward from the cracks and the vine roots until it carpets the floor.
- * Each 2 × 2 cell gets the time it turns green, worked out once.
- */
-const MOSS_CELL = 2;
-const MOSS_GREENS = ["#3f6a2a", "#4f7f33", "#5f9a3a", "#46732e"];
-let moss: { x: number; y: number; at: number; colour: string }[] | null = null;
-/** Worked out on first use, not on import. */
-const mossCells = () =>
-  (moss ??= (() => {
-    const seeds = [...CRACKS.flat(), ...VINES.map((v) => [v.x, FLOOR_Y] as [number, number])];
-    const cells: { x: number; y: number; at: number; colour: string }[] = [];
-    for (let y = FLOOR_Y; y < SCENE_H; y += MOSS_CELL) {
-      for (let x = 0; x < SCENE_W; x += MOSS_CELL) {
-        const near = Math.min(...seeds.map(([sx, sy]) => Math.hypot(x - sx, (y - sy) * 1.6)));
-        const hash = (Math.imul(x * 73 + y * 151, 2654435761) >>> 0) / 4294967296;
-        cells.push({
-          x,
-          y,
-          at: 6 + near / 0.9 + hash * 8,
-          colour: MOSS_GREENS[Math.floor(hash * 97) % MOSS_GREENS.length],
-        });
-      }
-    }
-    return cells.sort((p, q) => p.at - q.at);
-  })());
-
-/** Fully grown moss never changes again, so it is drawn once and reused. */
-let mossDone: HTMLCanvasElement | null = null;
-
-const drawMoss = (ctx: CanvasRenderingContext2D, since: number) => {
-  const cells = mossCells();
-  const grown = cells[cells.length - 1].at + 3;
-  if (since > grown) {
-    if (!mossDone) {
-      mossDone = document.createElement("canvas");
-      mossDone.width = SCENE_W;
-      mossDone.height = SCENE_H - FLOOR_Y;
-      const off = mossDone.getContext("2d");
-      if (off) {
-        for (const c of cells) {
-          off.fillStyle = c.colour;
-          off.fillRect(c.x, c.y - FLOOR_Y, MOSS_CELL, MOSS_CELL);
-        }
-      }
-    }
-    ctx.drawImage(mossDone, 0, FLOOR_Y);
-    return;
-  }
-  for (const c of cells) {
-    if (c.at > since) break;
-    ctx.globalAlpha = Math.min(1, (since - c.at) / 3);
-    ctx.fillStyle = c.colour;
-    ctx.fillRect(c.x, c.y, MOSS_CELL, MOSS_CELL);
-  }
-  ctx.globalAlpha = 1;
-};
-
-const drawGarden = (ctx: CanvasRenderingContext2D, mood: Mood) => {
-  const { since, seed, knocks } = mood;
-  drawCracks(ctx);
-  drawMoss(ctx, since);
-  drawTrees(ctx, since, seed, knocks);
-  drawGround(ctx, since);
-  for (const t of TUFTS) {
-    const h = Math.min(6, Math.max(0, (since - t.delay) * 0.25));
-    if (h <= 0) continue;
-    // The blades lean with the wind, the tips most, each a little out of step.
-    const wind = windAt(since, seed, t.x);
-    for (let i = -2; i <= 2; i++) {
-      const bh = Math.round(h * (1 - Math.abs(i) * 0.25));
-      const lean = wind * 2.5 + Math.sin(since * 4 + t.x + i) * 0.4 * Math.abs(wind);
-      for (let j = 0; j < bh; j++) {
-        const u = (j + 1) / bh;
-        rect(
-          ctx,
-          i % 2 ? C.grassDark : C.grass,
-          t.x + i + Math.round(lean * u * u),
-          t.y - 1 - j,
-          1,
-          1,
-        );
-      }
-    }
-  }
-  VINES.forEach((v, vi) => {
-    const len = Math.min(FLOOR_Y - 16, Math.max(0, (since - v.delay) * 1.6));
-    for (let d = 0; d < len; d++) {
-      const y = FLOOR_Y - d;
-      const x = v.x + Math.round(Math.sin(d / 7) * 2);
-      rect(ctx, C.vine, x, y, 1, 1);
-      if (d % 6 === 3) rect(ctx, C.leaf, x + (d % 12 < 6 ? 1 : -2), y, 2, 1);
-    }
-    // Flowers open here and there, a while after the vine has grown past.
-    for (const f of FLOWERS[vi]) {
-      if (f.d >= len) continue;
-      const age = since - v.delay - f.d / 1.6 - f.wait;
-      if (age <= 0) continue;
-      const x = v.x + Math.round(Math.sin(f.d / 7) * 2) + f.side;
-      const y = FLOOR_Y - f.d;
-      if (age < 3) {
-        rect(ctx, f.colour, x, y, 1, 1);
-        continue;
-      }
-      rect(ctx, f.colour, x - 1, y, 3, 1);
-      rect(ctx, f.colour, x, y - 1, 1, 3);
-      rect(ctx, "#f2c230", x, y, 1, 1);
-    }
-  });
-  drawApples(ctx, since, seed, knocks);
-};
-
-/**
- * Once the moss is in, a deer wanders through every so often: in from one side, two
- * stops to graze, out the other. Each visit's direction and pace come from its index.
- */
-const DEER_FROM = 40;
-const DEER_CYCLE = 75;
-const DEER_SPEED = 16;
-/** Drawn at twice the sprite's size: a deer is big next to a desk. */
-const DEER_SCALE = 2;
-/** Scene px the deer covers in one pass through its walk frames. */
-const DEER_STRIDE = 22;
-
-const drawDeer = (ctx: CanvasRenderingContext2D, since: number) => {
-  if (since < DEER_FROM) return;
-  const n = Math.floor((since - DEER_FROM) / DEER_CYCLE);
-  const c = (since - DEER_FROM) % DEER_CYCLE;
-  const h = (Math.imul(n + 1, 2654435761) >>> 0) / 4294967296;
-  const face: 1 | -1 = h < 0.5 ? 1 : -1;
-  const stops = [70 + h * 40, 180 + ((h * 97) % 1) * 50];
-  const graze = [5, 7];
-  const w = S.deer.w * DEER_SCALE;
-  // Walk to each stop, graze there, then walk off: distance along the path by time.
-  let t = c;
-  let along = 0;
-  let grazing = false;
-  let prev = -w;
-  for (const [i, stop] of stops.entries()) {
-    const walk = (stop - prev) / DEER_SPEED;
-    if (t < walk) {
-      along = prev + t * DEER_SPEED;
-      t = -1;
-      break;
-    }
-    t -= walk;
-    if (t < graze[i]) {
-      along = stop;
-      grazing = true;
-      t = -1;
-      break;
-    }
-    t -= graze[i];
-    prev = stop;
-  }
-  if (t >= 0) along = prev + t * DEER_SPEED;
-  if (along > SCENE_W + w) return;
-  const x = face > 0 ? along : SCENE_W - along - w;
-  // The walk frames are one stride, stepped by distance so the hooves plant instead of sliding.
-  const frame = grazing
-    ? frameOf(S.deer, "graze", since * 3)
-    : frameOf(S.deer, "walk", (along / DEER_STRIDE) * (S.deer.animations?.walk.length ?? 1));
-  ctx.save();
-  ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 26 - S.deer.h * DEER_SCALE);
-  ctx.scale(DEER_SCALE * face, DEER_SCALE);
-  drawSprite(ctx, S.deer, 0, 0, { frame });
-  ctx.restore();
-};
-
-/** Things that move in once nobody is looking: ants, ladybugs, a snail, a spider. */
-const drawCritters = (ctx: CanvasRenderingContext2D, since: number) => {
-  const step = Math.floor(since * 8);
-  // The floor's small life goes under as the snow comes, and back out as it melts.
-  const bare = Math.max(0, 1 - snowCover(since) * 1.6);
-  // Ants, a few more every so often, in both directions along the floor.
-  const ants = Math.floor(Math.min(14, Math.floor((since - 8) / 5)) * bare);
-  for (let i = 0; i < ants; i++) {
-    const dir = i % 2 ? -1 : 1;
-    const speed = 9 + (i % 4) * 3;
-    const span = SCENE_W + 20;
-    const along = (((since * speed + i * 53) % span) + span) % span;
-    const x = Math.round(dir > 0 ? along - 10 : SCENE_W + 10 - along);
-    const y = FLOOR_Y + 3 + ((i * 7) % 24);
-    rect(ctx, "#15120f", x, y, 3, 1);
-    const legs = (step + i) % 2;
-    rect(ctx, "#15120f", x + legs, y + 1, 1, 1);
-    rect(ctx, "#15120f", x + 2 - legs, y - 1, 1, 1);
-  }
-  // Ladybugs, dawdling on the moss.
-  for (let i = 0; i < Math.floor(Math.min(4, Math.floor((since - 20) / 12)) * bare); i++) {
-    const x = Math.round(40 + i * 70 + Math.sin(since * 0.25 + i * 2) * 26);
-    const y = Math.round(FLOOR_Y + 6 + i * 5 + Math.sin(since * 0.4 + i) * 3);
-    rect(ctx, "#d0342c", x, y, 3, 2);
-    rect(ctx, "#15120f", x + 1, y, 1, 2);
-    rect(ctx, "#15120f", x + (Math.sin(since * 0.25 + i * 2) > 0 ? 3 : -1), y, 1, 1);
-  }
-  // A snail, climbing the wall by the window at snail speed.
-  if (since > 15) {
-    const y = Math.round(Math.max(64, FLOOR_Y - 4 - (since - 15) * 0.8));
-    const x = 96;
-    rect(ctx, "#8a6a4a", x, y, 3, 3);
-    rect(ctx, "#5e4726", x + 1, y + 1, 1, 1);
-    rect(ctx, "#c8b89a", x - 1, y + 3, 5, 1);
-    rect(ctx, "#c8b89a", x - 1, y - 1, 1, 1);
-  }
-  // A spider on its thread from the ceiling, bobbing.
-  if (since > 25) {
-    const x = 118;
-    const y = Math.round(34 + Math.sin(since * 0.6) * 12);
-    ctx.globalAlpha = 0.6;
-    rect(ctx, "#d8dde2", x, 0, 1, y);
-    ctx.globalAlpha = 1;
-    rect(ctx, "#15120f", x - 1, y, 3, 2);
-    const kick = step % 2;
-    rect(ctx, "#15120f", x - 2, y + kick, 1, 1);
-    rect(ctx, "#15120f", x + 2, y + 1 - kick, 1, 1);
-  }
 };
 
 // --- The AIs ------------------------------------------------------------------------
@@ -489,7 +262,7 @@ const drawSlab = (ctx: CanvasRenderingContext2D, ai: 1 | 2, s: OfficeState, mood
   ctx.textBaseline = "top";
   ctx.fillText(`AI #${ai}`, x + w / 2, bottom - 15);
   ctx.textAlign = "left";
-  if (mood.after) drawIvy(ctx, x, top, bottom, w, mood.since);
+  if (mood.after) drawCreeperOver(ctx, x, top, bottom, w, mood.since, mood.seed);
 };
 
 /** Friday's AIs talk directly: a crackling arc over the empty desk. */
@@ -793,28 +566,35 @@ export const drawOffice = (
     rect(ctx, "#0a0f1c", 0, 0, SCENE_W, SCENE_H);
     ctx.globalAlpha = 1;
   }
-  if (mood.after) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
-  else drawLedClock(ctx, CLOCK, clockAt(progress(s)), sky.t);
-  drawPay(ctx, s, mood);
-  if (mood.after) drawGarden(ctx, mood);
+  if (!mood.after) drawLedClock(ctx, CLOCK, clockAt(progress(s)), sky.t);
+  else if (fixtureOf("clock", mood).on) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
+  if (fixtureOf("pay", mood).on) drawPay(ctx, s, mood);
+  if (mood.after) {
+    drawGarden(ctx, mood, {
+      fixtures: FIXTURES,
+      openings: OPENINGS,
+      draw: drawFallen(mood.since),
+    });
+  }
   // Lit signs, so they read in the dark, and through friday's leaves: the speaker and the screen
-  // show their state.
-  drawSprite(ctx, S.exit, SIGNS.exit.x, SIGNS.exit.y);
-  drawSprite(ctx, S.wc, SIGNS.wc.x, SIGNS.wc.y);
-  drawSprite(ctx, S.speaker, SIGNS.speaker.x, SIGNS.speaker.y, { frame: signs.muted ? 1 : 0 });
+  // show their state. On friday they hang where the wall still holds them, or lie where they fell.
+  const sign = (name: keyof typeof SIGNS) => fixtureOf(name, mood).rect;
+  drawSprite(ctx, S.exit, sign("exit").x, sign("exit").y);
+  drawSprite(ctx, S.wc, sign("wc").x, sign("wc").y);
+  drawSprite(ctx, S.speaker, sign("speaker").x, sign("speaker").y, { frame: signs.muted ? 1 : 0 });
   if (signs.fullscreen !== null) {
-    drawSprite(ctx, S.screen, SIGNS.screen.x, SIGNS.screen.y, { frame: signs.fullscreen ? 1 : 0 });
+    drawSprite(ctx, S.screen, sign("screen").x, sign("screen").y, {
+      frame: signs.fullscreen ? 1 : 0,
+    });
   }
   drawSlab(ctx, 1, s, mood);
   drawSlab(ctx, 2, s, mood);
   drawDesk(ctx, s, mood);
   if (mood.after) {
     drawArc(ctx, mood.since);
-    drawCritters(ctx, mood.since);
-    drawGroundlife(ctx, mood.since);
-    drawDeer(ctx, mood.since);
+    drawFloor(ctx, mood);
     drawVisitors(ctx, mood.since);
-    drawWoodlife(ctx, mood.since, mood.seed, mood.knocks);
+    drawAir(ctx, mood);
   } else {
     drawTokens(ctx, s);
     drawDrone(ctx, s);

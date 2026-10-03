@@ -644,6 +644,24 @@ class Sfx {
     this.#hiss(ctx, t, { filter: "lowpass", f0: 900, peak: 0.06, dur: 0.05, pan });
   }
 
+  /** A piece of wall hitting the floor; `big` for something that hung on it. */
+  crumble(pan = 0, big = false) {
+    const ctx = this.#live();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    this.#tone(ctx, t, { f0: big ? 110 : 160, f1: 60, peak: big ? 0.2 : 0.1, dur: 0.18, pan });
+    this.#hiss(ctx, t, {
+      filter: "lowpass",
+      f0: 1400,
+      f1: 400,
+      peak: big ? 0.1 : 0.05,
+      dur: 0.22,
+      pan,
+    });
+    // Grit settling after it.
+    this.#hiss(ctx, t + 0.08, { filter: "bandpass", f0: 2600, q: 2, peak: 0.02, dur: 0.3, pan });
+  }
+
   /** A beak on a glass lid. */
   peck() {
     const ctx = this.#live();

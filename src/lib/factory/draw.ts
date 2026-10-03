@@ -1,6 +1,7 @@
 import { drawCalendar } from "$lib/scene/calendar";
+import { rect } from "$lib/scene/pixel";
 import { drawPixelText } from "$lib/scene/pixelfont";
-import { drawWindow, flash, roomDarkness } from "$lib/scene/sky";
+import { drawWindow, flash, roomDarkness, type SkyInput } from "$lib/scene/sky";
 import { bake, drawSprite, frameOf } from "$lib/sprites/sprite";
 
 import {
@@ -18,10 +19,18 @@ import {
   OUT_X,
   SCENE_H,
   SCENE_W,
+  shiftProgress,
   ZONE,
 } from "./engine";
 import { lookOf, SPRITES } from "./look";
-import { FACTORY_GLASS, skyOf } from "./sky";
+
+/** The factory's window: where the glass is, and the day it shows. */
+const GLASS = { x: 16, y: 18, w: 56, h: 44 };
+const skyOf = (s: FactoryState): SkyInput => ({
+  t: s.t,
+  progress: shiftProgress(s),
+  weather: s.day.weather,
+});
 
 /** Scene-only state the engine does not care about: the press, the lever, the sparkles. */
 export type Stagecraft = {
@@ -113,18 +122,6 @@ const C = {
   bulb: "#fff3c4",
 };
 
-const rect = (
-  ctx: CanvasRenderingContext2D,
-  colour: string,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-) => {
-  ctx.fillStyle = colour;
-  ctx.fillRect(Math.round(x), Math.round(y), w, h);
-};
-
 /** The beam the press runs along: over the whole lit stretch, just under the window sill. */
 const BEAM = { from: ZONE.from - 10, to: GATE_X + 42, y: 67 };
 const PRESS_REST = 87;
@@ -146,7 +143,7 @@ const drawRoom = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
   rect(ctx, C.floor, 0, 150, SCENE_W, 30);
   for (let y = 156; y < SCENE_H; y += 8) rect(ctx, C.floorLine, 0, y, SCENE_W, 1);
 
-  drawWindow(ctx, skyOf(s), FACTORY_GLASS, C.frame);
+  drawWindow(ctx, skyOf(s), GLASS, C.frame);
 
   // Mounting plate for the nixie clock, which sits on top of the canvas.
   const { x: kx, y: ky, w: kw, h: kh } = CLOCK;

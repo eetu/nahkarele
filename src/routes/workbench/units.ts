@@ -5,18 +5,40 @@
 import { sfx } from "$lib/audio/sfx.svelte";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "$lib/office/engine";
 import {
+  type Climber,
+  type ClimberPlan,
+  CLIMBERS,
+  paintClimberParts,
+  planClimber,
+} from "$lib/office/wood/climbers";
+import { type GrassPlan, paintGrassParts, planGrass } from "$lib/office/wood/grass";
+import { drawPosed } from "$lib/office/wood/posed";
+import { rustleOf } from "$lib/office/wood/rustle";
+import { lookAt, SEASON_S, SEASONS_FROM } from "$lib/office/wood/seasons";
+import {
+  paintShrubParts,
+  planShrub,
+  type Shrub,
+  type ShrubPlan,
+  SHRUBS,
+} from "$lib/office/wood/shrubs";
+import {
   appleTreeAt,
   drawApples,
-  drawGround,
   drawTrees,
   type Knocks,
-  lookAt,
-  SEASON_S,
-  SEASONS_FROM,
   shakeApple,
-} from "$lib/office/forest";
-import { drawTree, poseOf } from "$lib/office/sway";
-import { paintFruit, type Plan, planTree, SPECIES, type Species } from "$lib/office/trees";
+} from "$lib/office/wood/stand";
+import { poseOf } from "$lib/office/wood/sway";
+import {
+  paintFruit,
+  paintTreeParts,
+  type Plan,
+  planTree,
+  SPECIES,
+  type Species,
+} from "$lib/office/wood/trees";
+import { drawGround } from "$lib/office/wood/weather";
 import { CALENDAR, drawCalendar } from "$lib/scene/calendar";
 import { drawPixelText, pixelTextWidth } from "$lib/scene/pixelfont";
 import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
@@ -58,6 +80,15 @@ const office = (ctx: CanvasRenderingContext2D, w: number, h: number, floor: numb
   ctx.fillStyle = "#4f7f33";
   ctx.fillRect(0, floor, w, h - floor);
 };
+
+/** The bench's wind: `wind`, steady (stirring a little, as friday's does) or with a gust
+ *  every eight seconds. */
+const blowing = (v: Values, time: number) =>
+  num(v, "wind") *
+  (1 +
+    0.12 * Math.sin(0.7 * time) +
+    0.08 * Math.sin(1.6 * time + 1.1) +
+    (str(v, "gusts") === "gusty" ? 0.8 * Math.max(0, Math.sin(time * 0.8)) ** 3 : 0));
 
 /** The bench's trees by their parameters, so a moving tree is planned once. */
 const plans = new Map<string, Plan>();
@@ -109,22 +140,168 @@ const tree: Unit = {
     const seed = num(v, "seed");
     const plan = planOf(seed, num(v, "height"), str(v, "species") as Species);
     const g = num(v, "growth");
-    // Steady still stirs a little, as friday's does; gusty adds a gust every eight seconds.
-    const gusty = str(v, "gusts") === "gusty";
-    const blow = (time: number) =>
-      num(v, "wind") *
-      (1 +
-        0.12 * Math.sin(0.7 * time) +
-        0.08 * Math.sin(1.6 * time + 1.1) +
-        (gusty ? 0.8 * Math.max(0, Math.sin(time * 0.8)) ** 3 : 0));
-    const pose = poseOf(plan, g, look, t, (_, ago) => blow(t - ago));
+    const pose = poseOf(plan, g, look, t, (_, ago) => blowing(v, t - ago));
     const key = `${seed}|${num(v, "height")}|${plan.species}|${g}|${look.k}|${look.p}`;
-    drawTree(ctx, `bench${seed}`, key, plan, g, look, pose);
+    drawPosed(
+      ctx,
+      `tree${seed}`,
+      key,
+      (rec, part) => paintTreeParts(rec, plan, g, look, part),
+      pose,
+    );
     paintFruit(ctx, plan, g, look, pose.fruit);
   },
 };
 
-/** Friday's stand as the room grows it: four trees and the ground under them. */
+/** One shrub in the wind, rustling as on friday. */
+const shrub: Unit = {
+  name: "shrub",
+  animated: true,
+  defaults: {
+    kind: "raspberry",
+    seed: 1,
+    growth: 1,
+    season: "summer",
+    through: 0.7,
+    height: 18,
+    wind: 0.8,
+    gusts: "gusty",
+  },
+  params: () => [
+    { kind: "select", key: "kind", options: SHRUBS },
+    { kind: "seed", key: "seed" },
+    { kind: "range", key: "growth", min: 0, max: 1, step: 0.025 },
+    { kind: "select", key: "season", options: SEASONS },
+    { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01 },
+    { kind: "range", key: "height", min: 4, max: 40, step: 1 },
+    { kind: "range", key: "wind", min: -2, max: 2, step: 0.1 },
+    { kind: "select", key: "gusts", options: ["steady", "gusty"] },
+  ],
+  size: () => ({ w: 60, h: 50 }),
+  draw: (ctx, v, t) => {
+    const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
+    const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
+    office(ctx, 60, 50, 42);
+    const seed = num(v, "seed");
+    const kind = str(v, "kind") as Shrub;
+    const key = `${seed}|${num(v, "height")}|${kind}`;
+    let plan = shrubPlans.get(key);
+    if (!plan) {
+      plan = planShrub(seed, { x: 30, y: 44 }, num(v, "height"), kind);
+      shrubPlans.set(key, plan);
+    }
+    const g = num(v, "growth");
+    const pose = rustleOf(plan, g, look, t, (_, ago) => blowing(v, t - ago));
+    const painted = `${key}|${g}|${look.k}|${look.p}`;
+    const it = plan;
+    drawPosed(
+      ctx,
+      `shrub${seed}`,
+      painted,
+      (rec, part) => paintShrubParts(rec, it, g, look, part),
+      pose,
+    );
+  },
+};
+const shrubPlans = new Map<string, ShrubPlan>();
+
+/** One climber up a wall, as far as it has reached, rustling as on friday. */
+const climber: Unit = {
+  name: "climber",
+  animated: true,
+  defaults: {
+    kind: "creeper",
+    seed: 1,
+    reach: 1,
+    season: "summer",
+    through: 0.5,
+    height: 100,
+    wind: 0.8,
+    gusts: "gusty",
+  },
+  params: () => [
+    { kind: "select", key: "kind", options: CLIMBERS },
+    { kind: "seed", key: "seed" },
+    { kind: "range", key: "reach", min: 0, max: 1, step: 0.02 },
+    { kind: "select", key: "season", options: SEASONS },
+    { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01 },
+    { kind: "range", key: "height", min: 30, max: 140, step: 5 },
+    { kind: "range", key: "wind", min: -2, max: 2, step: 0.1 },
+    { kind: "select", key: "gusts", options: ["steady", "gusty"] },
+  ],
+  size: () => ({ w: 60, h: 150 }),
+  draw: (ctx, v, t) => {
+    const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
+    const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
+    office(ctx, 60, 150, 144);
+    const seed = num(v, "seed");
+    const kind = str(v, "kind") as Climber;
+    const key = `${seed}|${num(v, "height")}|${kind}`;
+    let plan = climberPlans.get(key);
+    if (!plan) {
+      plan = planClimber(seed, { x: 30, y: 144 }, num(v, "height"), kind);
+      climberPlans.set(key, plan);
+    }
+    const reach = num(v, "reach");
+    const pose = rustleOf(plan, 1, look, t, (_, ago) => blowing(v, t - ago));
+    const it = plan;
+    drawPosed(
+      ctx,
+      `climber${seed}`,
+      `${key}|${reach}|${look.k}|${look.p}`,
+      (rec, part) => paintClimberParts(rec, it, reach, look, part),
+      pose,
+    );
+  },
+};
+const climberPlans = new Map<string, ClimberPlan>();
+
+/** A patch of grass, three tufts, waving as on friday. */
+const grass: Unit = {
+  name: "grass",
+  animated: true,
+  defaults: { seed: 1, growth: 1, season: "summer", through: 0.7, wind: 0.8, gusts: "gusty" },
+  params: () => [
+    { kind: "seed", key: "seed" },
+    { kind: "range", key: "growth", min: 0, max: 1, step: 0.05 },
+    { kind: "select", key: "season", options: SEASONS },
+    { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01 },
+    { kind: "range", key: "wind", min: -2, max: 2, step: 0.1 },
+    { kind: "select", key: "gusts", options: ["steady", "gusty"] },
+  ],
+  size: () => ({ w: 60, h: 24 }),
+  draw: (ctx, v, t) => {
+    const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
+    const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
+    office(ctx, 60, 24, 4);
+    if (look.snow > 0) {
+      ctx.globalAlpha = look.snow;
+      ctx.fillStyle = "#f4f7fa";
+      ctx.fillRect(0, 4, 60, 20);
+      ctx.globalAlpha = 1;
+    }
+    const seed = num(v, "seed");
+    let plan = grassPlans.get(seed);
+    if (!plan) {
+      const tufts = [14, 30, 46].map((x, i) => ({ x, y: 18 + (i % 2) * 3, delay: 0 }));
+      plan = planGrass(seed, tufts);
+      grassPlans.set(seed, plan);
+    }
+    // A tuft's growth by its clock: a full tuft is GROW_S seconds old.
+    const since = num(v, "growth") * 30;
+    const pose = rustleOf(plan, 1, look, t, (_, ago) => blowing(v, t - ago));
+    const it = plan;
+    drawPosed(
+      ctx,
+      `grass${seed}`,
+      `${seed}|${since}|${look.k}|${look.p}`,
+      (rec, part) => paintGrassParts(rec, it, since, look, part),
+      pose,
+    );
+  },
+};
+const grassPlans = new Map<number, GrassPlan>();
+
 /** Apples shaken down on the bench, per seed of wood. */
 const benchKnocks = new Map<number, Knocks>();
 const knocksOf = (seed: number): Knocks => {
@@ -267,4 +444,4 @@ const text: Unit = {
   },
 };
 
-export const UNITS: Unit[] = [tree, wood, sprite, calendar, text];
+export const UNITS: Unit[] = [tree, shrub, climber, grass, wood, sprite, calendar, text];

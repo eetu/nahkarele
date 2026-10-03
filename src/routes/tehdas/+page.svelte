@@ -1,8 +1,8 @@
 <script lang="ts">
-  import DayReview from "$lib/components/DayReview.svelte";
-  import FactoryStage from "$lib/components/FactoryStage.svelte";
-  import Memo from "$lib/components/Memo.svelte";
-  import WeekReview from "$lib/components/WeekReview.svelte";
+  import DayReview from "$lib/components/factory/DayReview.svelte";
+  import FactoryStage from "$lib/components/factory/FactoryStage.svelte";
+  import Memo from "$lib/components/factory/Memo.svelte";
+  import WeekReview from "$lib/components/factory/WeekReview.svelte";
   import { debugDay } from "$lib/debug";
   import { week } from "$lib/factory/week.svelte";
 

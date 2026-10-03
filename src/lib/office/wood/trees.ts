@@ -2,8 +2,10 @@
 // floor. A plan is the full-grown tree in scene pixels; `paintTree` scales it from the root by
 // growth and lets limbs and leaves appear in the order they grew.
 
-import { SCENE_W } from "./engine";
-import { hash, ramp, rect } from "./pixel";
+import { hash, ramp, rect } from "$lib/scene/pixel";
+
+import { SCENE_W } from "../engine";
+import type { Part } from "./posed";
 
 export type Species =
   "birch" | "rowan" | "apple" | "oak" | "maple" | "cherry" | "plum" | "spruce" | "pine";
@@ -103,7 +105,7 @@ const NEEDLES: Record<"spruce" | "pine", { colours: string[]; lit: string }> = {
 export const autumnOf = (s: Species): string[] => (deciduous(s) ? LEAVES[s].autumn : []);
 
 /** mulberry32: a stream of floats in [0, 1) from a seed. */
-const random = (seed: number) => {
+export const random = (seed: number) => {
   let s = seed | 0;
   return () => {
     s = (s + 0x6d2b79f5) | 0;
@@ -664,7 +666,7 @@ const leafColour = (species: Broadleaf, h: number, lit: boolean, { k, p }: Look)
  * wandering in and out around it so no two read as the same stamped oval. Thinned to `density`
  * from the outside in.
  */
-const clump = (
+export const clump = (
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
@@ -693,7 +695,7 @@ const clump = (
 };
 
 /** Snow along the top edge of a clump. */
-const cap = (
+export const cap = (
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
@@ -754,10 +756,6 @@ const ASPECT: Record<Broadleaf, number> = {
 /** Rowan berries: late summer to early winter, longer than the leaves. */
 const berried = ({ k, p }: Look) => (k === 0 && p > 0.6) || k === 1 || (k === 2 && p < 0.35);
 
-/** Which part of a tree is being painted: a piece of wood, a clump, a fruit (by index in the
- *  plan), or the whole sapling. */
-export type Part = { kind: "wood" | "clump" | "fruit" | "sapling"; i: number };
-
 /** Paint `plan` at growth `g` (0..1) into `ctx`, dressed for the season `look`. */
 export const paintTree = (ctx: CanvasRenderingContext2D, plan: Plan, g: number, look: Look) =>
   paintTreeParts(ctx, plan, g, look, () => {});
@@ -772,7 +770,7 @@ export const paintTreeParts = (
 ) => {
   const at = grownAt(plan, g);
   if (g < 0.15) {
-    part({ kind: "sapling", i: 0 });
+    part({ kind: "still" });
     // A sapling: a green stem and two leaves.
     const top = { x: plan.root.x, y: plan.root.y - plan.height * g };
     for (let y = Math.round(top.y); y <= plan.root.y; y++) rect(ctx, "#4f7f33", plan.root.x, y);
@@ -783,8 +781,10 @@ export const paintTreeParts = (
   // Wood first, the oldest out to the youngest, then what grows on it.
   plan.limbs.forEach((l, i) => {
     if (l.at > g) return;
-    part({ kind: "wood", i });
-    wood(ctx, plan, at(l.a), at(l.b), Math.max(1, Math.round(l.w * (0.4 + 0.6 * g))), look);
+    const a = at(l.a);
+    const b = at(l.b);
+    part({ kind: "wood", i, a, b });
+    wood(ctx, plan, a, b, Math.max(1, Math.round(l.w * (0.4 + 0.6 * g))), look);
   });
   plan.clumps.forEach((c, i) => {
     if (c.at > g) return;

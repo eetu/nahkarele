@@ -5,8 +5,9 @@
 // Strength is unitless, about 0..2 (1 a stiff breeze); its sign is the direction, + blowing
 // to the right. Whatever moves in it scales it to scene px.
 
-import { SCENE_W } from "./engine";
-import { hash, smooth } from "./pixel";
+import { hash, smooth } from "$lib/scene/pixel";
+
+import { SCENE_W } from "../engine";
 import { seasonAt, SEASONS_FROM, STORM_S } from "./seasons";
 
 /** The mean wind per season: summer, autumn, winter, spring. */
@@ -71,4 +72,37 @@ export const driftOf = (from: number, to: number, seed: number, x: number): numb
   let sum = windAt(from, seed, x) + windAt(to, seed, x);
   for (let i = 1; i < 6; i++) sum += (i % 2 ? 4 : 2) * windAt(from + i * h, seed, x);
   return (sum * h) / 3;
+};
+
+/** The wind's history a spring answers to: this many samples, this far apart, in seconds. */
+export const LAGS = 16;
+export const LAG_S = 0.25;
+
+/**
+ * A damped spring's answer to a push `ago` seconds back, sampled at `LAG_S`: its impulse
+ * response, made to sum to 1 so a steady push is a steady lean. `hz` is its own pace, `zeta`
+ * how soon it settles. Trees and shrubs both answer the wind this way.
+ */
+export const springOf = (hz: number, zeta: number) => {
+  const omega = 2 * Math.PI * hz;
+  const ring = omega * Math.sqrt(1 - zeta * zeta);
+  const out = new Float64Array(LAGS);
+  let sum = 0;
+  for (let k = 0; k < LAGS; k++) {
+    const ago = (k + 0.5) * LAG_S;
+    out[k] = Math.exp(-zeta * omega * ago) * Math.sin(ring * ago);
+    sum += out[k];
+  }
+  return out.map((v) => v / sum);
+};
+
+/** `wind` at `x` over the last few seconds, newest first, sampled as `springOf` reads it. */
+export const historyOf = (wind: (x: number, ago: number) => number, x: number) =>
+  Array.from({ length: LAGS }, (_, k) => wind(x, (k + 0.5) * LAG_S));
+
+/** How far a spring has been pushed by a history. */
+export const feltBy = (spring: Float64Array, history: number[]) => {
+  let felt = 0;
+  for (let k = 0; k < LAGS; k++) felt += spring[k] * history[k];
+  return felt;
 };

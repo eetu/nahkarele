@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FLOOR_Y, SCENE_W } from "../engine";
+import { FLOOR_Y, SCENE_W } from "../../engine";
 import { planTree, SPECIES } from "../trees";
 
 const ROOT = { x: 136, y: FLOOR_Y + 3 };

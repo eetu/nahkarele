@@ -4,7 +4,7 @@
   import { panOf, sfx } from "$lib/audio/sfx.svelte";
   import { fullscreen } from "$lib/fullscreen.svelte";
   import { leaveKey } from "$lib/keys";
-  import { birdCue, drawOffice, SIGNS } from "$lib/office/draw";
+  import { birdCue, drawOffice, signAt, SIGNS, wallCue } from "$lib/office/draw";
   import {
     AI_MOUTH,
     FLY_S,
@@ -13,12 +13,13 @@
     SCENE_H,
     SCENE_W,
   } from "$lib/office/engine";
-  import { appleCue, appleTreeAt, forestCue, shakeApple } from "$lib/office/forest";
   import { officeWeek } from "$lib/office/week.svelte";
-  import { windAt } from "$lib/office/wind";
+  import { owlCue } from "$lib/office/wood/life";
+  import { appleCue, appleTreeAt, shakeApple } from "$lib/office/wood/stand";
+  import { windAt } from "$lib/office/wood/wind";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
 
-  import SceneSign from "./SceneSign.svelte";
+  import SceneSign from "../SceneSign.svelte";
 
   type Props = {
     /** A card over the whole scene: memo, payslip. */
@@ -43,6 +44,9 @@
   /** The apple tree's crown on friday, while there is a ripe apple to shake down. */
   let appleRect = $state<{ x: number; y: number; w: number; h: number } | null>(null);
   let appleKey = "";
+  // On friday the signs come down with the wall, and their buttons go with them.
+  let signRects = $state({ ...SIGNS });
+  let signKey = "";
 
   const shake = () => {
     const { mood } = officeWeek;
@@ -142,10 +146,11 @@
         const cue = birdCue(before.since, mood.since);
         if (cue === "chirp") sfx.chirp();
         else if (cue === "peck") sfx.peck();
-        if (forestCue(before.since, mood.since)) sfx.hoot();
+        if (owlCue(before.since, mood.since)) sfx.hoot();
         for (const x of appleCue(before.since, mood.since, mood.seed, mood.knocks)) {
           sfx.apple(pan(x));
         }
+        for (const hit of wallCue(before.since, mood.since, mood)) sfx.crumble(pan(hit.x), hit.big);
         // The tree takes a tap while it has ripe apples; the rect changes rarely.
         const tree = appleTreeAt(mood.since, mood.seed, mood.knocks);
         const key = tree ? `${tree.x},${tree.y},${tree.w},${tree.h}` : "";
@@ -153,6 +158,19 @@
           appleKey = key;
           appleRect = tree;
         }
+      }
+      const signsNow = {
+        exit: signAt("exit", mood),
+        speaker: signAt("speaker", mood),
+        screen: signAt("screen", mood),
+        wc: signAt("wc", mood),
+      };
+      const placed = Object.values(signsNow)
+        .map((r) => `${r.x},${r.y}`)
+        .join("|");
+      if (placed !== signKey) {
+        signKey = placed;
+        signRects = signsNow;
       }
       // Friday's wind, swelling and rising with the gusts.
       const wind = mood.after ? Math.abs(windAt(mood.since, mood.seed)) : 0;
@@ -204,16 +222,22 @@
             wash={false}
           />
         {/if}
-        <SceneSign at={SIGNS.exit} scene={SCENE} label="exit" home onclick={officeWeek.newWeek} />
         <SceneSign
-          at={SIGNS.speaker}
+          at={signRects.exit}
+          scene={SCENE}
+          label="exit"
+          home
+          onclick={officeWeek.newWeek}
+        />
+        <SceneSign
+          at={signRects.speaker}
           scene={SCENE}
           label={sfx.muted ? "sound on (m)" : "sound off (m)"}
           onclick={sfx.toggleMute}
         />
         {#if fullscreen.supported}
           <SceneSign
-            at={SIGNS.screen}
+            at={signRects.screen}
             scene={SCENE}
             label={fullscreen.on ? "leave fullscreen (f)" : "fullscreen (f)"}
             onclick={fullscreen.toggle}
@@ -221,7 +245,7 @@
         {/if}
         {#if staffed}
           <SceneSign
-            at={SIGNS.wc}
+            at={signRects.wc}
             scene={SCENE}
             label={officeWeek.away ? "back to work (w)" : "toilet break (w)"}
             onclick={officeWeek.toggleBreak}

@@ -11,12 +11,18 @@ shape), `../dice` (same SvelteKit stack), `eetu/scene` (origin of `src/lib/tape/
 
 ```
 src/lib/factory/     kumitehdas: engine (belt, gate, TÄ'h, floor bots), days, drawing, week store
-src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, friday's wood (forest.ts), week store
+src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, week store
+  wood/              friday's wood: garden (draw order) · seasons · wind · trees + sway (trees and
+                     how they move) · shrubs, climbers, grass + sprawl + rustle (the soft plants
+                     and how they move) · posed (draws both) · stand (the six trees, apples) ·
+                     undergrowth (the shrubs) · overgrowth (cracks, grass, climbers) · moss ·
+                     wall (the back wall coming down) · outside (the world behind it) ·
+                     weather · life
 src/lib/audio/       synthesized sound for both rooms, the mute
-src/lib/scene/       shared: the winter window (sky, weather, blast, cracks) and the shift clock
+src/lib/scene/       shared: the winter window, shift clock, calendar, LED, pixel font, pixel helpers
 src/lib/sprites/     dab-format sprite JSON for both rooms + a reader
 src/lib/tape/        orientation cassette: mechanics (from scene), canvas drawing, script + cues
-src/lib/components/  Intro · FactoryStage + Memo/DayReview/WeekReview · OfficeStage + DeskPanel/Payslip
+src/lib/components/  factory/ · office/ · intro/ · dev/ (dev bar, scrubber); shared signs and icons
 src/routes/          / (front page) · /tehdas · /specialist · /workbench (dev only)
 static/              favicon.svg (icon source) + generated PNGs + manifest
 default.conf         nginx: SPA fallback, immutable caching for /_app/immutable
@@ -62,19 +68,29 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   `../dice`). Engines push what can be heard onto `state.events`; the stage drains it each
   frame and plays it. Nothing audible feeds back into the engine.
 - **Friday in the office is a loop, not a day.** `mood.since` drives everything (grass, vines,
-  bird, drone) as functions of time; there is nothing to finish. The trees (`office/trees.ts`:
+  bird, drone) as functions of time; there is nothing to finish. The trees (`wood/trees.ts`:
   always an apple tree, plus five of birch, rowan, oak, maple, cherry, plum, spruce, pine,
   each grown the way the species grows) are generated from `mood.seed`, so each friday grows
   its own wood and a reload keeps it. In dev a scrubber under the room runs friday's clock
   at any speed, backwards too. Apples ripen, fall
   through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
   early (`mood.knocks`), the one thing on friday that answers the player. The wind
-  (`office/wind.ts`) is a function of time too: a mean by season, gusts that cross the room
-  from the upwind side. Every tree moves by one simulation (`office/sway.ts`): its wood is a
+  (`wood/wind.ts`) is a function of time too: a mean by season, gusts that cross the room
+  from the upwind side. Every tree moves by one simulation (`wood/sway.ts`): its wood is a
   rig of pieces hung off their parents, each turning about its base against its width cubed,
-  and clumps, fruit and the owl ride the piece they hang on; a tree is painted once into
-  pixel lists and re-posed each frame. Leaves and snow ride the wind's integral (`driftOf`);
-  grass, the window's rain and a sound bed follow it.
+  and clumps, fruit and the owl ride the piece they hang on. The soft plants (shrubs,
+  climbers, grass; `wood/sprawl.ts`) move by their own rules (`wood/rustle.ts`): no skeleton,
+  each stem a whippy rod (a climber's clings to the wall), waves running across them, leaves
+  turning over in a stiff wind. Climbers grow by reaching, not swelling; the hop dies back each
+  winter. Both answer the wind's history through the same damped
+  spring (`springOf`), and both are painted once into pixel lists and re-posed each frame
+  (`wood/posed.ts`). Leaves and snow ride the wind's integral (`driftOf`); grass, the
+  window's rain and a sound bed follow it. The back wall is a wall of pieces
+  (`wood/wall.ts`): loosened from where the roof fell, they break away at the blast and for
+  years after, fall and land at its foot, and moss over and sink into the floor; what hangs on
+  the wall (window, clock, calendar, signs) goes with the piece above it, and the signs'
+  buttons follow. The gaps and the window look out on one world (`wood/outside.ts`), ruined
+  at the blast and healing over the years.
 - **Scene pieces draw themselves.** A tree, a sprite, the calendar, pixel text: a draw function
   over a canvas context and plain values, no DOM. That is what lets the workbench show them
   alone; keep new pieces that way.

@@ -11,7 +11,7 @@ import (fonts are self-hosted via @fontsource). Below is this app's delta.
 ## Glyph
 
 An eight-tooth gear with the accent dot wedged in one tooth gap: the relay stuck in the
-machine. `src/lib/components/Glyph.svelte` (`currentColor` strokes, `jam` prop animates a
+machine. `src/lib/components/intro/Glyph.svelte` (`currentColor` strokes, `jam` prop animates a
 turn that stalls on the dot); `static/favicon.svg` is the same geometry on an opaque
 `#0f0f0f` square.
 
@@ -19,16 +19,17 @@ turn that stalls on the dot); `static/favicon.svg` is the same geometry on an op
 
 A deliberate deviation from the family: there is no header wordmark. The landing hero (the
 jammed gear beside a large `nahkarele.` with the accent dot) is the brand, and a second
-title in a header only repeated it. The games' top bar is the HUD plus an `exit` link home
-(`src/lib/components/TopBar.svelte`).
+title in a header only repeated it. The rooms have no bar at all: EXIT, WC, sound and
+fullscreen are signs on the scene's walls (`src/lib/components/SceneSign.svelte`).
 
 ## Layout
 
 - Intro: a hero (glyph + definition), two mode cards (kumitehdas, software specialist) and
   the orientation cassette.
-- Both games: a HUD row with `exit` at its end, the pixel scene, and the controls below it
-  (stamp/pass in the factory, the desk panel in the office). Memo and review cards sit
-  over the scene; under 760px they drop below it.
+- Both games: the pixel scene, its numbers and switches drawn in it, and the controls below
+  it (stamp/pass in the factory, the desk panel in the office). Memo and review cards sit
+  over the scene as pixel frames (`src/lib/styles/pixel.css`, Pixelify Sans) at the scene's
+  pixel size; under 760px they drop below it.
 - The cassette label is a printed paper ivory in both themes; the shell stays dark.
 
 ## Pixel scenes

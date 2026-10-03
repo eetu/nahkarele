@@ -1,3 +1,4 @@
+import { rect } from "./pixel";
 import { drawPixelText } from "./pixelfont";
 
 /** A tear-off wall calendar, 24 × 32 scene px: the day, and the count still to come. */
@@ -7,18 +8,6 @@ const FRAME = "#3a3a3a";
 const PAGE = "#f4f0e0";
 const BAND = "#c8452f";
 const INK = "#3d3d3d";
-
-const rect = (
-  ctx: CanvasRenderingContext2D,
-  c: string,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-) => {
-  ctx.fillStyle = c;
-  ctx.fillRect(x, y, w, h);
-};
 
 /**
  * `day` is the weekday name, shown as its first three letters; `left` is the count still to

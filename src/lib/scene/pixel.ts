@@ -1,4 +1,4 @@
-// Drawing helpers shared by friday's wood (forest.ts) and its trees (trees.ts).
+// Pixel helpers for every scene: one rect, a stable hash, easing.
 
 /**
  * A unit hash of a few integers: the same every frame, so nothing reshuffles on redraw. FNV to
@@ -16,6 +16,7 @@ export const hash = (...n: number[]): number => {
   return (h >>> 0) / 4294967296;
 };
 
+/** A filled rect on whole scene pixels: a pixel by default. */
 export const rect = (
   ctx: CanvasRenderingContext2D,
   c: string,
@@ -25,7 +26,7 @@ export const rect = (
   h = 1,
 ) => {
   ctx.fillStyle = c;
-  ctx.fillRect(x, y, w, h);
+  ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 };
 
 export const clamp01 = (v: number) => Math.min(1, Math.max(0, v));

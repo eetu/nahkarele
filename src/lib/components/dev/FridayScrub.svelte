@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { SEASON_S, seasonAt, SEASONS_FROM } from "$lib/office/forest";
   import { officeWeek } from "$lib/office/week.svelte";
-  import { windAt } from "$lib/office/wind";
+  import { SEASON_S, seasonAt, SEASONS_FROM } from "$lib/office/wood/seasons";
+  import { windAt } from "$lib/office/wood/wind";
 
   /** Two years of seasons after the wood has grown. */
   const END = SEASONS_FROM + 8 * SEASON_S;

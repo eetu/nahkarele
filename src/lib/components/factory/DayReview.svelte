@@ -7,7 +7,7 @@
   import { GRADE_WORD, remark } from "$lib/factory/review";
   import { week } from "$lib/factory/week.svelte";
 
-  import SpriteIcon from "./SpriteIcon.svelte";
+  import SpriteIcon from "../SpriteIcon.svelte";
 
   const result = $derived(week.results.find((r) => r.day === week.day));
   const last = $derived(week.day + 1 >= DAYS.length);

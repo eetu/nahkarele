@@ -6,9 +6,9 @@
   import specialist from "$lib/sprites/specialist.json";
   import type { Sprite } from "$lib/sprites/sprite";
 
+  import SpriteIcon from "../SpriteIcon.svelte";
   import Cassette from "./Cassette.svelte";
   import Glyph from "./Glyph.svelte";
-  import SpriteIcon from "./SpriteIcon.svelte";
 </script>
 
 <main class="intro">
