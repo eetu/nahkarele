@@ -15,6 +15,7 @@
   } from "$lib/office/engine";
   import { officeWeek } from "$lib/office/week.svelte";
   import { owlCue } from "$lib/office/wood/life";
+  import { shedCue } from "$lib/office/wood/shedding";
   import { appleCue, appleTreeAt, fellCue, shakeApple } from "$lib/office/wood/stand";
   import { windAt } from "$lib/office/wood/wind";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
@@ -151,6 +152,7 @@
           sfx.apple(pan(x));
         }
         for (const hit of wallCue(before.since, mood.since, mood)) sfx.crumble(pan(hit.x), hit.big);
+        for (const x of shedCue(before.since, mood.since, mood.seed)) sfx.twig(pan(x));
         for (const fell of fellCue(before.since, mood.since, mood.seed)) {
           sfx.timber(fell.kind, pan(fell.x));
         }

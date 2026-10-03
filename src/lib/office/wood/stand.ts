@@ -50,7 +50,7 @@ const SLOTS = [
 ];
 
 /** Whether `life` stands in front of the furniture or behind it. */
-const inLane = (life: Life, front: boolean) => SLOTS[life.slot].front === front;
+export const inLane = (life: Life, front: boolean) => SLOTS[life.slot].front === front;
 /** The first wood is this many years old when the year starts turning. */
 const GROWIN_Y = 5;
 /** A tree is drawn at this many steps a year: about a pixel of growth each. */
@@ -116,6 +116,9 @@ const timeAt = (n: number, born: number, age: number) =>
     : age <= GROWIN_Y
       ? born + (age / GROWIN_Y) * (SEASONS_FROM - born)
       : SEASONS_FROM + (age - GROWIN_Y) * YEAR_S;
+
+/** When `life` is `age` years old, s into friday. */
+export const timeOf = (life: Life, age: number) => timeAt(life.n, life.born, age);
 
 /** `life`'s age `since` seconds into friday, years; a dead tree grows no more. */
 export const ageAt = (life: Life, since: number) => {
@@ -207,6 +210,9 @@ const slotsTo = (seed: number, since: number): Life[][] => {
   }
   return stand.slots;
 };
+
+/** Every tree there has been, or is, by `since`. */
+export const livesTo = (seed: number, since: number): Life[] => slotsTo(seed, since).flat();
 
 /** What stands `since` seconds into friday, alive or dead, at most one a slot, left to right. */
 export const standing = (seed: number, since: number): Life[] =>

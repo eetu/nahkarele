@@ -662,6 +662,22 @@ class Sfx {
     this.#hiss(ctx, t + 0.08, { filter: "bandpass", f0: 2600, q: 2, peak: 0.02, dur: 0.3, pan });
   }
 
+  /** A dead branch landing on the floor: a dry tick and a soft knock. */
+  twig(pan = 0) {
+    const ctx = this.#live();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    this.#hiss(ctx, t, {
+      filter: "bandpass",
+      f0: 2200 + Math.random() * 800,
+      q: 5,
+      peak: 0.05,
+      dur: 0.03,
+      pan,
+    });
+    this.#tone(ctx, t + 0.01, { f0: 220, f1: 120, peak: 0.05, dur: 0.08, pan });
+  }
+
   /** A dead tree going over: the wood cracking at its foot, then the crash as it lands. */
   timber(kind: "crack" | "crash", pan = 0) {
     const ctx = this.#live();

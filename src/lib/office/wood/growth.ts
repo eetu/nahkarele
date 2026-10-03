@@ -567,7 +567,9 @@ export const planAt = (arch: Arch, age: number, cull = true): Plan => {
     if (age < a.born) return;
     if (a.parent >= 0 && !drawn[a.parent]) return;
     const gone = age >= a.drops;
-    const len = gone ? (habit.stubs ? Math.min(3, a.cap) : 0) : lengthOf(arch.heightAt, a, age);
+    // A dead branch grows no more.
+    const grown = lengthOf(arch.heightAt, a, a.stem ? age : Math.min(age, a.dies));
+    const len = gone ? (habit.stubs ? Math.min(3, a.cap) : 0) : grown;
     if (len < 0.5) return;
     const base = a.path[0];
     if (cull && base.y < CULL_Y) return;
@@ -723,4 +725,29 @@ export const fruitAt = (plan: Plan, year: number, count: number, age: number): P
       x: c.x + (hash(i, year, 36) - 0.5) * c.r,
       y: c.y + hash(i, year, 37) * c.r * 0.6,
     }));
+};
+
+/** A branch a tree drops: at what age, and its shape as it went, px. */
+export type Shed = { age: number; pts: Pt[]; w: number };
+
+const sheds = new WeakMap<Arch, Shed[]>();
+
+/** Every branch `arch` drops, soonest first, as it was when it died: those that start in reach
+ *  of the room and are long enough to see fall. */
+export const shedOf = (arch: Arch): Shed[] => {
+  const known = sheds.get(arch);
+  if (known) return known;
+  const out: Shed[] = [];
+  for (const a of arch.axes) {
+    if (a.stem || a.drops === NEVER || a.path[0].y < -10) continue;
+    const len = lengthOf(arch.heightAt, a, a.dies);
+    if (len < 6) continue;
+    const pts: Pt[] = [];
+    for (let s = 0; s <= len; s += STEP) pts.push(pointAt(a.path, s));
+    const w = Math.round(0.55 * Math.max(0, a.dies - a.born) ** 0.6);
+    out.push({ age: a.drops, pts, w: Math.max(1, Math.min(2, w)) });
+  }
+  out.sort((p, q) => p.age - q.age);
+  sheds.set(arch, out);
+  return out;
 };

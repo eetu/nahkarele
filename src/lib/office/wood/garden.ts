@@ -5,6 +5,7 @@
 
 import { drawDeer, drawFliers, drawGlowing, drawSmallLife } from "./life";
 import { drawCracks, drawGrass, drawMoss, drawVines } from "./overgrowth";
+import { drawSticks } from "./shedding";
 import { drawApples, drawTrees, type Knocks } from "./stand";
 import { drawBackShrubs, drawFrontShrubs } from "./undergrowth";
 import { climbTo, drawOnWall, drawRubble, fixtureAt, type Setting } from "./wall";
@@ -36,6 +37,7 @@ export const drawGarden = (
     drawVines(wall, since, seed);
   });
   drawRubble(ctx, since, seed, fallen.wall, fallen.draw);
+  drawSticks(ctx, since, seed, false);
   drawTrees(ctx, since, seed, knocks, false);
   drawGround(ctx, since);
   drawBackShrubs(ctx, since, seed);
@@ -51,6 +53,7 @@ export const drawFloor = (
   { since, seed, knocks }: Friday,
   fallen: Fallen,
 ) => {
+  drawSticks(ctx, since, seed, true);
   drawTrees(ctx, since, seed, knocks, true);
   drawApples(ctx, since, seed, knocks, true);
   drawSnowCaps(ctx, since);
