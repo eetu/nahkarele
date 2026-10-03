@@ -8,6 +8,7 @@ import { hash, ramp, smooth } from "$lib/scene/pixel";
 import { daylight, drawOpenSky, mix, type SkyInput } from "$lib/scene/sky";
 
 import { SCENE_W } from "../engine";
+import { dayAt, type Place } from "./daylight";
 import { seasonAt } from "./seasons";
 import { random } from "./trees";
 
@@ -139,6 +140,55 @@ const paintLand = (ctx: CanvasRenderingContext2D, w: World, since: number, day: 
 };
 
 let land: { key: string; canvas: HTMLCanvasElement } | null = null;
+
+/** How high the sky goes above the horizon for the sun at its highest, scene px. */
+const ZENITH = 46;
+
+/** A place in the sky as a scene point over the outside. */
+const skyPoint = ({ across, up }: Place) => ({
+  x: Math.round(18 + across * (SCENE_W - 36)),
+  y: Math.round(HORIZON - 3 - up * ZENITH),
+});
+
+const drawSun = (ctx: CanvasRenderingContext2D, { x, y }: { x: number; y: number }) => {
+  ctx.fillStyle = "#f6d27a";
+  ctx.fillRect(x - 1, y - 3, 3, 7);
+  ctx.fillRect(x - 3, y - 1, 7, 3);
+  ctx.fillRect(x - 2, y - 2, 5, 5);
+  ctx.fillStyle = "#fbe6a8";
+  ctx.fillRect(x - 1, y - 1, 2, 2);
+};
+
+/** The moon's seas, a little darker on its lit face: offsets from its middle. */
+const SEAS = [
+  [-1, -1],
+  [1, 0],
+  [0, 1],
+];
+
+/**
+ * The moon, `phase` of the way round its month: new at 0, full at 0.5, lit from the right as it
+ * waxes and from the left as it wanes. The unlit part shows faintly, as it does.
+ */
+const drawMoon = (
+  ctx: CanvasRenderingContext2D,
+  { x, y }: { x: number; y: number },
+  phase: number,
+) => {
+  const r = 3;
+  const turn = Math.cos(2 * Math.PI * phase);
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy > r * r + 1) continue;
+      const u = dx / r;
+      const half = Math.sqrt(Math.max(0, 1 - (dy / r) ** 2));
+      const lit = phase < 0.5 ? u > turn * half - 0.05 : u < -turn * half + 0.05;
+      const sea = SEAS.some(([sx, sy]) => sx === dx && sy === dy);
+      ctx.fillStyle = !lit ? "#1c2434" : sea ? "#d8d2c0" : "#f6f2e4";
+      ctx.fillRect(x + dx, y + dy, 1, 1);
+    }
+  }
+};
 let view: HTMLCanvasElement | null = null;
 
 /** Smoke over the ruins after the blast, thinning away over the first minutes. */
@@ -186,14 +236,12 @@ export const outsideOf = (sky: SkyInput, since: number, seed: number): HTMLCanva
   const ctx = view.getContext("2d");
   if (!ctx) return null;
   drawOpenSky(ctx, sky, { x: 0, y: 0, w: SCENE_W, h: HORIZON + 8 }, 14);
-  // A low sun across the whole sky, as the window has always shown it.
-  const grey = sky.weather !== "clear";
-  if (!grey && sky.progress > 0.18 && sky.progress < 0.7) {
-    const q = (sky.progress - 0.18) / 0.52;
-    ctx.fillStyle = "#f6d27a";
-    ctx.beginPath();
-    ctx.arc(20 + q * (SCENE_W - 40), HORIZON - 10 - Math.sin(q * Math.PI) * 28, 3, 0, Math.PI * 2);
-    ctx.fill();
+  // The sun and the moon on their arcs; cloud hides them. The land, drawn after, takes them
+  // as they go down behind the ridge.
+  if (sky.weather === "clear") {
+    const { sun, moon } = dayAt(since);
+    if (sun) drawSun(ctx, skyPoint(sun));
+    if (moon) drawMoon(ctx, skyPoint(moon), moon.phase);
   }
   drawSmoke(ctx, w, since, day);
   ctx.drawImage(land.canvas, 0, 0);

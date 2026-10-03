@@ -3,7 +3,7 @@
 // the trees; the only state is caches. This is the order the room is drawn in; the office
 // lays its slabs, desk and arc between the garden and the floor, and its bird before the air.
 
-import { drawDeer, drawFliers, drawSmallLife } from "./life";
+import { drawDeer, drawFliers, drawGlowing, drawSmallLife } from "./life";
 import { drawCracks, drawGrass, drawMoss, drawVines } from "./overgrowth";
 import { drawApples, drawTrees, type Knocks } from "./stand";
 import { drawBackShrubs, drawFrontShrubs } from "./undergrowth";
@@ -54,3 +54,7 @@ export const drawAir = (ctx: CanvasRenderingContext2D, { since, seed, knocks }: 
   drawFliers(ctx, since, seed, knocks);
   drawFalling(ctx, since, seed);
 };
+
+/** What gives its own light, over the night's shade: the fireflies. */
+export const drawGlow = (ctx: CanvasRenderingContext2D, { since, seed }: Friday) =>
+  drawGlowing(ctx, since, seed);

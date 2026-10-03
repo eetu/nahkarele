@@ -10,7 +10,7 @@
 
 import { hash, smooth } from "$lib/scene/pixel";
 
-import { FLOOR_Y, SCENE_W } from "../engine";
+import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
 import { mossColour } from "./moss";
 import type { Pt } from "./posed";
 import { random } from "./trees";
@@ -617,4 +617,36 @@ export const rubbleCue = (
     if (t > from && t <= to) hits.push({ x: b.x + b.w / 2, big: true });
   }
   return hits;
+};
+
+let shade: HTMLCanvasElement | null = null;
+
+/**
+ * The room's shade, `alpha` of `colour`, over everything but what is outside: the gaps in the
+ * wall as last drawn, and `glass` (the window, while it hangs). The outside keeps its own
+ * light: the sky at night is already as dark as it should be, and the moon as bright.
+ */
+export const drawShade = (
+  ctx: CanvasRenderingContext2D,
+  alpha: number,
+  colour: string,
+  glass: Rect | null,
+) => {
+  shade ??= document.createElement("canvas");
+  if (shade.width !== SCENE_W) {
+    shade.width = SCENE_W;
+    shade.height = SCENE_H;
+  }
+  const off = shade.getContext("2d");
+  if (!off) return;
+  off.globalCompositeOperation = "copy";
+  off.fillStyle = colour;
+  off.fillRect(0, 0, SCENE_W, SCENE_H);
+  off.globalCompositeOperation = "destination-out";
+  if (holes) off.drawImage(holes.mask, 0, 0);
+  if (glass) off.fillRect(glass.x, glass.y, glass.w, glass.h);
+  off.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(shade, 0, 0);
+  ctx.globalAlpha = 1;
 };

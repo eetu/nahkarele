@@ -1,10 +1,11 @@
 // Friday's weather: what the window shows, the litter and snow on the ground and the
 // ledges, and the leaves and flakes that fall through the room on the wind.
 
-import { hash, ramp, rect, smooth } from "$lib/scene/pixel";
+import { hash, ramp, rect } from "$lib/scene/pixel";
 import type { Weather } from "$lib/scene/sky";
 
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
+import { dayAt } from "./daylight";
 import { litter, type Season, seasonAt, SEASONS_FROM, snowCover, STORM_S } from "./seasons";
 import { growth, standOf } from "./stand";
 import { autumnOf, crownOf, deciduous } from "./trees";
@@ -13,34 +14,42 @@ import { driftOf } from "./wind";
 const AUTUMN = ["#d9a441", "#e07b2a", "#c8452f", "#b3741f"];
 const SNOW = ["#f4f7fa", "#e4ebf0"];
 
-/** How far into the day the light is, per season: Finnish light, bright summer nights, dark
- *  winters. Values on the shift's 0..1 scale (`scene/sky.ts`): 0.45 midday, 0.9 night. */
-const LIGHT = [0.45, 0.72, 0.9, 0.55];
-
 /** Friday's window: the storm after the blast, then the wood's seasons and their weather. */
 export const windowAt = (since: number): { progress: number; weather: Weather } => {
   if (since < STORM_S) return { progress: 0.9, weather: "storm" };
-  if (since < SEASONS_FROM) {
-    // The first summer comes in while the wood grows.
-    const u = smooth((since - STORM_S) / (SEASONS_FROM - STORM_S));
-    return { progress: 0.9 + (LIGHT[0] - 0.9) * u, weather: since < 160 ? "rain" : "clear" };
-  }
+  // Friday's days and nights (`daylight.ts`).
+  const { progress } = dayAt(since);
+  // The first summer comes in, after the storm's rain, while the wood grows.
+  if (since < SEASONS_FROM) return { progress, weather: since < 160 ? "rain" : "clear" };
   const { k, p } = seasonAt(since);
-  const progress = LIGHT[k] + (LIGHT[(k + 1) % 4] - LIGHT[k]) * smooth((p - 0.7) / 0.3);
-  const between = (a: number, b: number) => p >= a && p < b;
-  const weather: Weather =
-    k === 2
-      ? between(0.02, 0.9)
-        ? "snow"
-        : "clear"
-      : k === 1
-        ? between(0.15, 0.75)
-          ? "rain"
-          : "clear"
-        : between(k === 0 ? 0.4 : 0.3, k === 0 ? 0.55 : 0.45)
-          ? "rain"
-          : "clear";
-  return { progress, weather };
+  const wet = spellsOf(k).some(([a, b]) => p >= a && p < b);
+  return { progress, weather: !wet ? "clear" : k === 2 ? "snow" : "rain" };
+};
+
+/**
+ * When it rains or snows, by season, as shares of it: a spell of summer rain, a wet autumn with
+ * a dry spell in it, two snowfalls in winter with clear frost (and the moon) between and after,
+ * a spring shower.
+ */
+const SPELLS: [number, number][][] = [
+  [[0.4, 0.55]],
+  [
+    [0.15, 0.4],
+    [0.55, 0.75],
+  ],
+  [
+    [0.05, 0.38],
+    [0.55, 0.8],
+  ],
+  [[0.3, 0.45]],
+];
+const spellsOf = (k: number) => SPELLS[k];
+
+/** How hard it is snowing, 0..1, easing in and out of each winter spell. */
+const snowing = (since: number) => {
+  const { k, p } = seasonAt(since);
+  if (k !== 2 || since < SEASONS_FROM) return 0;
+  return Math.max(...SPELLS[2].map(([a, b]) => ramp(p, a, a + 0.04) * (1 - ramp(p, b - 0.04, b))));
 };
 
 /** Something drawn once per quantised state and reused: snow cover, leaf litter. */
@@ -179,7 +188,7 @@ const drawSnowfall = (
   season: Season,
   seed: number,
 ) => {
-  const on = season.k === 2 ? ramp(season.p, 0.02, 0.1) * (1 - ramp(season.p, 0.9, 1)) : 0;
+  const on = snowing(since);
   if (on <= 0) return;
   ctx.globalAlpha = 0.9 * on;
   // Spread over the whole room, carried on the wind through the broken window; one flake in

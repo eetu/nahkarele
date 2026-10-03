@@ -3,7 +3,15 @@ import { CALENDAR, drawCalendar } from "$lib/scene/calendar";
 import { drawLedClock } from "$lib/scene/led";
 import { rect } from "$lib/scene/pixel";
 import { drawPixelText } from "$lib/scene/pixelfont";
-import { clockAt, drawWindow, flash, mix, roomDarkness, type SkyInput } from "$lib/scene/sky";
+import {
+  clockAt,
+  daylight,
+  drawWindow,
+  flash,
+  mix,
+  roomDarkness,
+  type SkyInput,
+} from "$lib/scene/sky";
 import cake from "$lib/sprites/cake.json";
 import drone from "$lib/sprites/drone.json";
 import exit from "$lib/sprites/exit.json";
@@ -30,11 +38,11 @@ import {
   SCENE_W,
   TRAY,
 } from "./engine";
-import { drawAir, drawFloor, drawGarden } from "./wood/garden";
+import { drawAir, drawFloor, drawGarden, drawGlow } from "./wood/garden";
 import { outsideOf } from "./wood/outside";
 import { drawCreeperOver, overgrown } from "./wood/overgrowth";
 import type { Knocks } from "./wood/stand";
-import { drawWall, fixtureAt, type Rect, rubbleCue, type Setting } from "./wood/wall";
+import { drawShade, drawWall, fixtureAt, type Rect, rubbleCue, type Setting } from "./wood/wall";
 import { windowAt } from "./wood/weather";
 import { windAt } from "./wood/wind";
 
@@ -573,7 +581,10 @@ export const drawOffice = (
   ctx.translate(shake, 0);
   drawRoom(ctx, s, mood);
   const dark = roomDarkness(sky) + (mood.after ? 0.15 : 0);
-  if (dark > 0) {
+  if (dark > 0 && mood.after) {
+    // On friday the room darkens, but not the world through its gaps and window.
+    drawShade(ctx, dark, "#0a0f1c", fixtureOf("window", mood).on ? GLASS : null);
+  } else if (dark > 0) {
     ctx.globalAlpha = dark;
     rect(ctx, "#0a0f1c", 0, 0, SCENE_W, SCENE_H);
     ctx.globalAlpha = 1;
@@ -586,15 +597,25 @@ export const drawOffice = (
   }
   // Lit signs, so they read in the dark, and through friday's leaves: the speaker and the screen
   // show their state. On friday they hang where the wall still holds them, or lie where they fell.
-  const sign = (name: keyof typeof SIGNS) => fixtureOf(name, mood).rect;
-  drawSprite(ctx, S.exit, sign("exit").x, sign("exit").y);
-  drawSprite(ctx, S.wc, sign("wc").x, sign("wc").y);
-  drawSprite(ctx, S.speaker, sign("speaker").x, sign("speaker").y, { frame: signs.muted ? 1 : 0 });
-  if (signs.fullscreen !== null) {
-    drawSprite(ctx, S.screen, sign("screen").x, sign("screen").y, {
-      frame: signs.fullscreen ? 1 : 0,
-    });
-  }
+  const drawSigns = (onWall: boolean) => {
+    for (const name of ["exit", "wc", "speaker", "screen"] as const) {
+      if (name === "screen" && signs.fullscreen === null) continue;
+      const at = fixtureOf(name, mood);
+      if (onWall && !at.on) continue;
+      const frame =
+        name === "speaker"
+          ? signs.muted
+            ? 1
+            : 0
+          : name === "screen"
+            ? signs.fullscreen
+              ? 1
+              : 0
+            : 0;
+      drawSprite(ctx, S[name], at.rect.x, at.rect.y, { frame });
+    }
+  };
+  drawSigns(false);
   drawSlab(ctx, 1, s, mood);
   drawSlab(ctx, 2, s, mood);
   drawDesk(ctx, s, mood);
@@ -603,6 +624,16 @@ export const drawOffice = (
     drawFloor(ctx, mood);
     drawVisitors(ctx, mood.since);
     drawAir(ctx, mood);
+    // Friday's night shades the wood as well as the room; what lights itself shows through.
+    const night = (1 - daylight(sky.progress)) * 0.32;
+    if (night > 0) {
+      ctx.globalAlpha = night;
+      rect(ctx, "#0a0f1c", 0, 0, SCENE_W, SCENE_H);
+      ctx.globalAlpha = 1;
+      if (fixtureOf("clock", mood).on) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
+      drawSigns(true);
+    }
+    drawGlow(ctx, mood);
   } else {
     drawTokens(ctx, s);
     drawDrone(ctx, s);

@@ -338,7 +338,7 @@ export const drawSmallLife = (ctx: CanvasRenderingContext2D, since: number) => {
   drawHedgehog(ctx, since, season);
 };
 
-/** What flies: butterflies, the owl on its branch, fireflies. */
+/** What flies: butterflies, the owl on its branch. */
 export const drawFliers = (
   ctx: CanvasRenderingContext2D,
   since: number,
@@ -348,5 +348,8 @@ export const drawFliers = (
   const season = seasonAt(since);
   drawButterflies(ctx, since, season, seed);
   drawOwl(ctx, since, seed, knocks);
-  drawFireflies(ctx, since, season, seed);
 };
+
+/** What glows, drawn over the night: the fireflies. */
+export const drawGlowing = (ctx: CanvasRenderingContext2D, since: number, seed: number) =>
+  drawFireflies(ctx, since, seasonAt(since), seed);

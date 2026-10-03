@@ -90,7 +90,11 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   years after, fall and land at its foot, and moss over and sink into the floor; what hangs on
   the wall (window, clock, calendar, signs) goes with the piece above it, and the signs'
   buttons follow. The gaps and the window look out on one world (`wood/outside.ts`), ruined
-  at the blast and healing over the years.
+  at the blast and healing over the years. Friday has days (`wood/daylight.ts`, a minute
+  each): the season sets how long the sun is up and how high it climbs, how dark the night
+  gets; the moon crosses the nights through its phases. Night shades the wood as well as the
+  room; the outside keeps its own light, and fireflies, the clock and the signs on the wall
+  stay lit.
 - **Scene pieces draw themselves.** A tree, a sprite, the calendar, pixel text: a draw function
   over a canvas context and plain values, no DOM. That is what lets the workbench show them
   alone; keep new pieces that way.
