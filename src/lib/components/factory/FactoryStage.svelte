@@ -98,10 +98,17 @@
     const el = wrap;
     if (!el) return;
     const resize = () => {
-      // Room for the controls: below the scene, or beside it on a phone held sideways.
+      // Room for the controls: below the scene, or beside it on a phone held sideways. In
+      // fullscreen the page has no margins and the caption goes: only the controls need room.
+      const full = fullscreen.on;
       const next = short()
-        ? fitScene(el.clientWidth - 80, SCENE_W, SCENE_H, window.innerHeight - 72)
-        : fitScene(el.clientWidth, SCENE_W, SCENE_H, window.innerHeight - 220);
+        ? fitScene(el.clientWidth - 80, SCENE_W, SCENE_H, window.innerHeight - (full ? 0 : 72))
+        : fitScene(
+            el.clientWidth,
+            SCENE_W,
+            SCENE_H,
+            window.innerHeight - (full ? (staffed ? 64 : 0) : 220),
+          );
       fit = next;
       if (canvas) {
         canvas.width = SCENE_W * next.scale;
@@ -307,6 +314,12 @@
     overflow: hidden;
     border-radius: var(--halo-radius);
     box-shadow: var(--halo-shadow);
+  }
+
+  :global(html:fullscreen) .viewport,
+  :global(html:fullscreen) .overlay {
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .frame {

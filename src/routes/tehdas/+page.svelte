@@ -5,6 +5,7 @@
   import WeekReview from "$lib/components/factory/WeekReview.svelte";
   import { debugDay } from "$lib/debug";
   import { week } from "$lib/factory/week.svelte";
+  import { fullscreen } from "$lib/fullscreen.svelte";
 
   const onDebugKey = (e: KeyboardEvent) => {
     const day = debugDay(e);
@@ -46,7 +47,7 @@
         <WeekReview />
       {/if}
     </FactoryStage>
-    {#if week.screen !== "shift"}
+    {#if week.screen !== "shift" && !fullscreen.on}
       <p class="label caption">the line runs without you. it always has.</p>
     {/if}
   </main>
@@ -66,5 +67,13 @@
   .caption {
     text-align: center;
     margin: 0.5rem 0 0;
+  }
+
+  /* Fullscreen is the room alone, centred on black. */
+  :global(html:fullscreen) .page {
+    max-width: none;
+    min-height: 100vh;
+    padding: 0;
+    justify-content: center;
   }
 </style>

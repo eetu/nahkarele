@@ -1,6 +1,4 @@
 <script lang="ts">
-  import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
-
   import DeskPanel from "$lib/components/office/DeskPanel.svelte";
   import OfficeMemo from "$lib/components/office/OfficeMemo.svelte";
   import OfficeStage from "$lib/components/office/OfficeStage.svelte";
@@ -40,7 +38,6 @@
     <OfficeStage
       covered={officeWeek.screen === "memo" || officeWeek.screen === "review"}
       dock={officeWeek.screen === "shift" ? desk : undefined}
-      reserve={officeWeek.screen === "loop" ? 200 : 140}
     >
       {#if officeWeek.screen === "memo"}
         <OfficeMemo />
@@ -48,13 +45,6 @@
         <Payslip />
       {/if}
     </OfficeStage>
-
-    {#if officeWeek.screen === "loop"}
-      <div class="after">
-        <p class="label">no one is clocked in.</p>
-        <button onclick={officeWeek.newWeek}><RotateCcw size={16} /> new week</button>
-      </div>
-    {/if}
   </main>
 </div>
 
@@ -69,18 +59,11 @@
     gap: 1rem;
   }
 
-  .after {
-    display: flex;
+  /* Fullscreen is the room alone, centred on black. */
+  :global(html:fullscreen) .page {
+    max-width: none;
+    min-height: 100vh;
+    padding: 0;
     justify-content: center;
-    margin-top: 0.75rem;
-  }
-
-  .after {
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .after p {
-    margin: 0;
   }
 </style>

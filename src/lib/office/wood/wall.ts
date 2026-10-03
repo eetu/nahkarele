@@ -25,7 +25,14 @@ export type Fixtures = Record<string, Rect>;
  * (the window), and what stands on the floor in front of it (the AIs, the desk). Whatever
  * falls behind one of those comes to rest behind its base, out of sight.
  */
-export type Setting = { fixtures: Fixtures; openings: string[]; fronts: Rect[] };
+export type Setting = {
+  fixtures: Fixtures;
+  openings: string[];
+  fronts: Rect[];
+  /** Fixtures that come down in front of the furniture, onto the near floor: the exit sign,
+   *  so it can still be found, and pressed. */
+  before?: string[];
+};
 
 /** The wall that can break: down to the dado, scene px. */
 const WALL_H = 97;
@@ -48,6 +55,8 @@ const COLLAPSE_S = 900;
 const COLLAPSES = 14;
 /** And any piece may just work loose: some time in this many seconds, the top ones sooner. */
 const LOOSE_S = 30000;
+/** Where a fixture that comes down in front of the furniture rests: the near floor. */
+const NEAR_FLOOR = FLOOR_Y + 14;
 /** Pieces hold each other where they share at least this much edge, px; less is a crack. */
 const HOLD_PX = 3;
 /** Moss starts up a piece this long after it lands and has it covered this much later. */
@@ -181,7 +190,7 @@ const standing = (holds: Map<number, number>[], anchored: Float32Array, gone: Ui
 };
 
 /** Break `seed`'s wall into pieces and work out when each goes. */
-const wallOf = (seed: number, { fixtures, openings, fronts }: Setting): Wall => {
+const wallOf = (seed: number, { fixtures, openings, fronts, before }: Setting): Wall => {
   if (built?.seed === seed) return built;
   const rand = random(seed ^ 0xbad);
   // One seed a slab, each course set half a slab along from the one below; a slab is what is
@@ -291,7 +300,9 @@ const wallOf = (seed: number, { fixtures, openings, fronts }: Setting): Wall => 
       ...r,
       at: anchor >= 0 ? pieces[anchor].at + 0.15 : Infinity,
       vx,
-      land: restOn(fronts, r.x + vx * fallFrom(r.y + r.h, FLOOR_Y + 1), r.w, FLOOR_Y + 1),
+      land: before?.includes(name)
+        ? NEAR_FLOOR
+        : restOn(fronts, r.x + vx * fallFrom(r.y + r.h, FLOOR_Y + 1), r.w, FLOOR_Y + 1),
       k0: 0,
       tumble: false,
     };

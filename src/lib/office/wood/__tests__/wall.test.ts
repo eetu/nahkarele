@@ -38,6 +38,18 @@ describe("the back wall", () => {
       }
     }
   });
+
+  it("brings the exit down in front of the furniture, where it can still be pressed", () => {
+    // The wall is cached by seed: a setting of its own wants seeds of its own.
+    const front = { ...WALL, fronts: [{ x: 104, y: 118, w: 114, h: 32 }], before: ["exit"] };
+    for (const seed of [11, 12, 13, 14]) {
+      const { on, rect } = fixtureAt("exit", 40000, seed, front);
+      expect(on).toBe(false);
+      expect(rect.y + rect.h).toBe(FLOOR_Y + 14);
+      expect(rect.x).toBeGreaterThanOrEqual(0);
+      expect(rect.x + rect.w).toBeLessThanOrEqual(320);
+    }
+  });
 });
 
 describe("the world outside", () => {

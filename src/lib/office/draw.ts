@@ -134,6 +134,7 @@ const DESK = { x: 104, w: 112, y: 118 };
 const WALL: Setting = {
   fixtures: FIXTURES,
   openings: ["window"],
+  before: ["exit"],
   fronts: [
     ...[AI_X[1], AI_X[2]].map((x) => ({
       x: x - 1,
@@ -534,6 +535,8 @@ export const drawOffice = (
       if (name === "screen" && signs.fullscreen === null) continue;
       const at = fixtureOf(name, mood);
       if (onWall && !at.on) continue;
+      // Down off the wall, the exit sign lies in front of the desk, over the grass.
+      if (!onWall && name === "exit" && !at.on) continue;
       const frame =
         name === "speaker"
           ? signs.muted
@@ -547,6 +550,10 @@ export const drawOffice = (
       drawSprite(ctx, S[name], at.rect.x, at.rect.y, { frame });
     }
   };
+  const drawFallenExit = (ctx: CanvasRenderingContext2D) => {
+    const at = fixtureOf("exit", mood);
+    if (!at.on) drawSprite(ctx, S.exit, at.rect.x, at.rect.y);
+  };
   // Everything that stands in the room, back to front.
   const drawNear = (ctx: CanvasRenderingContext2D) => {
     const fallen = { wall: WALL, draw: drawFallen(mood.since) };
@@ -558,6 +565,7 @@ export const drawOffice = (
     if (mood.after) {
       drawArc(ctx, mood.since);
       drawFloor(ctx, mood, fallen);
+      drawFallenExit(ctx);
       drawVisitors(ctx, mood);
       drawCrow(ctx, mood.since, mood.seed, WALL, mood.knocks, "desk");
       drawAir(ctx, mood, fallen);
@@ -576,6 +584,8 @@ export const drawOffice = (
     if (night > 0) {
       if (fixtureOf("clock", mood).on) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
       drawSigns(ctx, true);
+      // An exit sign keeps its light wherever it lies.
+      drawFallenExit(ctx);
     }
     drawGlow(ctx, mood);
   } else {

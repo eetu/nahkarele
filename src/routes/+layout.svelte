@@ -83,6 +83,11 @@
     height: 100vh;
   }
 
+  /* Fullscreen shows a room alone, letterboxed on black. */
+  :global(html:fullscreen body) {
+    background: #000;
+  }
+
   /* A game page: a fast second tap next to a button must not zoom the page, and a drag
      past the edge must not pull-to-refresh. Pinch zoom and scrolling stay. */
   :global(html) {

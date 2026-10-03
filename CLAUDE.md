@@ -53,8 +53,9 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   The office test runs idle, right, wrong and slow players against the same seed.
 - **The rooms have no header.** Numbers and switches live in the scene: a wall calendar for
   the day and the count, TÄ'h's readout and the shredder/crate counters, the office pay under
-  the clock, and `SceneSign` buttons over sprites for EXIT, WC, sound and fullscreen. In-scene
-  text uses the 5x7 face in `scene/pixelfont.ts` (ASCII plus a euro sign).
+  the clock, and `SceneSign` buttons over sprites for EXIT, WC, sound and fullscreen. EXIT is
+  the way out of friday too, so it never leaves the scene. Fullscreen is the room alone on
+  black. In-scene text uses the 5x7 face in `scene/pixelfont.ts` (ASCII plus a euro sign).
 - **Cards are pixel frames.** Memos, reviews, the payslip, the desk and the diff use
   `.pixel-card` (`styles/pixel.css`: 9-slice SVG tiles, Pixelify Sans); one frame pixel is
   `--px`, which each stage sets to its scene pixel. The paper is the same in both themes, so
@@ -104,7 +105,7 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   (`wood/wall.ts`): loosened from where the roof fell, they break away at the blast and for
   years after, fall and land at its foot, and moss over and sink into the floor; what hangs on
   the wall (window, clock, calendar, signs) goes with the piece above it, and the signs'
-  buttons follow; what is on the wall (cracks, climbers, the snail, the sill's snow) goes with
+  buttons follow (the exit sign lands in front of the desk); what is on the wall (cracks, climbers, the snail, the sill's snow) goes with
   the wall. Rain and snow fall through the room in their spells. The trees clear of the desk
   stand in front of the furniture, the rest behind it. The gaps and the window look out on one world (`wood/outside.ts`), ruined
   at the blast and healing over the years. Friday has days (`wood/daylight.ts`, a minute

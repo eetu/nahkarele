@@ -30,12 +30,11 @@
      *  narrow one. */
     dock?: Snippet;
     /** CSS px of page around the stage, so the scene never pushes the page into scrolling. */
-    reserve?: number;
     /** Dim the scene and show `children` over it. */
     covered?: boolean;
   };
 
-  let { children, dock, reserve = 140, covered = false }: Props = $props();
+  let { children, dock, covered = false }: Props = $props();
 
   let wrap: HTMLDivElement | undefined = $state();
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -76,10 +75,17 @@
     const el = wrap;
     if (!el) return;
     const resize = () => {
-      // Room for the desk: over or under the scene, or beside it on a phone held sideways.
+      // Room for the desk: over or under the scene, or beside it on a phone held sideways. In
+      // fullscreen the page has no margins, and a desk over the scene needs no room of its own.
+      const full = fullscreen.on;
       const next = short()
-        ? fitScene(el.clientWidth - 320, SCENE_W, SCENE_H, window.innerHeight - 72)
-        : fitScene(el.clientWidth, SCENE_W, SCENE_H, window.innerHeight - reserve);
+        ? fitScene(el.clientWidth - 320, SCENE_W, SCENE_H, window.innerHeight - (full ? 0 : 72))
+        : fitScene(
+            el.clientWidth,
+            SCENE_W,
+            SCENE_H,
+            window.innerHeight - (full && el.clientWidth > 900 ? 0 : 140),
+          );
       fit = next;
       if (canvas) {
         canvas.width = SCENE_W * next.scale;
@@ -289,6 +295,12 @@
     overflow: hidden;
     border-radius: var(--halo-radius);
     box-shadow: var(--halo-shadow);
+  }
+
+  :global(html:fullscreen) .viewport,
+  :global(html:fullscreen) .overlay {
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .frame {
