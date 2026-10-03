@@ -22,7 +22,7 @@ src/lib/audio/       synthesized sound for both rooms, the mute
 src/lib/scene/       shared: the winter window, shift clock, calendar, LED, pixel font, pixel helpers
 src/lib/sprites/     dab-format sprite JSON for both rooms + a reader
 src/lib/tape/        orientation cassette: mechanics (from scene), canvas drawing, script + cues
-src/lib/components/  factory/ · office/ · intro/ · dev/ (dev bar, scrubber); shared signs and icons
+src/lib/components/  factory/ · office/ · intro/ · dev/ (dev bar, shuttle); shared signs and icons
 src/routes/          / (front page) · /tehdas · /specialist · /workbench (dev only)
 static/              favicon.svg (icon source) + generated PNGs + manifest
 default.conf         nginx: SPA fallback, immutable caching for /_app/immutable
@@ -71,8 +71,8 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   bird, drone) as functions of time; there is nothing to finish. The trees (`wood/trees.ts`:
   always an apple tree, plus five of birch, rowan, oak, maple, cherry, plum, spruce, pine,
   each grown the way the species grows) are generated from `mood.seed`, so each friday grows
-  its own wood and a reload keeps it. In dev a scrubber under the room runs friday's clock
-  at any speed, backwards too. Apples ripen, fall
+  its own wood and a reload keeps it. In dev a shuttle under the room runs friday's clock
+  ahead or back while held, faster the further it is pulled. Apples ripen, fall
   through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
   early (`mood.knocks`), the one thing on friday that answers the player. The wind
   (`wood/wind.ts`) is a function of time too: a mean by season, gusts that cross the room
@@ -104,7 +104,7 @@ docker/              optional Liwan tracker entrypoint (same as logo)
 `yarn dev` (:5173; on `/tehdas` and `/specialist` Shift + 1–5 jumps to that day, dev
 builds only) ·
 `yarn validate` (typecheck, lint, format, test) · `yarn build` → `dist/`.
-In dev, a bar under every page jumps between days, holds friday's scrubber and opens
+In dev, a bar under every page jumps between days, holds friday's shuttle and opens
 `/workbench` (so does the key left of 1, backquote): each unit drawn alone with live
 controls, `g` for a grid of seeds, `[` `]` between units; a unit with `tap` answers clicks
 (the wood: shake the apple tree). A unit is a small adapter in
