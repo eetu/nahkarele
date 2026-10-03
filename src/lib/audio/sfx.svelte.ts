@@ -25,7 +25,7 @@ const saveMuted = (muted: boolean) => {
 };
 
 /** Continuous sounds the frame loop holds at a level: the belt motor, the AIs' fans, the drone. */
-export type BedName = "belt" | "fans" | "drone";
+export type BedName = "belt" | "fans" | "drone" | "wind";
 
 /** A recording running past the head. */
 export type Reel = { speed: (rate: number) => void; stop: () => void };
@@ -227,6 +227,23 @@ class Sfx {
         level: 0,
         pitch: 1,
         tune: (p, t) => motor.frequency.setTargetAtTime(96 * p, t, 0.3),
+      };
+    }
+    if (name === "wind") {
+      // Air through the broken window: noise in a wide band that rises as it blows harder.
+      lp.type = "bandpass";
+      lp.frequency.value = 320;
+      lp.Q.value = 0.8;
+      const src = ctx.createBufferSource();
+      src.buffer = this.#noise;
+      src.loop = true;
+      src.connect(lp);
+      src.start();
+      return {
+        gain,
+        level: 0,
+        pitch: 1,
+        tune: (p, t) => lp.frequency.setTargetAtTime(320 * p, t, 0.4),
       };
     }
     if (name === "fans") {

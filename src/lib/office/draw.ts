@@ -42,6 +42,7 @@ import {
   snowCover,
   windowAt,
 } from "./forest";
+import { windAt } from "./wind";
 
 const S = {
   specialist: specialist as Sprite,
@@ -135,7 +136,7 @@ const rect = (
 
 const skyOf = (s: OfficeState, mood: Mood): SkyInput =>
   mood.after
-    ? { t: mood.since, ...windowAt(mood.since) }
+    ? { t: mood.since, ...windowAt(mood.since), wind: windAt(mood.since, mood.seed) }
     : { t: s.t, progress: progress(s), weather: s.day.weather };
 
 const drawRoom = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => {
@@ -294,9 +295,22 @@ const drawGarden = (ctx: CanvasRenderingContext2D, mood: Mood) => {
   for (const t of TUFTS) {
     const h = Math.min(6, Math.max(0, (since - t.delay) * 0.25));
     if (h <= 0) continue;
+    // The blades lean with the wind, the tips most, each a little out of step.
+    const wind = windAt(since, seed, t.x);
     for (let i = -2; i <= 2; i++) {
       const bh = Math.round(h * (1 - Math.abs(i) * 0.25));
-      rect(ctx, i % 2 ? C.grassDark : C.grass, t.x + i, t.y - bh, 1, bh);
+      const lean = wind * 2.5 + Math.sin(since * 4 + t.x + i) * 0.4 * Math.abs(wind);
+      for (let j = 0; j < bh; j++) {
+        const u = (j + 1) / bh;
+        rect(
+          ctx,
+          i % 2 ? C.grassDark : C.grass,
+          t.x + i + Math.round(lean * u * u),
+          t.y - 1 - j,
+          1,
+          1,
+        );
+      }
     }
   }
   VINES.forEach((v, vi) => {
@@ -800,7 +814,7 @@ export const drawOffice = (
     drawGroundlife(ctx, mood.since);
     drawDeer(ctx, mood.since);
     drawVisitors(ctx, mood.since);
-    drawWoodlife(ctx, mood.since, mood.seed);
+    drawWoodlife(ctx, mood.since, mood.seed, mood.knocks);
   } else {
     drawTokens(ctx, s);
     drawDrone(ctx, s);

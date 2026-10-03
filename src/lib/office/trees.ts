@@ -754,10 +754,25 @@ const ASPECT: Record<Broadleaf, number> = {
 /** Rowan berries: late summer to early winter, longer than the leaves. */
 const berried = ({ k, p }: Look) => (k === 0 && p > 0.6) || k === 1 || (k === 2 && p < 0.35);
 
+/** Which part of a tree is being painted: a piece of wood, a clump, a fruit (by index in the
+ *  plan), or the whole sapling. */
+export type Part = { kind: "wood" | "clump" | "fruit" | "sapling"; i: number };
+
 /** Paint `plan` at growth `g` (0..1) into `ctx`, dressed for the season `look`. */
-export const paintTree = (ctx: CanvasRenderingContext2D, plan: Plan, g: number, look: Look) => {
+export const paintTree = (ctx: CanvasRenderingContext2D, plan: Plan, g: number, look: Look) =>
+  paintTreeParts(ctx, plan, g, look, () => {});
+
+/** `paintTree`, telling `part` before each part is painted, so a caller can keep them apart. */
+export const paintTreeParts = (
+  ctx: CanvasRenderingContext2D,
+  plan: Plan,
+  g: number,
+  look: Look,
+  part: (p: Part) => void,
+) => {
   const at = grownAt(plan, g);
   if (g < 0.15) {
+    part({ kind: "sapling", i: 0 });
     // A sapling: a green stem and two leaves.
     const top = { x: plan.root.x, y: plan.root.y - plan.height * g };
     for (let y = Math.round(top.y); y <= plan.root.y; y++) rect(ctx, "#4f7f33", plan.root.x, y);
@@ -766,12 +781,14 @@ export const paintTree = (ctx: CanvasRenderingContext2D, plan: Plan, g: number, 
     return;
   }
   // Wood first, the oldest out to the youngest, then what grows on it.
-  for (const l of plan.limbs) {
-    if (l.at > g) continue;
+  plan.limbs.forEach((l, i) => {
+    if (l.at > g) return;
+    part({ kind: "wood", i });
     wood(ctx, plan, at(l.a), at(l.b), Math.max(1, Math.round(l.w * (0.4 + 0.6 * g))), look);
-  }
+  });
   plan.clumps.forEach((c, i) => {
     if (c.at > g) return;
+    part({ kind: "clump", i });
     const q = at(c);
     const r = c.r * g;
     const seed = i * 131 + Math.round(plan.root.x);
@@ -802,6 +819,7 @@ export const paintTree = (ctx: CanvasRenderingContext2D, plan: Plan, g: number, 
     plan.species === "plum" && ((look.k === 0 && look.p > 0.8) || (look.k === 1 && look.p < 0.4));
   if (!cherries && !plums) return;
   plan.fruit.forEach((f, j) => {
+    part({ kind: "fruit", i: j });
     const q = at(f);
     const x = Math.round(q.x);
     const y = Math.round(q.y);
@@ -841,13 +859,21 @@ export const drawApple = (
   if (size === 2) rect(ctx, !ripe ? "#b8df6a" : pale ? "#f8f0c0" : "#f08070", x0, y0);
 };
 
-/** Apples as they hang in the season, for a tree drawn on its own (the wood drops them). */
-export const paintFruit = (ctx: CanvasRenderingContext2D, plan: Plan, g: number, look: Look) => {
+/** Apples as they hang in the season, for a tree drawn on its own (the wood drops them),
+ *  each `moved` as far as its branch has. */
+export const paintFruit = (
+  ctx: CanvasRenderingContext2D,
+  plan: Plan,
+  g: number,
+  look: Look,
+  moved?: Pt[],
+) => {
   const on = appleOnTree(look);
   if (plan.species !== "apple" || !on || g < 0.9) return;
   const at = grownAt(plan, g);
   plan.fruit.forEach((f, j) => {
     const q = at(f);
-    drawApple(ctx, q.x, q.y, on.size, on.ripe, j);
+    const d = moved?.[j] ?? { x: 0, y: 0 };
+    drawApple(ctx, q.x + Math.round(d.x), q.y + Math.round(d.y), on.size, on.ripe, j);
   });
 };

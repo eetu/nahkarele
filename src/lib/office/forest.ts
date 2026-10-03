@@ -2,6 +2,7 @@
 // is a function of `since`, the seconds since friday began, and of friday's `seed` (see
 // Mood), which shapes the trees; the only state is caches: the stand and baked canvases.
 
+import { prefersReducedMotion } from "$lib/keys";
 import type { Weather } from "$lib/scene/sky";
 import butterfly from "$lib/sprites/butterfly.json";
 import fox from "$lib/sprites/fox.json";
@@ -12,6 +13,8 @@ import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 
 import { FLOOR_Y, SCENE_H, SCENE_W } from "./engine";
 import { hash, ramp, rect, smooth } from "./pixel";
+import { type Season, SEASON_S, seasonAt, SEASONS_FROM, STORM_S } from "./seasons";
+import { drawTree, type Pose, poseOf } from "./sway";
 import {
   appleOnTree,
   autumnOf,
@@ -20,13 +23,15 @@ import {
   drawApple,
   grownAt,
   type Look,
-  paintTree,
   perchOf,
   type Plan,
   planTree,
   SPECIES,
   type Species,
 } from "./trees";
+import { driftOf, windAt } from "./wind";
+
+export { type Season, SEASON_S, seasonAt, SEASONS_FROM } from "./seasons";
 
 const S = {
   rabbit: rabbit as Sprite,
@@ -36,14 +41,13 @@ const S = {
   hedgehog: hedgehog as Sprite,
 };
 
-/** Something drawn once per quantised state and reused: trees, snow cover, leaf litter. */
+/** Something drawn once per quantised state and reused: snow cover, leaf litter. */
 const baked = new Map<string, { key: string; canvas: HTMLCanvasElement }>();
 const layer = (
   ctx: CanvasRenderingContext2D,
   name: string,
   key: string,
   paint: (off: CanvasRenderingContext2D) => void,
-  dx = 0,
 ) => {
   let hit = baked.get(name);
   if (!hit || hit.key !== key) {
@@ -57,28 +61,10 @@ const layer = (
     hit = { key, canvas };
     baked.set(name, hit);
   }
-  ctx.drawImage(hit.canvas, dx, 0);
+  ctx.drawImage(hit.canvas, 0, 0);
 };
 
 // --- Seasons --------------------------------------------------------------------------
-
-/** The wood is grown; from here the year turns. */
-export const SEASONS_FROM = 320;
-/** Seconds per season. */
-export const SEASON_S = 150;
-
-export type Season = {
-  /** 0 summer, 1 autumn, 2 winter, 3 spring. */
-  k: 0 | 1 | 2 | 3;
-  /** How far through it, 0..1. */
-  p: number;
-};
-
-export const seasonAt = (since: number): Season => {
-  if (since < SEASONS_FROM) return { k: 0, p: 0 };
-  const t = (since - SEASONS_FROM) / SEASON_S;
-  return { k: (Math.floor(t) % 4) as Season["k"], p: t % 1 };
-};
 
 /** How much of the crown is leaf, 0..1: bare in winter, back in spring. */
 const foliage = ({ k, p }: Season) =>
@@ -125,6 +111,9 @@ const AUTUMN = ["#d9a441", "#e07b2a", "#c8452f", "#b3741f"];
 const SNOW = ["#f4f7fa", "#e4ebf0"];
 
 const growth = (i: number, since: number) => smooth((since - SLOTS[i].start) / GROW_S);
+/** Growth as drawn: in steps, so a tree is painted afresh only now and then. */
+const grownStep = (i: number, since: number) =>
+  Math.round(growth(i, since) * GROW_STEPS) / GROW_STEPS;
 
 let stand: { seed: number; plans: Plan[] } | null = null;
 
@@ -156,8 +145,6 @@ const standOf = (seed: number): Plan[] => {
   return plans;
 };
 
-/** How long the storm after the blast lasts before the year takes the window. */
-const STORM_S = 90;
 /** How far into the day the light is, per season: Finnish light, bright summer nights, dark
  *  winters. Values on the shift's 0..1 scale (`scene/sky.ts`): 0.45 midday, 0.9 night. */
 const LIGHT = [0.45, 0.72, 0.9, 0.55];
@@ -194,6 +181,36 @@ export const lookAt = (since: number): Look => {
   return { k: season.k, p: season.p, leaves: foliage(season), snow: snowCover(since) };
 };
 
+/** The last pose of each tree, so the apples and the owl ride the branches the frame drew. */
+const poses = new Map<number, { since: number; pose: Pose }>();
+
+/** How long a tap pushes the apple tree, s. */
+const SHAKE_S = 0.6;
+
+/** Tree `i` in friday's wind at the growth step it is drawn at; a tap shakes the apple tree. */
+const poseAt = (i: number, since: number, seed: number, knocks: Knocks): Pose => {
+  const hit = poses.get(i);
+  if (hit && hit.since === since) return hit.pose;
+  const plan = standOf(seed)[i];
+  // A tap is a hard push for a moment; the branches answer it with their own wobble.
+  const tapped = plan.species === "apple" ? Math.max(-Infinity, ...Object.values(knocks)) : -1;
+  const shake = (time: number) => {
+    const d = time - tapped;
+    return d >= 0 && d < SHAKE_S ? 3 * Math.sin((Math.PI * d) / SHAKE_S) ** 2 : 0;
+  };
+  // Asked for less motion, the trees stir rather than toss.
+  const calm = prefersReducedMotion() ? 0.3 : 1;
+  const pose = poseOf(
+    plan,
+    grownStep(i, since),
+    lookAt(since),
+    since,
+    (x, ago) => (windAt(since - ago, seed, x) + shake(since - ago)) * calm,
+  );
+  poses.set(i, { since, pose });
+  return pose;
+};
+
 export const drawTrees = (
   ctx: CanvasRenderingContext2D,
   since: number,
@@ -201,16 +218,12 @@ export const drawTrees = (
   knocks: Knocks,
 ) => {
   const look = lookAt(since);
-  // A shaken tree sways a pixel or two for a moment.
-  const shook = since - Math.max(-Infinity, ...Object.values(knocks));
-  const sway = shook < 0.5 ? Math.round(Math.sin(shook * 45) * 1.5 * (1 - shook / 0.5)) : 0;
   standOf(seed).forEach((plan, i) => {
     const g = growth(i, since);
     if (g <= 0) return;
-    const step = Math.round(g * GROW_STEPS);
+    const step = grownStep(i, since);
     const key = `${seed}|${step}|${look.k}|${Math.round(look.p * 24)}`;
-    const dx = plan.species === "apple" ? sway : 0;
-    layer(ctx, `tree${i}`, key, (off) => paintTree(off, plan, step / GROW_STEPS, look), dx);
+    drawTree(ctx, `tree${i}`, key, plan, step, look, poseAt(i, since, seed, knocks));
   });
 };
 
@@ -261,17 +274,20 @@ export const drawApples = (
   const tree = appleTree(seed);
   const y = yearOf(since);
   if (!tree || y < 0) return;
-  const on = appleOnTree(lookAt(since));
-  const at = grownAt(tree.plan, growth(tree.i, since));
+  const look = lookAt(since);
+  const on = appleOnTree(look);
+  const at = grownAt(tree.plan, grownStep(tree.i, since));
+  const moved = poseAt(tree.i, since, seed, knocks).fruit;
   tree.plan.fruit.forEach((f, j) => {
-    const hang = at(f);
+    const rest = at(f);
+    const hang = { x: Math.round(rest.x + moved[j].x), y: Math.round(rest.y + moved[j].y) };
     const drop = dropAt(y, j, knocks);
     if (since < drop) {
       if (on) drawApple(ctx, hang.x, hang.y, on.size, on.ripe, j);
       return;
     }
     if (since >= buriedAt(y)) return;
-    const ground = groundOf(hang, y, j);
+    const ground = groundOf(rest, y, j);
     const u = Math.min(1, (since - drop) / APPLE_FALL_S);
     const fx = hang.x + (ground.x - hang.x) * u;
     const fy = hang.y + (ground.y - hang.y) * u * u;
@@ -418,25 +434,39 @@ const drawFallingLeaves = (
     const y0 = from.y - 10 + hash(i, 44) * 20;
     const period = 5 + 3 * hash(i, 45);
     const t = ((since + hash(i, 46) * period) % period) / period;
-    const x = x0 + Math.sin(t * 6 + i) * 8 + t * 12 * (hash(i, 47) - 0.5);
+    const blown = driftOf(since - t * period, since, seed, x0) * LEAF_PX_S;
+    const x = x0 + Math.sin(t * 6 + i) * 8 + t * 12 * (hash(i, 47) - 0.5) + blown;
     const y = y0 + t * (FLOOR_Y + 4 - y0);
     rect(ctx, colours[i % colours.length], Math.round(x), Math.round(y), 2, 1);
   }
 };
 
-const drawSnowfall = (ctx: CanvasRenderingContext2D, since: number, season: Season) => {
+/** How fast a leaf and a flake ride a wind of 1, scene px/s. */
+const LEAF_PX_S = 20;
+const FLAKE_PX_S = 16;
+
+const drawSnowfall = (
+  ctx: CanvasRenderingContext2D,
+  since: number,
+  season: Season,
+  seed: number,
+) => {
   const on = season.k === 2 ? ramp(season.p, 0.02, 0.1) * (1 - ramp(season.p, 0.9, 1)) : 0;
   if (on <= 0) return;
   ctx.globalAlpha = 0.9 * on;
-  // Spread over the whole room, drifting a little on the draught from the broken window; one
-  // flake in four is nearer, bigger and quicker.
+  // Spread over the whole room, carried on the wind through the broken window; one flake in
+  // four is nearer, bigger and quicker.
   const span = SCENE_W + 10;
+  const fall = SCENE_H + 10;
   for (let i = 0; i < 90; i++) {
     const near = i % 4 === 0;
     const speed = near ? 20 + 8 * hash(i, 51) : 10 + 7 * hash(i, 51);
-    const drift = since * (near ? 4 : 2.5) + Math.sin(since * 0.6 + i) * 4;
-    const x = ((((hash(i, 52) * span + drift) % span) + span) % span) - 5;
-    const y = ((since * speed + hash(i, 53) * (SCENE_H + 10)) % (SCENE_H + 10)) - 5;
+    const x0 = hash(i, 52) * span;
+    const down = (since * speed + hash(i, 53) * fall) % fall;
+    const blown = driftOf(since - down / speed, since, seed, x0) * FLAKE_PX_S * (near ? 1.3 : 1);
+    const drift = blown + Math.sin(since * 0.6 + i) * 4;
+    const x = ((((x0 + drift) % span) + span) % span) - 5;
+    const y = down - 5;
     rect(ctx, SNOW[0], Math.round(x), Math.round(y), near ? 2 : 1, near ? 2 : 1);
   }
   ctx.globalAlpha = 1;
@@ -482,13 +512,19 @@ const BUTTERFLIES_FROM = 70;
 const FLOWER_X = [58, 104, 218, 262];
 const WINGS = [undefined, "white", "blue", "violet"];
 
-const drawButterflies = (ctx: CanvasRenderingContext2D, since: number, season: Season) => {
+const drawButterflies = (
+  ctx: CanvasRenderingContext2D,
+  since: number,
+  season: Season,
+  seed: number,
+) => {
   // Summer, and late spring.
   const on = season.k === 0 ? 1 : season.k === 3 ? ramp(season.p, 0.5, 0.8) : 0;
   const n = Math.round(Math.min(5, Math.floor((since - BUTTERFLIES_FROM) / 18)) * on);
   for (let i = 0; i < n; i++) {
     const ax = FLOWER_X[i % FLOWER_X.length];
-    const x = ax + Math.sin(since * 0.35 + i) * 18 + Math.sin(since * 0.9 + i * 2) * 4;
+    const x0 = ax + Math.sin(since * 0.35 + i) * 18 + Math.sin(since * 0.9 + i * 2) * 4;
+    const x = x0 + windAt(since, seed, x0) * 10;
     const y = FLOOR_Y - 52 + Math.sin(since * 0.5 + i * 1.7) * 22 + Math.sin(since * 2.1 + i) * 2;
     drawSprite(ctx, S.butterfly, x, y, {
       frame: frameOf(S.butterfly, "flap", since * 9 + i),
@@ -612,10 +648,12 @@ const OWL_TREE = 4;
 const HOOT_CYCLE = 23;
 const HOOT_S = 1.2;
 
-const drawOwl = (ctx: CanvasRenderingContext2D, since: number, seed: number) => {
+const drawOwl = (ctx: CanvasRenderingContext2D, since: number, seed: number, knocks: Knocks) => {
   const g = growth(OWL_TREE, since);
   if (since < OWL_FROM || g < 0.8) return;
-  const perch = perchOf(standOf(seed)[OWL_TREE], g);
+  const branch = perchOf(standOf(seed)[OWL_TREE], grownStep(OWL_TREE, since));
+  const moved = poseAt(OWL_TREE, since, seed, knocks).perch;
+  const perch = { x: Math.round(branch.x + moved.x), y: Math.round(branch.y + moved.y) };
   const c = (since - OWL_FROM) % HOOT_CYCLE;
   const frame =
     c < HOOT_S ? frameOf(S.owl, "hoot", (c / HOOT_S) * 3) : frameOf(S.owl, "perch", since * 0.7);
@@ -636,7 +674,12 @@ export const forestCue = (from: number, to: number): "hoot" | null => {
 
 const FIREFLIES_FROM = 300;
 
-const drawFireflies = (ctx: CanvasRenderingContext2D, since: number, season: Season) => {
+const drawFireflies = (
+  ctx: CanvasRenderingContext2D,
+  since: number,
+  season: Season,
+  seed: number,
+) => {
   // A summer thing, lingering into early autumn.
   const on = season.k === 0 ? 1 : season.k === 1 ? 1 - ramp(season.p, 0, 0.3) : 0;
   if (on <= 0) return;
@@ -644,7 +687,8 @@ const drawFireflies = (ctx: CanvasRenderingContext2D, since: number, season: Sea
   for (let i = 0; i < n; i++) {
     const glow = Math.max(0, Math.sin(since * 1.3 + i * 2.1)) ** 4 * on;
     if (glow < 0.05) continue;
-    const x = Math.round(20 + hash(i, 1) * (SCENE_W - 40) + Math.sin(since * 0.3 + i) * 12);
+    const x0 = 20 + hash(i, 1) * (SCENE_W - 40) + Math.sin(since * 0.3 + i) * 12;
+    const x = Math.round(x0 + windAt(since, seed, x0) * 6);
     const y = Math.round(40 + hash(i, 2) * (FLOOR_Y - 50) + Math.sin(since * 0.45 + i * 3) * 6);
     ctx.globalAlpha = glow * 0.35;
     rect(ctx, "#e8ff7a", x - 2, y - 2, 5, 5);
@@ -654,7 +698,6 @@ const drawFireflies = (ctx: CanvasRenderingContext2D, since: number, season: Sea
   ctx.globalAlpha = 1;
 };
 
-/** The animals and the weather of the wood, drawn over everything else in the room. */
 /**
  * What stands on the floor, back to front by where its feet are (rabbit, fox, hedgehog), over
  * the snow on the furniture. The office draws the deer, nearest of all, after this.
@@ -668,11 +711,16 @@ export const drawGroundlife = (ctx: CanvasRenderingContext2D, since: number) => 
 };
 
 /** What flies or falls, over everything on the floor. */
-export const drawWoodlife = (ctx: CanvasRenderingContext2D, since: number, seed: number) => {
+export const drawWoodlife = (
+  ctx: CanvasRenderingContext2D,
+  since: number,
+  seed: number,
+  knocks: Knocks,
+) => {
   const season = seasonAt(since);
-  drawButterflies(ctx, since, season);
-  drawOwl(ctx, since, seed);
-  drawFireflies(ctx, since, season);
+  drawButterflies(ctx, since, season, seed);
+  drawOwl(ctx, since, seed, knocks);
+  drawFireflies(ctx, since, season, seed);
   drawFallingLeaves(ctx, since, season, seed);
-  drawSnowfall(ctx, since, season);
+  drawSnowfall(ctx, since, season, seed);
 };

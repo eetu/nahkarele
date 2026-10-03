@@ -15,6 +15,7 @@
   } from "$lib/office/engine";
   import { appleCue, appleTreeAt, forestCue, shakeApple } from "$lib/office/forest";
   import { officeWeek } from "$lib/office/week.svelte";
+  import { windAt } from "$lib/office/wind";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
 
   import SceneSign from "./SceneSign.svelte";
@@ -153,6 +154,9 @@
           appleRect = tree;
         }
       }
+      // Friday's wind, swelling and rising with the gusts.
+      const wind = mood.after ? Math.abs(windAt(mood.since, mood.seed)) : 0;
+      sfx.bed("wind", Math.min(0.035, wind * 0.022), 0.7 + wind * 0.8);
       // The AIs' fans, and the drone's rotors pitched by how fast it is going.
       sfx.bed("fans", 0.03);
       const speed = Math.hypot(s.drone.vx, s.drone.vy) / 320;
@@ -177,6 +181,7 @@
       cancelAnimationFrame(raf);
       sfx.bed("fans", 0);
       sfx.bed("drone", 0);
+      sfx.bed("wind", 0);
     };
   });
 </script>

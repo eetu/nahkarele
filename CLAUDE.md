@@ -68,7 +68,13 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   its own wood and a reload keeps it. In dev a scrubber under the room runs friday's clock
   at any speed, backwards too. Apples ripen, fall
   through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
-  early (`mood.knocks`), the one thing on friday that answers the player.
+  early (`mood.knocks`), the one thing on friday that answers the player. The wind
+  (`office/wind.ts`) is a function of time too: a mean by season, gusts that cross the room
+  from the upwind side. Every tree moves by one simulation (`office/sway.ts`): its wood is a
+  rig of pieces hung off their parents, each turning about its base against its width cubed,
+  and clumps, fruit and the owl ride the piece they hang on; a tree is painted once into
+  pixel lists and re-posed each frame. Leaves and snow ride the wind's integral (`driftOf`);
+  grass, the window's rain and a sound bed follow it.
 - **Scene pieces draw themselves.** A tree, a sprite, the calendar, pixel text: a draw function
   over a canvas context and plain values, no DOM. That is what lets the workbench show them
   alone; keep new pieces that way.

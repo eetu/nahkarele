@@ -15,7 +15,8 @@ import {
   SEASONS_FROM,
   shakeApple,
 } from "$lib/office/forest";
-import { paintFruit, paintTree, planTree, SPECIES, type Species } from "$lib/office/trees";
+import { drawTree, poseOf } from "$lib/office/sway";
+import { paintFruit, type Plan, planTree, SPECIES, type Species } from "$lib/office/trees";
 import { CALENDAR, drawCalendar } from "$lib/scene/calendar";
 import { drawPixelText, pixelTextWidth } from "$lib/scene/pixelfont";
 import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
@@ -58,9 +59,32 @@ const office = (ctx: CanvasRenderingContext2D, w: number, h: number, floor: numb
   ctx.fillRect(0, floor, w, h - floor);
 };
 
+/** The bench's trees by their parameters, so a moving tree is planned once. */
+const plans = new Map<string, Plan>();
+const planOf = (seed: number, height: number, species: Species) => {
+  const key = `${seed}|${height}|${species}`;
+  let plan = plans.get(key);
+  if (!plan) {
+    plan = planTree(seed, { x: 55, y: 153 }, height, species);
+    plans.set(key, plan);
+  }
+  return plan;
+};
+
+/** One tree in a wind of `wind` (friday's strength), steady or in gusts, moving as on friday. */
 const tree: Unit = {
   name: "tree",
-  defaults: { species: "birch", seed: 1, growth: 1, season: "summer", through: 0.5, height: 90 },
+  animated: true,
+  defaults: {
+    species: "birch",
+    seed: 1,
+    growth: 1,
+    season: "summer",
+    through: 0.5,
+    height: 90,
+    wind: 0.5,
+    gusts: "gusty",
+  },
   params: () => [
     { kind: "select", key: "species", options: SPECIES },
     { kind: "seed", key: "seed" },
@@ -68,9 +92,11 @@ const tree: Unit = {
     { kind: "select", key: "season", options: SEASONS },
     { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01 },
     { kind: "range", key: "height", min: 30, max: 140, step: 5 },
+    { kind: "range", key: "wind", min: -2, max: 2, step: 0.1 },
+    { kind: "select", key: "gusts", options: ["steady", "gusty"] },
   ],
   size: () => ({ w: 110, h: 160 }),
-  draw: (ctx, v) => {
+  draw: (ctx, v, t) => {
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
     office(ctx, 110, 160, 151);
@@ -80,14 +106,21 @@ const tree: Unit = {
       ctx.fillRect(0, 151, 110, 9);
       ctx.globalAlpha = 1;
     }
-    const plan = planTree(
-      num(v, "seed"),
-      { x: 55, y: 153 },
-      num(v, "height"),
-      str(v, "species") as Species,
-    );
-    paintTree(ctx, plan, num(v, "growth"), look);
-    paintFruit(ctx, plan, num(v, "growth"), look);
+    const seed = num(v, "seed");
+    const plan = planOf(seed, num(v, "height"), str(v, "species") as Species);
+    const g = num(v, "growth");
+    // Steady still stirs a little, as friday's does; gusty adds a gust every eight seconds.
+    const gusty = str(v, "gusts") === "gusty";
+    const blow = (time: number) =>
+      num(v, "wind") *
+      (1 +
+        0.12 * Math.sin(0.7 * time) +
+        0.08 * Math.sin(1.6 * time + 1.1) +
+        (gusty ? 0.8 * Math.max(0, Math.sin(time * 0.8)) ** 3 : 0));
+    const pose = poseOf(plan, g, look, t, (_, ago) => blow(t - ago));
+    const key = `${seed}|${num(v, "height")}|${plan.species}|${g}|${look.k}|${look.p}`;
+    drawTree(ctx, `bench${seed}`, key, plan, g, look, pose);
+    paintFruit(ctx, plan, g, look, pose.fruit);
   },
 };
 

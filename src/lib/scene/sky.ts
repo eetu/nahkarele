@@ -12,6 +12,8 @@ export type SkyInput = {
   /** How far through the shift, 0..1. */
   progress: number;
   weather: Weather;
+  /** Wind across the window, + to the right (friday's, `office/wind.ts`); else the weather's own. */
+  wind?: number;
 };
 
 export type Glass = { x: number; y: number; w: number; h: number };
@@ -257,17 +259,18 @@ export const drawWindow = (
   }
 
   if (weather === "snow") {
+    const wind = sky.wind ?? 0;
     for (let i = 0; i < 24; i++) {
-      const fx = x + ((i * 37 + Math.sin(sky.t * 1.3 + i) * 3) % w);
-      const fy = y + ((i * 13 + sky.t * (10 + (i % 4) * 3)) % h);
-      rect(ctx, "#eef2f6", fx, fy, 1, 1);
+      const fall = (i * 13 + sky.t * (10 + (i % 4) * 3)) % h;
+      const along = i * 37 + Math.sin(sky.t * 1.3 + i) * 3 + fall * wind * 0.8;
+      rect(ctx, "#eef2f6", x + (((along % w) + w) % w), y + fall, 1, 1);
     }
   }
   if (weather === "rain" || weather === "storm") {
     // Each drop has its own column, speed and length; the wind leans them all.
     const storm = weather === "storm";
     const n = Math.round((storm ? 34 : 20) * (w / 56));
-    const lean = storm ? 0.45 : 0.2;
+    const lean = sky.wind === undefined ? (storm ? 0.45 : 0.2) : -sky.wind * 0.45;
     ctx.fillStyle = storm ? "#c4cfdc" : "#a9b8c8";
     ctx.globalAlpha = 0.7;
     for (let i = 0; i < n; i++) {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SEASON_S, seasonAt, SEASONS_FROM } from "$lib/office/forest";
   import { officeWeek } from "$lib/office/week.svelte";
+  import { windAt } from "$lib/office/wind";
 
   /** Two years of seasons after the wood has grown. */
   const END = SEASONS_FROM + 8 * SEASON_S;
@@ -18,10 +19,12 @@
     `${Math.floor(since / 60)}:${String(Math.floor(since % 60)).padStart(2, "0")}`,
   );
   const where = $derived.by(() => {
-    if (since < SEASONS_FROM) return "the wood grows";
+    const w = windAt(since, officeWeek.mood.seed);
+    const wind = `wind ${Math.abs(w).toFixed(2)} ${w < 0 ? "←" : "→"}`;
+    if (since < SEASONS_FROM) return `the wood grows · ${wind}`;
     const { k, p } = seasonAt(since);
     const year = Math.floor((since - SEASONS_FROM) / (4 * SEASON_S)) + 1;
-    return `year ${year} · ${SEASONS[k]} ${Math.round(p * 100)}%`;
+    return `year ${year} · ${SEASONS[k]} ${Math.round(p * 100)}% · ${wind}`;
   });
 
   const label = (r: number) => (r < 0 ? `◀◀ ${-r}×` : r === 1 ? "▶ 1×" : `▶▶ ${r}×`);
