@@ -29,8 +29,13 @@ export type Setting = { fixtures: Fixtures; openings: string[]; fronts: Rect[] }
 
 /** The wall that can break: down to the dado, scene px. */
 const WALL_H = 97;
-/** Pieces are about this many px across. */
-const CELL = 9;
+/** The wall breaks in slabs about this wide and tall, px, laid in courses like blockwork. */
+const SLAB_W = 26;
+const SLAB_H = 14;
+/** How far a break line wanders off straight, px. */
+const ROUGH = 1.5;
+/** A piece bigger than this falls flat (it may flip over once); smaller ones tumble. */
+const FLAT_PX = 120;
 /** Gravity, scene px/s², and how long a landing bumps. */
 const G = 240;
 const BUMP_S = 0.3;
@@ -61,6 +66,8 @@ type Body = Rect & {
   k0: number;
   /** Pieces tumble as they fall; fixtures go down upright and stand where they land. */
   tumble: boolean;
+  /** A slab: it turns half over at most, and lands lying flat. */
+  flat?: boolean;
 };
 
 type Wall = {
@@ -177,12 +184,18 @@ const standing = (holds: Map<number, number>[], anchored: Float32Array, gone: Ui
 const wallOf = (seed: number, { fixtures, openings, fronts }: Setting): Wall => {
   if (built?.seed === seed) return built;
   const rand = random(seed ^ 0xbad);
-  const cols = Math.ceil(SCENE_W / CELL);
-  const rows = Math.ceil(WALL_H / CELL);
+  // One seed a slab, each course set half a slab along from the one below; a slab is what is
+  // nearest its seed by a squarish distance, so its sides run straight and its corners turn.
+  const cols = Math.ceil(SCENE_W / SLAB_W) + 1;
+  const rows = Math.ceil(WALL_H / SLAB_H);
+  const shift = (gy: number) => (gy % 2 ? -SLAB_W / 2 : 0);
   const seeds: Pt[] = [];
   for (let gy = 0; gy < rows; gy++) {
     for (let gx = 0; gx < cols; gx++) {
-      seeds.push({ x: (gx + rand()) * CELL, y: (gy + rand()) * CELL });
+      seeds.push({
+        x: (gx + 0.5 + (rand() - 0.5) * 0.3) * SLAB_W + shift(gy),
+        y: (gy + 0.5 + (rand() - 0.5) * 0.3) * SLAB_H,
+      });
     }
   }
   const holes = Object.fromEntries(openings.map((n) => [n, fixtures[n]]));
@@ -190,15 +203,19 @@ const wallOf = (seed: number, { fixtures, openings, fronts }: Setting): Wall => 
   for (let y = 0; y < WALL_H; y++) {
     for (let x = 0; x < SCENE_W; x++) {
       if (Object.values(holes).some((r) => inside(r, x, y))) continue;
-      const gx = Math.floor(x / CELL);
-      const gy = Math.floor(y / CELL);
+      // Break lines are rough, not ruled.
+      const rx = x + (hash(seed, x, y, 7) - 0.5) * 2 * ROUGH;
+      const ry = y + (hash(seed, y, x, 8) - 0.5) * 2 * ROUGH;
+      const gy = Math.floor(y / SLAB_H);
       let best = -1;
       let near = Infinity;
       for (let j = gy - 1; j <= gy + 1; j++) {
+        if (j < 0 || j >= rows) continue;
+        const gx = Math.floor((x - shift(j)) / SLAB_W);
         for (let i = gx - 1; i <= gx + 1; i++) {
-          if (i < 0 || j < 0 || i >= cols || j >= rows) continue;
+          if (i < 0 || i >= cols) continue;
           const s = seeds[j * cols + i];
-          const d = (s.x - x) ** 2 + (s.y - y) ** 2;
+          const d = ((s.x - rx) / SLAB_W) ** 4 + ((s.y - ry) / SLAB_H) ** 4;
           if (d < near) {
             near = d;
             best = j * cols + i;
@@ -256,7 +273,10 @@ const wallOf = (seed: number, { fixtures, openings, fronts }: Setting): Wall => 
     const vx = (hash(seed, i, 2) - 0.5) * 14;
     const floor = FLOOR_Y + 1 + Math.floor(hash(seed, i, 3) * 4);
     const land = restOn(fronts, x + vx * fallFrom(y + h, floor), w, floor);
-    return { x, y, w, h, at, vx, land, k0: Math.floor(hash(seed, i, 4) * 4), tumble: true };
+    // A slab falls flat, or flips over once; a chip tumbles.
+    const flat = px.length > FLAT_PX;
+    const k0 = flat ? 2 * Math.floor(hash(seed, i, 4) * 2) : Math.floor(hash(seed, i, 4) * 4);
+    return { x, y, w, h, at, vx, land, k0, tumble: true, flat };
   });
   const { holds, anchored } = settle(seed, owner, pieces);
   // A fixture hangs from the piece just above it, and goes when that does.
@@ -314,7 +334,8 @@ const whereAt = (b: Body, since: number): Where => {
   const t = since - b.at;
   if (!(t >= 0)) return { phase: "wall", x: b.x, y: b.y, k: 0, age: 0 };
   const fall = fallFrom(b.y + b.h, b.land);
-  const turn = (s: number) => (b.tumble ? (b.k0 + Math.floor(s * 7)) % 4 : 0);
+  const turn = (s: number) =>
+    !b.tumble ? 0 : b.flat ? (b.k0 + 2 * Math.floor(s * 1.2)) % 4 : (b.k0 + Math.floor(s * 7)) % 4;
   if (t < fall) {
     return { phase: "falling", x: b.x + b.vx * t, y: b.y + 0.5 * G * t * t, k: turn(t), age: 0 };
   }
@@ -483,7 +504,10 @@ export const drawWall = (
   const w = wallOf(seed, setting);
   const broken = brokenBy(w, since);
   const open = setting.openings.filter((n) => whereAt(w.fixtures[n], since).phase !== "wall");
-  if (!broken && !open.length) return;
+  if (!broken && !open.length) {
+    holes = null;
+    return;
+  }
   const key = `${seed}|${broken}|${open.join()}`;
   if (!holes || holes.key !== key) {
     const fresh = bakeHoles(w, broken, open);
@@ -649,4 +673,50 @@ export const drawShade = (
   ctx.globalAlpha = alpha;
   ctx.drawImage(shade, 0, 0);
   ctx.globalAlpha = 1;
+};
+
+/**
+ * The highest row a climber at column `x` can reach on its way up to `y`, `since` seconds into
+ * friday: up the wall from the dado for as long as the wall still stands there.
+ */
+export const climbTo = (x: number, y: number, since: number, seed: number, setting: Setting) => {
+  const w = wallOf(seed, setting);
+  for (let row = WALL_H - 1; row >= Math.max(0, y); row--) {
+    const o = w.owner[row * SCENE_W + x];
+    if (o < 0 || w.pieces[o].at <= since) return row + 1;
+  }
+  return y;
+};
+
+let onWall: HTMLCanvasElement | null = null;
+
+/**
+ * `paint` as something on the wall (a crack, a climber): what it puts where the wall has gone,
+ * as last drawn, is not drawn; it went down with the wall.
+ */
+export const drawOnWall = (
+  ctx: CanvasRenderingContext2D,
+  paint: (ctx: CanvasRenderingContext2D) => void,
+) => {
+  if (!holes) return paint(ctx);
+  const { width, height } = ctx.canvas;
+  onWall ??= document.createElement("canvas");
+  if (onWall.width !== width || onWall.height !== height) {
+    onWall.width = width;
+    onWall.height = height;
+  }
+  const off = onWall.getContext("2d");
+  if (!off) return paint(ctx);
+  off.setTransform(1, 0, 0, 1, 0, 0);
+  off.clearRect(0, 0, width, height);
+  off.setTransform(ctx.getTransform());
+  off.imageSmoothingEnabled = false;
+  paint(off);
+  off.globalCompositeOperation = "destination-out";
+  off.drawImage(holes.mask, 0, 0);
+  off.globalCompositeOperation = "source-over";
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(onWall, 0, 0);
+  ctx.restore();
 };

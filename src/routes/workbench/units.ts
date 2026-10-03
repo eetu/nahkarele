@@ -328,9 +328,11 @@ const wood: Unit = {
     const seed = num(v, "seed");
     const knocks = knocksOf(seed);
     office(ctx, SCENE_W, SCENE_H, FLOOR_Y);
-    drawTrees(ctx, since, seed, knocks);
+    drawTrees(ctx, since, seed, knocks, false);
+    drawTrees(ctx, since, seed, knocks, true);
     drawGround(ctx, since);
-    drawApples(ctx, since, seed, knocks);
+    drawApples(ctx, since, seed, knocks, false);
+    drawApples(ctx, since, seed, knocks, true);
   },
   tap: (v, t, at) => {
     const since = num(v, "since") + t;

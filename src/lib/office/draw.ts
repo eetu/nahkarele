@@ -655,14 +655,15 @@ export const drawOffice = (
   };
   // Everything that stands in the room, back to front.
   const drawNear = (ctx: CanvasRenderingContext2D) => {
-    if (mood.after) drawGarden(ctx, mood, { wall: WALL, draw: drawFallen(mood.since) });
+    const fallen = { wall: WALL, draw: drawFallen(mood.since) };
+    if (mood.after) drawGarden(ctx, mood, fallen);
     drawSigns(ctx, false);
     drawSlab(ctx, 1, s, mood);
     drawSlab(ctx, 2, s, mood);
     drawDesk(ctx, s, mood);
     if (mood.after) {
       drawArc(ctx, mood.since);
-      drawFloor(ctx, mood);
+      drawFloor(ctx, mood, fallen);
       drawVisitors(ctx, mood.since);
       drawAir(ctx, mood);
     }

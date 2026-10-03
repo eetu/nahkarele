@@ -90,11 +90,13 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   winter. Both answer the wind's history through the same damped
   spring (`springOf`), and both are painted once into pixel lists and re-posed each frame
   (`wood/posed.ts`). Leaves and snow ride the wind's integral (`driftOf`); grass, the
-  window's rain and a sound bed follow it. The back wall is a wall of pieces
+  window's rain and a sound bed follow it. The back wall is a wall of slabs, laid in courses
   (`wood/wall.ts`): loosened from where the roof fell, they break away at the blast and for
   years after, fall and land at its foot, and moss over and sink into the floor; what hangs on
   the wall (window, clock, calendar, signs) goes with the piece above it, and the signs'
-  buttons follow. The gaps and the window look out on one world (`wood/outside.ts`), ruined
+  buttons follow; what is on the wall (cracks, climbers, the snail, the sill's snow) goes with
+  the wall. Rain and snow fall through the room in their spells. The trees clear of the desk
+  stand in front of the furniture, the rest behind it. The gaps and the window look out on one world (`wood/outside.ts`), ruined
   at the blast and healing over the years. Friday has days (`wood/daylight.ts`, a minute
   each): the season sets how long the sun is up and how high it climbs, how dark the night
   gets; the moon crosses the nights through its phases. Night shades the wood as well as the

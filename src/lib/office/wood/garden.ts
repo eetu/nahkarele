@@ -7,7 +7,7 @@ import { drawDeer, drawFliers, drawGlowing, drawSmallLife } from "./life";
 import { drawCracks, drawGrass, drawMoss, drawVines } from "./overgrowth";
 import { drawApples, drawTrees, type Knocks } from "./stand";
 import { drawBackShrubs, drawFrontShrubs } from "./undergrowth";
-import { drawRubble, type Setting } from "./wall";
+import { climbTo, drawOnWall, drawRubble, fixtureAt, type Setting } from "./wall";
 import { drawFalling, drawGround, drawSillSnow, drawSnowCaps } from "./weather";
 
 export type Friday = { since: number; seed: number; knocks: Knocks };
@@ -28,23 +28,30 @@ export const drawGarden = (
   { since, seed, knocks }: Friday,
   fallen: Fallen,
 ) => {
-  drawCracks(ctx);
+  drawOnWall(ctx, drawCracks);
   drawMoss(ctx, since);
-  drawSillSnow(ctx, since);
-  drawVines(ctx, since, seed);
+  drawSillSnow(ctx, since, fixtureAt("window", since, seed, fallen.wall).on);
+  drawOnWall(ctx, (wall) => drawVines(wall, since, seed));
   drawRubble(ctx, since, seed, fallen.wall, fallen.draw);
-  drawTrees(ctx, since, seed, knocks);
+  drawTrees(ctx, since, seed, knocks, false);
   drawGround(ctx, since);
   drawBackShrubs(ctx, since, seed);
   drawGrass(ctx, since, seed);
-  drawApples(ctx, since, seed, knocks);
+  drawApples(ctx, since, seed, knocks, false);
 };
 
-/** What is in front of it, back to front: snow on the furniture, the small animals, the low
- *  shrubs along the near edge, the deer. */
-export const drawFloor = (ctx: CanvasRenderingContext2D, { since, seed }: Friday) => {
+/** What is in front of it, back to front: the trees that stand clear of the desk and their
+ *  apples, snow on the furniture, the small animals, the low shrubs along the near edge, the
+ *  deer. */
+export const drawFloor = (
+  ctx: CanvasRenderingContext2D,
+  { since, seed, knocks }: Friday,
+  fallen: Fallen,
+) => {
+  drawTrees(ctx, since, seed, knocks, true);
+  drawApples(ctx, since, seed, knocks, true);
   drawSnowCaps(ctx, since);
-  drawSmallLife(ctx, since);
+  drawSmallLife(ctx, since, (x, y) => climbTo(x, y, since, seed, fallen.wall));
   drawFrontShrubs(ctx, since, seed);
   drawDeer(ctx, since);
 };

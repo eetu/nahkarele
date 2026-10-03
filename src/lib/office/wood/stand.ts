@@ -25,15 +25,22 @@ import {
 } from "./trees";
 import { windAt } from "./wind";
 
-/** Where the trees come up, at the cracks, and when; their kind and shape come from the seed. */
+/**
+ * Where the trees come up, at the cracks, and when; their kind and shape come from the seed.
+ * Those clear of the desk stand in `front` of the furniture (their feet are nearer than the
+ * slabs' and the desk's); those behind the desk keep behind it, so the desk still reads.
+ */
 const SLOTS = [
-  { x: 62, h: 134, start: 60 },
-  { x: 100, h: 142, start: 40 },
-  { x: 140, h: 138, start: 95 },
-  { x: 190, h: 124, start: 75 },
-  { x: 232, h: 114, start: 55 },
-  { x: 262, h: 98, start: 120 },
+  { x: 62, h: 134, start: 60, front: true },
+  { x: 100, h: 142, start: 40, front: false },
+  { x: 140, h: 138, start: 95, front: false },
+  { x: 190, h: 124, start: 75, front: false },
+  { x: 232, h: 114, start: 55, front: true },
+  { x: 262, h: 98, start: 120, front: true },
 ];
+
+/** Whether `life` stands in front of the furniture or behind it. */
+const inLane = (life: Life, front: boolean) => SLOTS[life.slot].front === front;
 /** How tall each kind stands against its slot. */
 const SIZE: Record<Species, number> = {
   birch: 1,
@@ -366,15 +373,20 @@ const drawDown = (
   );
 };
 
+/** The trees in one lane, behind the furniture or in `front` of it. */
 export const drawTrees = (
   ctx: CanvasRenderingContext2D,
   since: number,
   seed: number,
   knocks: Knocks,
+  front: boolean,
 ) => {
   // What has come down lies behind what stands.
-  for (const life of fallen(seed, since)) drawDown(ctx, life, since, seed, knocks);
+  for (const life of fallen(seed, since)) {
+    if (inLane(life, front)) drawDown(ctx, life, since, seed, knocks);
+  }
   for (const life of standing(seed, since)) {
+    if (!inLane(life, front)) continue;
     const step = grownStep(life, since);
     const look = lookOf(life, since);
     const dead = look.dead ? Math.ceil(look.dead * 12) : 0;
@@ -443,10 +455,11 @@ export const drawApples = (
   since: number,
   seed: number,
   knocks: Knocks,
+  front: boolean,
 ) => {
   const tree = appleTree(seed, since);
   const y = yearOf(since);
-  if (!tree || y < 0) return;
+  if (!tree || y < 0 || !inLane(tree, front)) return;
   const look = lookAt(since);
   const on = appleOnTree(look);
   const at = grownAt(tree.plan, grownStep(tree, since));

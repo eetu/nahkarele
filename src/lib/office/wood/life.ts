@@ -25,8 +25,11 @@ const S = {
   deer: deer as Sprite,
 };
 
+/** How high up the wall a climber at `x` can get on its way to `y`: no higher than it stands. */
+export type Climb = (x: number, y: number) => number;
+
 /** Things that move in once nobody is looking: ants, ladybugs, a snail, a spider. */
-const drawCritters = (ctx: CanvasRenderingContext2D, since: number) => {
+const drawCritters = (ctx: CanvasRenderingContext2D, since: number, climb: Climb) => {
   const step = Math.floor(since * 8);
   // The floor's small life goes under as the snow comes, and back out as it melts.
   const bare = Math.max(0, 1 - snowCover(since) * 1.6);
@@ -52,10 +55,11 @@ const drawCritters = (ctx: CanvasRenderingContext2D, since: number) => {
     rect(ctx, "#15120f", x + 1, y, 1, 2);
     rect(ctx, "#15120f", x + (Math.sin(since * 0.25 + i * 2) > 0 ? 3 : -1), y, 1, 1);
   }
-  // A snail, climbing the wall by the window at snail speed.
+  // A snail, climbing the wall by the window at snail speed, as far as there is wall to climb.
   if (since > 15) {
-    const y = Math.round(Math.max(64, FLOOR_Y - 4 - (since - 15) * 0.8));
     const x = 96;
+    const want = Math.round(Math.max(64, FLOOR_Y - 4 - (since - 15) * 0.8));
+    const y = Math.max(want, climb(x + 1, want - 1) + 1);
     rect(ctx, "#8a6a4a", x, y, 3, 3);
     rect(ctx, "#5e4726", x + 1, y + 1, 1, 1);
     rect(ctx, "#c8b89a", x - 1, y + 3, 5, 1);
@@ -332,9 +336,13 @@ const drawFireflies = (
 
 /** What walks the floor behind the near shrubs, back to front by where its feet are: bugs,
  *  rabbit, fox, hedgehog. The deer walks in front of them (`drawDeer`). */
-export const drawSmallLife = (ctx: CanvasRenderingContext2D, since: number) => {
+export const drawSmallLife = (
+  ctx: CanvasRenderingContext2D,
+  since: number,
+  climb: Climb = (_x, y) => y,
+) => {
   const season = seasonAt(since);
-  drawCritters(ctx, since);
+  drawCritters(ctx, since, climb);
   drawRabbit(ctx, since, season);
   drawFox(ctx, since);
   drawHedgehog(ctx, since, season);

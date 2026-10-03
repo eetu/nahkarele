@@ -52,6 +52,15 @@ const snowing = (since: number) => {
   return Math.max(...SPELLS[2].map(([a, b]) => ramp(p, a, a + 0.04) * (1 - ramp(p, b - 0.04, b))));
 };
 
+/** How hard it is raining, 0..1: the storm's rain as the wood comes in, then the spells of
+ *  every season but winter, easing in and out like the snow's. */
+const raining = (since: number) => {
+  if (since < SEASONS_FROM) return 1 - ramp(since, 150, 160);
+  const { k, p } = seasonAt(since);
+  if (k === 2) return 0;
+  return Math.max(...SPELLS[k].map(([a, b]) => ramp(p, a, a + 0.04) * (1 - ramp(p, b - 0.04, b))));
+};
+
 /** Something drawn once per quantised state and reused: snow cover, leaf litter. */
 const baked = new Map<string, { key: string; canvas: HTMLCanvasElement }>();
 const layer = (
@@ -143,8 +152,10 @@ const capLedges = (
 };
 
 /** Snow on the window sill, on the wall behind the trees. */
-export const drawSillSnow = (ctx: CanvasRenderingContext2D, since: number) =>
-  capLedges(ctx, since, SILL);
+/** Snow on the window sill, while the window hangs: the sill goes down with it. */
+export const drawSillSnow = (ctx: CanvasRenderingContext2D, since: number, hanging: boolean) => {
+  if (hanging) capLedges(ctx, since, SILL);
+};
 
 /** Snow on the slabs and the desk, in front of the trees. */
 export const drawSnowCaps = (ctx: CanvasRenderingContext2D, since: number) =>
@@ -181,6 +192,43 @@ const drawFallingLeaves = (
 /** How fast a leaf and a flake ride a wind of 1, scene px/s. */
 const LEAF_PX_S = 20;
 const FLAKE_PX_S = 16;
+const DROP_PX_S = 30;
+
+const RAIN = "#a8bccf";
+
+/**
+ * Rain through the room, now that the roof is gone: streaks that lean with the wind and fall
+ * fast, each to a spot on the floor, where it splashes for a moment.
+ */
+const drawRainfall = (ctx: CanvasRenderingContext2D, since: number, seed: number) => {
+  const on = raining(since);
+  if (on <= 0) return;
+  ctx.globalAlpha = 0.55 * on;
+  const span = SCENE_W + 20;
+  for (let i = 0; i < 70; i++) {
+    const near = i % 5 === 0;
+    const speed = near ? 190 : 140 + 30 * hash(i, 61);
+    const land = FLOOR_Y + 2 + Math.floor(hash(i, 62) * (SCENE_H - FLOOR_Y - 4));
+    const fall = (land + 6) / speed;
+    const cycle = fall + 0.12;
+    const t = (since + hash(i, 63) * cycle) % cycle;
+    const x0 = hash(i, 64) * span;
+    // The same wind that carries the snow, read over the drop's short way down.
+    const lean = -driftOf(since - 0.25, since, seed, x0) * 4 * 0.45;
+    const blown = driftOf(since - Math.min(t, fall), since, seed, x0) * DROP_PX_S;
+    const x = ((((x0 + blown) % span) + span) % span) - 10;
+    if (t < fall) {
+      const y = -6 + t * speed;
+      const len = near ? 5 : 3;
+      for (let j = 0; j < len; j++) rect(ctx, RAIN, Math.round(x + lean * j), Math.round(y - j));
+    } else {
+      rect(ctx, RAIN, Math.round(x) - 1, land, 1, 1);
+      rect(ctx, RAIN, Math.round(x) + 1, land, 1, 1);
+      rect(ctx, RAIN, Math.round(x), land - 1, 1, 1);
+    }
+  }
+  ctx.globalAlpha = 1;
+};
 
 const drawSnowfall = (
   ctx: CanvasRenderingContext2D,
@@ -209,9 +257,10 @@ const drawSnowfall = (
   ctx.globalAlpha = 1;
 };
 
-/** Leaves in autumn, snow in winter, through the whole room. */
+/** Leaves in autumn, snow in winter, rain in its spells, through the whole room. */
 export const drawFalling = (ctx: CanvasRenderingContext2D, since: number, seed: number) => {
   const season = seasonAt(since);
   drawFallingLeaves(ctx, since, season, seed);
   drawSnowfall(ctx, since, season, seed);
+  drawRainfall(ctx, since, seed);
 };
