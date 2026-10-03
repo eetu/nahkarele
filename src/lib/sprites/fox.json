@@ -1,7 +1,7 @@
 {
   "name": "fox",
-  "w": 20,
-  "h": 11,
+  "w": 40,
+  "h": 22,
   "palette": {
     "R": "#c8622a",
     "r": "#9a4720",
@@ -9,34 +9,56 @@
     "K": "#15120f"
   },
   "animations": {
-    "trot": [0, 1]
+    "trot": [0,1]
   },
   "frames": [
     [
-      "..............R..R..",
-      "..............RR.R..",
-      ".RR...........RRRR..",
-      "RRRR.........RRKRR..",
-      "RRRRRRRRRRRRRRRRWW..",
-      "WRRRRRRRRRRRRRRWWK..",
-      "WWrRRRRRRRRRRRRW....",
-      ".W.RRRRRRRRRRRR.....",
-      "...rr.rr....rr.rr...",
-      "...r...r....r...r...",
-      "...K...K....K...K..."
+      "............................RR....RR....",
+      "............................RRR...RR....",
+      "............................RRR...RR....",
+      "............................RRRR..RR....",
+      "...RR.......................RRRRRRRR....",
+      ".RRRRRR....................RRRRRRRRR....",
+      ".RRRRRR....................RRRKKRRRR....",
+      "RRRRRRRRR................RRRRRKKRRRR....",
+      "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRWWW....",
+      "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRWWWWW....",
+      "WRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRWWWWK....",
+      "WWWRRRRRRRRRRRRRRRRRRRRRRRRRRRWWWWK.....",
+      "WWWWrRRRRRRRRRRRRRRRRRRRRRRRRRWWW.......",
+      ".WWWrrRRRRRRRRRRRRRRRRRRRRRRRRW.........",
+      ".WWW..RRRRRRRRRRRRRRRRRRRRRRRR..........",
+      "..WW..RRRRRRRRRRRRRRRRRRRRRRR...........",
+      "......rrrr..rrrr........rrrr..rrr.......",
+      "......rrr....rrr........rrr...rrrr......",
+      "......rrr....rrr........rrr....rrr......",
+      "......rr......rr........rr......rr......",
+      "......KK......KK........KK......KK......",
+      "......KK......KK........KK......KK......"
     ],
     [
-      "..............R..R..",
-      "..............RR.R..",
-      ".RR...........RRRR..",
-      "RRRR.........RRKRR..",
-      "RRRRRRRRRRRRRRRRWW..",
-      "WRRRRRRRRRRRRRRWWK..",
-      "WWrRRRRRRRRRRRRW....",
-      ".W.RRRRRRRRRRRR.....",
-      "....rr.rr..rr.rr....",
-      "....r..r...r...r....",
-      "....K..K...K...K...."
+      "............................RR....RR....",
+      "............................RRR...RR....",
+      "............................RRR...RR....",
+      "............................RRRR..RR....",
+      "...RR.......................RRRRRRRR....",
+      ".RRRRRR....................RRRRRRRRR....",
+      ".RRRRRR....................RRRKKRRRR....",
+      "RRRRRRRRR................RRRRRKKRRRR....",
+      "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRWWW....",
+      "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRWWWWW....",
+      "WRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRWWWWK....",
+      "WWWRRRRRRRRRRRRRRRRRRRRRRRRRRRWWWWK.....",
+      "WWWWrRRRRRRRRRRRRRRRRRRRRRRRRRWWW.......",
+      ".WWWrrRRRRRRRRRRRRRRRRRRRRRRRRW.........",
+      ".WWW..RRRRRRRRRRRRRRRRRRRRRRRR..........",
+      "..WW...RRRRRRRRRRRRRRRRRRRRRRR..........",
+      "........rrrr..rrrr....rrrr..rrr.........",
+      "........rrr...rrr.....rrr....rrr........",
+      "........rrr...rrr.....rrr....rrr........",
+      "........rr....rr......rr......rr........",
+      "........KK....KK......KK......KK........",
+      "........KK....KK......KK......KK........"
     ]
   ]
 }

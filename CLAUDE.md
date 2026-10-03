@@ -41,6 +41,8 @@ docker/              optional Liwan tracker entrypoint (same as logo)
 - **Don't tell the player TÄ'h corrects them.** Memos and HUD never say so; the x-ray readout,
   sparkles and the review's "shipped without you" reveal it.
 - **Sprites are dab files** (github.com/eetu/dab): edit them there, `sprite.ts` only reads.
+  They are written as dab writes them and kept out of Prettier. Every sprite is drawn at its
+  own size, one sprite pixel to a scene pixel: a bigger animal is a bigger drawing.
   Defects are frames or variants of their model's sprite (`MODEL_DEFECTS` in `days.ts`);
   `xray` is a palette variant. Thursday adds phones; Friday is phones only and a boot is
   `foreign`, always defective.

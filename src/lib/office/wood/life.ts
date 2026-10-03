@@ -82,8 +82,6 @@ const drawCritters = (ctx: CanvasRenderingContext2D, since: number) => {
 const DEER_FROM = 40;
 const DEER_CYCLE = 75;
 const DEER_SPEED = 16;
-/** Drawn at twice the sprite's size: a deer is big next to a desk. */
-const DEER_SCALE = 2;
 /** Scene px the deer covers in one pass through its walk frames. */
 const DEER_STRIDE = 22;
 
@@ -95,7 +93,7 @@ export const drawDeer = (ctx: CanvasRenderingContext2D, since: number) => {
   const face: 1 | -1 = h < 0.5 ? 1 : -1;
   const stops = [70 + h * 40, 180 + ((h * 97) % 1) * 50];
   const graze = [5, 7];
-  const w = S.deer.w * DEER_SCALE;
+  const w = S.deer.w;
   // Walk to each stop, graze there, then walk off: distance along the path by time.
   let t = c;
   let along = 0;
@@ -126,8 +124,8 @@ export const drawDeer = (ctx: CanvasRenderingContext2D, since: number) => {
     ? frameOf(S.deer, "graze", since * 3)
     : frameOf(S.deer, "walk", (along / DEER_STRIDE) * (S.deer.animations?.walk.length ?? 1));
   ctx.save();
-  ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 26 - S.deer.h * DEER_SCALE);
-  ctx.scale(DEER_SCALE * face, DEER_SCALE);
+  ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 26 - S.deer.h);
+  ctx.scale(face, 1);
   drawSprite(ctx, S.deer, 0, 0, { frame });
   ctx.restore();
 };
@@ -185,14 +183,13 @@ const visit = (c: number, w: number, speed: number, stops: number[], waits: numb
 const FOX_FROM = 480;
 const FOX_CYCLE = 140;
 const FOX_SPEED = 44;
-const FOX_SCALE = 2;
 
 /** The fox's place this moment, or null while it is away. */
 const foxAt = (since: number): { x: number; face: 1 | -1 } | null => {
   if (since < FOX_FROM) return null;
   const n = Math.floor((since - FOX_FROM) / FOX_CYCLE);
   const c = (since - FOX_FROM) % FOX_CYCLE;
-  const w = S.fox.w * FOX_SCALE;
+  const w = S.fox.w;
   const face: 1 | -1 = hash(n, 71) < 0.5 ? 1 : -1;
   const v = visit(c, w, FOX_SPEED, [], []);
   if (v.done) return null;
@@ -202,10 +199,10 @@ const foxAt = (since: number): { x: number; face: 1 | -1 } | null => {
 const drawFox = (ctx: CanvasRenderingContext2D, since: number) => {
   const f = foxAt(since);
   if (!f) return;
-  const w = S.fox.w * FOX_SCALE;
+  const w = S.fox.w;
   ctx.save();
-  ctx.translate(Math.round(f.x) + (f.face < 0 ? w : 0), FLOOR_Y + 6 - S.fox.h * FOX_SCALE);
-  ctx.scale(FOX_SCALE * f.face, FOX_SCALE);
+  ctx.translate(Math.round(f.x) + (f.face < 0 ? w : 0), FLOOR_Y + 6 - S.fox.h);
+  ctx.scale(f.face, 1);
   drawSprite(ctx, S.fox, 0, 0, { frame: frameOf(S.fox, "trot", since * 8) });
   ctx.restore();
 };
@@ -215,8 +212,6 @@ const drawFox = (ctx: CanvasRenderingContext2D, since: number) => {
 const RABBIT_FROM = 100;
 const RABBIT_CYCLE = 58;
 const RABBIT_SPEED = 26;
-/** At its sprite's own size: small beside the fox and the deer. */
-const RABBIT_SCALE = 1;
 /** Scene px per hop, and how high it goes. */
 const HOP = 9;
 const LEAP = 3;
@@ -230,7 +225,7 @@ const drawRabbit = (ctx: CanvasRenderingContext2D, since: number, season: Season
   const c = (since - RABBIT_FROM) % RABBIT_CYCLE;
   const h = hash(n, 7);
   const face: 1 | -1 = h < 0.5 ? 1 : -1;
-  const w = S.rabbit.w * RABBIT_SCALE;
+  const w = S.rabbit.w;
   const picks = [TUFT_X[Math.floor(h * 2)], TUFT_X[2 + Math.floor(hash(n, 8) * 2)]];
   const stops = face > 0 ? picks : picks.map((x) => SCENE_W - x).reverse();
   const v = visit(c, w, RABBIT_SPEED, stops, [4, 5]);
@@ -242,29 +237,26 @@ const drawRabbit = (ctx: CanvasRenderingContext2D, since: number, season: Season
     : frameOf(S.rabbit, air > 1 ? "hop" : "sit", 0);
   const white = season.k === 2 ? season.p > 0.2 : season.k === 3 && season.p < 0.2;
   ctx.save();
-  ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 4 - S.rabbit.h * RABBIT_SCALE - air);
-  ctx.scale(RABBIT_SCALE * face, RABBIT_SCALE);
+  ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 4 - S.rabbit.h - air);
+  ctx.scale(face, 1);
   drawSprite(ctx, S.rabbit, 0, 0, { frame, variant: white ? "winter" : undefined });
   ctx.restore();
 };
 
 // --- The hedgehog ---------------------------------------------------------------------
 
-/** At its sprite's own size, like the rabbit. */
-const HEDGEHOG_SCALE = 1;
-
 /** Shuffles about the leaf litter in autumn; asleep somewhere the rest of the year. */
 const drawHedgehog = (ctx: CanvasRenderingContext2D, since: number, season: Season) => {
   const on =
     season.k === 1 ? ramp(season.p, 0.4, 0.5) : season.k === 2 ? 1 - ramp(season.p, 0, 0.08) : 0;
   if (on <= 0) return;
-  const w = S.hedgehog.w * HEDGEHOG_SCALE;
+  const w = S.hedgehog.w;
   const x = 60 + 190 * (0.5 + 0.5 * Math.sin(since * 0.05));
   const face: 1 | -1 = Math.cos(since * 0.05) > 0 ? 1 : -1;
   ctx.save();
   ctx.globalAlpha = on;
-  ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 8 - S.hedgehog.h * HEDGEHOG_SCALE);
-  ctx.scale(HEDGEHOG_SCALE * face, HEDGEHOG_SCALE);
+  ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 8 - S.hedgehog.h);
+  ctx.scale(face, 1);
   drawSprite(ctx, S.hedgehog, 0, 0, { frame: frameOf(S.hedgehog, "shuffle", since * 3) });
   if (hedgehogApple(since)) drawApple(ctx, 4, -1, 2, true, 1);
   ctx.restore();
