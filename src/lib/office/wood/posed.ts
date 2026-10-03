@@ -16,9 +16,9 @@ export type Part =
 
 /**
  * How far each part has moved from rest, px: both ends of each piece of wood, each clump,
- * each fruit. `flip` turns a clump's leaves over, to their paler undersides.
+ * each fruit. `turned` is the share of a clump's leaves turned over to their paler undersides.
  */
-export type Pose = { a: Pt[]; b: Pt[]; clumps: Pt[]; fruit: Pt[]; flip?: boolean[] };
+export type Pose = { a: Pt[]; b: Pt[]; clumps: Pt[]; fruit: Pt[]; turned?: number[] };
 
 /** Paints at rest into `ctx`, calling `part` before each part. */
 export type Painter = (ctx: CanvasRenderingContext2D, part: (p: Part) => void) => void;
@@ -42,6 +42,8 @@ type Baked = {
   colours: Uint32Array;
   /** The same pixels with the leaf turned over: paler, toward the felt under a leaf. */
   under: Uint32Array;
+  /** When each pixel's leaf turns: it shows its underside once a clump is this far turned. */
+  rank: Float32Array;
   /** How far along its piece each wood pixel is, 0..1. */
   along: Float32Array;
   box: { x: number; y: number; w: number; h: number };
@@ -125,8 +127,6 @@ const bake = (key: string, paint: Painter): Baked | null => {
   canvas.height = box.h;
   const image = new ImageData(box.w, box.h);
   const words = Uint32Array.from(colours);
-  // Not every leaf in a clump turns over at once.
-  const turns = (k: number) => Math.imul(xs[k] * 73 + ys[k] * 151, 2654435761) >>> 0 < 0x99999999;
   return {
     key,
     parts,
@@ -134,7 +134,12 @@ const bake = (key: string, paint: Painter): Baked | null => {
     xs: Int16Array.from(xs),
     ys: Int16Array.from(ys),
     colours: words,
-    under: words.map((w, k) => (turns(k) ? underOf(w) : w)),
+    under: words.map(underOf),
+    // Each leaf turns at its own moment, so a clump turns over leaf by leaf, not all at once.
+    rank: Float32Array.from(
+      xs,
+      (x, k) => (Math.imul(x * 73 + ys[k] * 151, 2654435761) >>> 0) / 2 ** 32,
+    ),
     along: Float32Array.from(along),
     box,
     canvas,
@@ -163,16 +168,16 @@ export const drawPosed = (
     it = fresh;
     baked.set(name, it);
   }
-  const { parts, from, xs, ys, colours, under, along, box, pixels } = it;
+  const { parts, from, xs, ys, colours, under, rank, along, box, pixels } = it;
   pixels.fill(0);
   parts.forEach((p, j) => {
     let still = { x: 0, y: 0 };
     let move: { a: Pt; b: Pt } | null = null;
-    let words = colours;
+    let turned = 0;
     if (p.kind === "wood") move = { a: pose.a[p.i], b: pose.b[p.i] };
     else if (p.kind === "clump") {
       still = pose.clumps[p.i];
-      if (pose.flip?.[p.i]) words = under;
+      turned = pose.turned?.[p.i] ?? 0;
     } else if (p.kind === "fruit") still = pose.fruit[p.i];
     const sx = Math.round(still.x) - box.x;
     const sy = Math.round(still.y) - box.y;
@@ -185,7 +190,7 @@ export const drawPosed = (
         y = ys[k] + Math.round(move.a.y + (move.b.y - move.a.y) * u) - box.y;
       }
       if (x < 0 || y < 0 || x >= box.w || y >= box.h) continue;
-      pixels[y * box.w + x] = words[k];
+      pixels[y * box.w + x] = rank[k] < turned ? under[k] : colours[k];
     }
   });
   it.canvas.getContext("2d")?.putImageData(it.image, 0, 0);

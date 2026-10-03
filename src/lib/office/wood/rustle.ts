@@ -24,7 +24,7 @@ type Give = {
   wave: number;
   /** How far leaves ripple on it, px per unit of wind. */
   ripple: number;
-  /** The share of leaves that turn over on a wave's crest. */
+  /** The most of a clump's leaves that turn over on a wave's crest, in a gale. */
   silver: number;
   /** Keeps its leaves (needles) all year. */
   evergreen?: boolean;
@@ -66,9 +66,11 @@ const SHELTER = 0.6;
 /** A wave's pace across the plants, and how fast it travels, scene px/s. */
 const RIPPLE_HZ = 0.7;
 const RIPPLE_PX_S = 30;
-/** Leaves keep still below this much wind, and turn over above it. */
+/** Leaves keep still below this much wind, start turning over above the next, and are as
+ *  turned as they get by the last. */
 const STIR = 0.15;
 const TURN = 0.45;
+const GALE = 1.1;
 
 type Stems = { length: number[]; base: Pt[]; spring: Float64Array[] };
 const stemsOf = new WeakMap<Sprawl, Stems>();
@@ -130,19 +132,22 @@ export const rustleOf = (
   const a = plan.pieces.map((p) => bent(p.stem, p.s0));
   const b = plan.pieces.map((p) => bent(p.stem, p.s1));
 
-  // Leaves ripple on the wave, and those on its crest turn over.
+  // Leaves ripple on the wave, and as its crest comes through they turn over, leaf by leaf, and
+  // back as it passes: the harder the wind, the more of them.
   const swell = kind.ripple * leafy * stir;
   const at = grownFrom(plan, g);
-  const flip: boolean[] = [];
+  const blowing = Math.min(1, Math.max(0, (Math.abs(now) - TURN) / (GALE - TURN)));
+  const turned: number[] = [];
   const clumps = plan.clumps.map((c, i) => {
     const q = at(c);
     const salt = hash(i, 9, Math.round(plan.root.x));
     const crest = Math.sin(waveAt(q.x, q.y, salt));
-    flip.push(Math.abs(now) > TURN && crest > 0.55 && salt < kind.silver);
+    const rising = Math.min(1, Math.max(0, (crest - 0.2) / 0.8));
+    turned.push(kind.silver * blowing * rising * (0.6 + 0.4 * salt));
     const d = bent(c.stem, c.s);
     const lift = 0.5 + 0.5 * crest;
     return { x: d.x + dir * swell * lift, y: d.y - swell * 0.25 * lift };
   });
   const fruit = plan.fruit.map((f) => bent(f.stem, f.s));
-  return { a, b, clumps, fruit, flip };
+  return { a, b, clumps, fruit, turned };
 };

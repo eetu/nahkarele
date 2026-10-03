@@ -91,8 +91,9 @@ const snowField = () =>
 
 /** Ledges the snow settles on, `[x, y, w]`: the slab tops, the sill, the desk. */
 const FURNITURE: [number, number, number][] = [
-  [6, 22, 44],
-  [270, 22, 44],
+  // The AIs' tops (`SLAB` in office/draw.ts), and the desk.
+  [6, 32, 44],
+  [270, 32, 44],
   [104, 118, 112],
 ];
 const SILL: [number, number, number][] = [[126, 60, 68]];

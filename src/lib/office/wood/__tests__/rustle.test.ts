@@ -29,7 +29,7 @@ describe("rustle", () => {
       for (const d of [...pose.a, ...pose.b, ...pose.clumps, ...pose.fruit]) {
         expect(reach(d)).toBeCloseTo(0, 9);
       }
-      expect(pose.flip?.some(Boolean)).toBe(false);
+      expect(pose.turned?.some((v) => v > 0)).toBe(false);
     }
   });
 
@@ -56,7 +56,7 @@ describe("rustle", () => {
       const plan = planShrub(9, ROOT, 20, kind);
       let n = 0;
       for (let t = 0; t < 10; t += 0.31)
-        n += rustleOf(plan, 1, SUMMER, t, () => wind).flip?.filter(Boolean).length ?? 0;
+        n += (rustleOf(plan, 1, SUMMER, t, () => wind).turned ?? []).reduce((s, v) => s + v, 0);
       return n;
     };
     expect(flipped("raspberry", 0.3)).toBe(0);

@@ -34,7 +34,7 @@ import { drawAir, drawFloor, drawGarden } from "./wood/garden";
 import { outsideOf } from "./wood/outside";
 import { drawCreeperOver, overgrown } from "./wood/overgrowth";
 import type { Knocks } from "./wood/stand";
-import { drawWall, fixtureAt, type Rect, rubbleCue } from "./wood/wall";
+import { drawWall, fixtureAt, type Rect, rubbleCue, type Setting } from "./wood/wall";
 import { windowAt } from "./wood/weather";
 import { windAt } from "./wood/wind";
 
@@ -94,26 +94,38 @@ const FIXTURES = {
   ...SIGNS,
 };
 type Fixture = keyof typeof FIXTURES;
-const OPENINGS = ["window"];
 
 /** Where fixture `name` is: on the wall where it always was, or, on friday, on its way down. */
 const fixtureOf = (name: Fixture, mood: Mood) =>
-  mood.after
-    ? fixtureAt(name, mood.since, mood.seed, FIXTURES, OPENINGS)
-    : { on: true, rect: FIXTURES[name] };
+  mood.after ? fixtureAt(name, mood.since, mood.seed, WALL) : { on: true, rect: FIXTURES[name] };
 
 /** Where a sign is now, for its button. */
 export const signAt = (name: keyof typeof SIGNS, mood: Mood): Rect => fixtureOf(name, mood).rect;
 
 /** What came down off the wall between two moments of friday, and where: for the thuds. */
 export const wallCue = (from: number, to: number, mood: Mood) =>
-  rubbleCue(from, to, mood.seed, FIXTURES, OPENINGS);
+  rubbleCue(from, to, mood.seed, WALL);
 
 /** What the wall signs show: the speaker's state, and fullscreen (null where unsupported). */
 export type Signs = { muted: boolean; fullscreen: boolean | null };
-const SLAB = { w: 44, top: 22, bottom: 150 };
+const SLAB = { w: 44, top: 32, bottom: 150 };
 const AI_X = { 1: 6, 2: SCENE_W - 6 - SLAB.w } as const;
 const DESK = { x: 104, w: 112, y: 118 };
+
+/** What the wall knows of the room: what hangs on it, and what stands in front of it. */
+const WALL: Setting = {
+  fixtures: FIXTURES,
+  openings: ["window"],
+  fronts: [
+    ...[AI_X[1], AI_X[2]].map((x) => ({
+      x: x - 1,
+      y: SLAB.top,
+      w: SLAB.w + 2,
+      h: SLAB.bottom - SLAB.top,
+    })),
+    { x: DESK.x - 1, y: DESK.y, w: DESK.w + 2, h: FLOOR_Y - DESK.y },
+  ],
+};
 
 const C = {
   wall: "#b9c0c4",
@@ -154,7 +166,7 @@ const drawRoom = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => 
     // After the blast the wall comes down piece by piece, and the world outside shows through
     // the gaps and the window alike.
     const outside = outsideOf(sky, mood.since, mood.seed);
-    drawWall(ctx, outside, mood.since, mood.seed, FIXTURES, OPENINGS);
+    drawWall(ctx, outside, mood.since, mood.seed, WALL);
     if (fixtureOf("window", mood).on) {
       const scenery = outside
         ? (c: CanvasRenderingContext2D) => c.drawImage(outside, 0, 0)
@@ -570,11 +582,7 @@ export const drawOffice = (
   else if (fixtureOf("clock", mood).on) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
   if (fixtureOf("pay", mood).on) drawPay(ctx, s, mood);
   if (mood.after) {
-    drawGarden(ctx, mood, {
-      fixtures: FIXTURES,
-      openings: OPENINGS,
-      draw: drawFallen(mood.since),
-    });
+    drawGarden(ctx, mood, { wall: WALL, draw: drawFallen(mood.since) });
   }
   // Lit signs, so they read in the dark, and through friday's leaves: the speaker and the screen
   // show their state. On friday they hang where the wall still holds them, or lie where they fell.

@@ -18,6 +18,13 @@ export type Rect = { x: number; y: number; w: number; h: number };
 /** What hangs on the wall, by name, where it hangs. */
 export type Fixtures = Record<string, Rect>;
 
+/**
+ * The wall's room: what hangs on it, the fixtures that fill an opening in it rather than hang
+ * (the window), and what stands on the floor in front of it (the AIs, the desk). Whatever
+ * falls behind one of those comes to rest behind its base, out of sight.
+ */
+export type Setting = { fixtures: Fixtures; openings: string[]; fronts: Rect[] };
+
 /** The wall that can break: down to the dado, scene px. */
 const WALL_H = 97;
 /** Pieces are about this many px across. */
@@ -65,11 +72,21 @@ let built: Wall | null = null;
 const inside = (r: Rect, x: number, y: number) =>
   x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
-/**
- * Break `seed`'s wall into pieces and work out when each goes. `openings` name the fixtures
- * that fill a hole in the wall (the window) rather than hang on it.
- */
-const wallOf = (seed: number, fixtures: Fixtures, openings: string[]): Wall => {
+/** Where something `w` wide landing at `x` comes to rest: on the floor, or behind what it fell
+ *  behind. */
+const restOn = (fronts: Rect[], x: number, w: number, floor: number) => {
+  for (const f of fronts) {
+    const overlap = Math.min(x + w, f.x + f.w) - Math.max(x, f.x);
+    if (overlap > 0) return f.y + f.h - 1;
+  }
+  return floor;
+};
+
+/** How far something falls from `top` (its bottom at `bottom`) before it lands at `land`. */
+const fallFrom = (bottom: number, land: number) => Math.sqrt((2 * Math.max(0, land - bottom)) / G);
+
+/** Break `seed`'s wall into pieces and work out when each goes. */
+const wallOf = (seed: number, { fixtures, openings, fronts }: Setting): Wall => {
   if (built?.seed === seed) return built;
   const rand = random(seed ^ 0xbad);
   const cols = Math.ceil(SCENE_W / CELL);
@@ -139,17 +156,12 @@ const wallOf = (seed: number, fixtures: Fixtures, openings: string[]): Wall => {
             : Infinity;
       at = Math.min(at, t);
     }
-    return {
-      x,
-      y,
-      w: Math.max(...xs) - x + 1,
-      h: Math.max(...ys) - y + 1,
-      at,
-      vx: (hash(seed, i, 2) - 0.5) * 14,
-      land: FLOOR_Y + 1 + Math.floor(hash(seed, i, 3) * 4),
-      k0: Math.floor(hash(seed, i, 4) * 4),
-      tumble: true,
-    };
+    const w = Math.max(...xs) - x + 1;
+    const h = Math.max(...ys) - y + 1;
+    const vx = (hash(seed, i, 2) - 0.5) * 14;
+    const floor = FLOOR_Y + 1 + Math.floor(hash(seed, i, 3) * 4);
+    const land = restOn(fronts, x + vx * fallFrom(y + h, floor), w, floor);
+    return { x, y, w, h, at, vx, land, k0: Math.floor(hash(seed, i, 4) * 4), tumble: true };
   });
   // A fixture hangs from the piece just above it, and goes when that does.
   const fixtures2: Record<string, Body> = {};
@@ -158,11 +170,12 @@ const wallOf = (seed: number, fixtures: Fixtures, openings: string[]): Wall => {
     let anchor = -1;
     for (let ay = r.y - 3; ay >= 0 && anchor < 0; ay--) anchor = owner[ay * SCENE_W + ax];
     if (anchor < 0) anchor = owner[Math.max(0, r.y) * SCENE_W + ax];
+    const vx = (hash(seed, ax, 5) - 0.5) * 4;
     fixtures2[name] = {
       ...r,
       at: anchor >= 0 ? pieces[anchor].at + 0.15 : Infinity,
-      vx: (hash(seed, ax, 5) - 0.5) * 4,
-      land: FLOOR_Y + 1,
+      vx,
+      land: restOn(fronts, r.x + vx * fallFrom(r.y + r.h, FLOOR_Y + 1), r.w, FLOOR_Y + 1),
       k0: 0,
       tumble: false,
     };
@@ -190,7 +203,7 @@ type Where = { phase: "wall" | "falling" | "down"; x: number; y: number; k: numb
 const whereAt = (b: Body, since: number): Where => {
   const t = since - b.at;
   if (!(t >= 0)) return { phase: "wall", x: b.x, y: b.y, k: 0, age: 0 };
-  const fall = Math.sqrt((2 * Math.max(0, b.land - (b.y + b.h))) / G);
+  const fall = fallFrom(b.y + b.h, b.land);
   const turn = (s: number) => (b.tumble ? (b.k0 + Math.floor(s * 7)) % 4 : 0);
   if (t < fall) {
     return { phase: "falling", x: b.x + b.vx * t, y: b.y + 0.5 * G * t * t, k: turn(t), age: 0 };
@@ -204,7 +217,7 @@ const whereAt = (b: Body, since: number): Where => {
 };
 
 /** When a body lands, s into friday. */
-const landsAt = (b: Body) => b.at + Math.sqrt((2 * Math.max(0, b.land - (b.y + b.h))) / G);
+const landsAt = (b: Body) => b.at + fallFrom(b.y + b.h, b.land);
 
 // --- Drawing ---------------------------------------------------------------------------
 
@@ -335,10 +348,9 @@ export const fixtureAt = (
   name: string,
   since: number,
   seed: number,
-  fixtures: Fixtures,
-  openings: string[],
+  setting: Setting,
 ): { on: boolean; rect: Rect } => {
-  const b = wallOf(seed, fixtures, openings).fixtures[name];
+  const b = wallOf(seed, setting).fixtures[name];
   const at = whereAt(b, since);
   return {
     on: at.phase === "wall",
@@ -356,12 +368,11 @@ export const drawWall = (
   outside: HTMLCanvasElement | null,
   since: number,
   seed: number,
-  fixtures: Fixtures,
-  openings: string[],
+  setting: Setting,
 ) => {
-  const w = wallOf(seed, fixtures, openings);
+  const w = wallOf(seed, setting);
   const broken = brokenBy(w, since);
-  const open = openings.filter((n) => whereAt(w.fixtures[n], since).phase !== "wall");
+  const open = setting.openings.filter((n) => whereAt(w.fixtures[n], since).phase !== "wall");
   if (!broken && !open.length) return;
   const key = `${seed}|${broken}|${open.join()}`;
   if (!holes || holes.key !== key) {
@@ -442,11 +453,10 @@ export const drawRubble = (
   ctx: CanvasRenderingContext2D,
   since: number,
   seed: number,
-  fixtures: Fixtures,
-  openings: string[],
+  setting: Setting,
   fixture: (ctx: CanvasRenderingContext2D, name: string, x: number, y: number) => void,
 ) => {
-  const w = wallOf(seed, fixtures, openings);
+  const w = wallOf(seed, setting);
   const broken = brokenBy(w, since);
   const lying: { i: number; at: Where }[] = [];
   const moving: { i: number; at: Where }[] = [];
@@ -479,11 +489,10 @@ export const rubbleCue = (
   from: number,
   to: number,
   seed: number,
-  fixtures: Fixtures,
-  openings: string[],
+  setting: Setting,
 ): { x: number; big: boolean }[] => {
   if (to <= from) return [];
-  const w = wallOf(seed, fixtures, openings);
+  const w = wallOf(seed, setting);
   const hits: { x: number; big: boolean }[] = [];
   for (const i of w.order) {
     const p = w.pieces[i];

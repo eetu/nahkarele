@@ -10,31 +10,29 @@ const FIXTURES = {
   speaker: { x: 61, y: 4, w: 13, h: 10 },
   exit: { x: 149, y: 4, w: 22, h: 8 },
 };
-const OPENINGS = ["window"];
+const WALL = { fixtures: FIXTURES, openings: ["window"], fronts: [] };
 
 describe("the back wall", () => {
   it("holds everything until the blast", () => {
     for (const seed of [1, 2, 3]) {
       for (const name of Object.keys(FIXTURES)) {
-        expect(fixtureAt(name, 0, seed, FIXTURES, OPENINGS).on).toBe(true);
+        expect(fixtureAt(name, 0, seed, WALL).on).toBe(true);
       }
     }
   });
 
   it("comes down at the blast and keeps crumbling for years", () => {
     for (const seed of [4, 5, 6]) {
-      expect(rubbleCue(0, 60, seed, FIXTURES, OPENINGS).length).toBeGreaterThan(0);
-      expect(rubbleCue(600, 1800, seed, FIXTURES, OPENINGS).length).toBeGreaterThan(0);
-      expect(rubbleCue(0, 60, seed, FIXTURES, OPENINGS)).toEqual(
-        rubbleCue(0, 60, seed, FIXTURES, OPENINGS),
-      );
+      expect(rubbleCue(0, 60, seed, WALL).length).toBeGreaterThan(0);
+      expect(rubbleCue(600, 1800, seed, WALL).length).toBeGreaterThan(0);
+      expect(rubbleCue(0, 60, seed, WALL)).toEqual(rubbleCue(0, 60, seed, WALL));
     }
   });
 
   it("stands what fell at the wall's foot", () => {
     for (const seed of [7, 8, 9, 10]) {
       for (const name of Object.keys(FIXTURES)) {
-        const { on, rect } = fixtureAt(name, 5000, seed, FIXTURES, OPENINGS);
+        const { on, rect } = fixtureAt(name, 5000, seed, WALL);
         if (!on) expect(rect.y + rect.h).toBe(FLOOR_Y + 1);
       }
     }

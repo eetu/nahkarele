@@ -7,15 +7,14 @@ import { drawDeer, drawFliers, drawSmallLife } from "./life";
 import { drawCracks, drawGrass, drawMoss, drawVines } from "./overgrowth";
 import { drawApples, drawTrees, type Knocks } from "./stand";
 import { drawBackShrubs, drawFrontShrubs } from "./undergrowth";
-import { drawRubble, type Fixtures } from "./wall";
+import { drawRubble, type Setting } from "./wall";
 import { drawFalling, drawGround, drawSillSnow, drawSnowCaps } from "./weather";
 
 export type Friday = { since: number; seed: number; knocks: Knocks };
 
-/** What hangs on the back wall, the openings among it, and how to draw one that has fallen. */
+/** The back wall's room, and how to draw what has fallen off it. */
 export type Fallen = {
-  fixtures: Fixtures;
-  openings: string[];
+  wall: Setting;
   draw: (ctx: CanvasRenderingContext2D, name: string, x: number, y: number) => void;
 };
 
@@ -33,7 +32,7 @@ export const drawGarden = (
   drawMoss(ctx, since);
   drawSillSnow(ctx, since);
   drawVines(ctx, since, seed);
-  drawRubble(ctx, since, seed, fallen.fixtures, fallen.openings, fallen.draw);
+  drawRubble(ctx, since, seed, fallen.wall, fallen.draw);
   drawTrees(ctx, since, seed, knocks);
   drawGround(ctx, since);
   drawBackShrubs(ctx, since, seed);
