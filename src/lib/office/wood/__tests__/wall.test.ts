@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { FLOOR_Y } from "../../engine";
 import { healAt } from "../outside";
-import { fixtureAt, rubbleCue } from "../wall";
+import { fixtureAt, floatingAt, rubbleCue } from "../wall";
 
 const FIXTURES = {
   window: { x: 124, y: 16, w: 72, h: 46 },
@@ -21,10 +21,11 @@ describe("the back wall", () => {
     }
   });
 
-  it("comes down at the blast and keeps crumbling for years", () => {
+  it("comes down at the blast and keeps crumbling for as long as anyone watches", () => {
     for (const seed of [4, 5, 6]) {
       expect(rubbleCue(0, 60, seed, WALL).length).toBeGreaterThan(0);
       expect(rubbleCue(600, 1800, seed, WALL).length).toBeGreaterThan(0);
+      expect(rubbleCue(4000, 6000, seed, WALL).length).toBeGreaterThan(0);
       expect(rubbleCue(0, 60, seed, WALL)).toEqual(rubbleCue(0, 60, seed, WALL));
     }
   });
@@ -45,5 +46,15 @@ describe("the world outside", () => {
     expect(healAt(600)).toBeGreaterThan(0);
     expect(healAt(600)).toBeLessThan(healAt(1200));
     expect(healAt(3000)).toBe(1);
+  });
+});
+
+describe("what is left of the wall", () => {
+  it("never hangs in the air", () => {
+    for (const seed of [11, 12, 13, 14, 15]) {
+      for (const since of [10, 100, 600, 2000, 5000, 9000]) {
+        expect(floatingAt(since, seed, WALL)).toBe(0);
+      }
+    }
   });
 });

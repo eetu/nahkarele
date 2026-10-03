@@ -1,6 +1,8 @@
 // The office's back wall after the blast: a wall of pieces. With the roof come down in places it
 // loosens from the top. The pieces nearest a collapse break away at the blast, and the damage
-// creeps on for years. A piece that breaks falls, tumbling, and lands at the wall's foot with a
+// creeps on from there, slower as the years go by but never done; more of the roof comes down
+// now and then, and here and there a piece just works loose. Nothing hangs in the air: what
+// loses its last firm hold on the standing wall comes down with what broke. A piece that breaks falls, tumbling, and lands at the wall's foot with a
 // bump; what hangs on the wall (the window, the clock, the calendar, the signs) goes down with
 // the piece it hangs from, and stands where it lands. The world outside shows where the wall
 // was. On the floor the pieces gather moss from the ground up and, over a year or so, sink away
@@ -32,9 +34,17 @@ const CELL = 9;
 /** Gravity, scene px/s², and how long a landing bumps. */
 const G = 240;
 const BUMP_S = 0.3;
-/** Pieces nearest a collapse go at the blast, within this; the rest creep on for this long. */
+/** Pieces nearest a collapse go within this many seconds of it. */
 const BURST_S = 15;
-const CREEP_S = 1500;
+/** Beyond, the damage spreads `pace` px per (s ^ `SPREAD`): quick at first, slower for ever. */
+const SPREAD = 0.55;
+/** More roof comes down about this often, s, for as long as anyone could watch. */
+const COLLAPSE_S = 900;
+const COLLAPSES = 14;
+/** And any piece may just work loose: some time in this many seconds, the top ones sooner. */
+const LOOSE_S = 30000;
+/** Pieces hold each other where they share at least this much edge, px; less is a crack. */
+const HOLD_PX = 3;
 /** Moss starts up a piece this long after it lands and has it covered this much later. */
 const MOSS_FROM = 15;
 const MOSS_S = 200;
@@ -64,7 +74,13 @@ type Wall = {
   /** Openings in the wall, by the fixture that fills them. */
   openings: Record<string, Rect>;
   sprites: (HTMLCanvasElement | null)[];
+  /** The sprites' pixels, read back once for the rubble. */
+  data: (Uint8ClampedArray | null)[];
   pixels: { x: number; y: number }[][];
+  /** How much edge each piece shares with each neighbour, px, and with the dado and the side
+   *  walls. */
+  holds: Map<number, number>[];
+  anchored: Float32Array;
 };
 
 let built: Wall | null = null;
@@ -84,6 +100,78 @@ const restOn = (fronts: Rect[], x: number, w: number, floor: number) => {
 
 /** How far something falls from `top` (its bottom at `bottom`) before it lands at `land`. */
 const fallFrom = (bottom: number, land: number) => Math.sqrt((2 * Math.max(0, land - bottom)) / G);
+
+/**
+ * Bring down what nothing holds up. A piece stands while a chain of firm holds (`HOLD_PX` of
+ * shared edge or more) runs from it to the dado under the wall or the side walls at its ends.
+ * Breaking pieces in the order they go, whatever a break leaves without that chain comes down
+ * a moment later, and may in turn leave others without theirs.
+ */
+const settle = (seed: number, owner: Int16Array, pieces: Body[]) => {
+  const { holds, anchored } = holdsOf(owner, pieces.length);
+  const n = pieces.length;
+  const gone = new Uint8Array(n);
+  for (let i = 0; i < n; i++) if (!pieces[i].w) gone[i] = 1;
+  for (;;) {
+    let next = -1;
+    for (let i = 0; i < n; i++) {
+      if (!gone[i] && (next < 0 || pieces[i].at < pieces[next].at)) next = i;
+    }
+    if (next < 0 || !Number.isFinite(pieces[next].at)) break;
+    const t = pieces[next].at;
+    gone[next] = 1;
+    const held = standing(holds, anchored, gone);
+    for (let i = 0; i < n; i++) {
+      if (gone[i] || held[i]) continue;
+      pieces[i].at = Math.min(pieces[i].at, t + 0.2 + 0.6 * hash(seed, i, 7));
+    }
+  }
+  return { holds, anchored };
+};
+
+/** How much edge each piece shares with each neighbour, and with the dado and side walls. */
+const holdsOf = (owner: Int16Array, n: number) => {
+  const holds: Map<number, number>[] = Array.from({ length: n }, () => new Map());
+  const anchored = new Float32Array(n);
+  const touch = (a: number, b: number) => {
+    holds[a].set(b, (holds[a].get(b) ?? 0) + 1);
+    holds[b].set(a, (holds[b].get(a) ?? 0) + 1);
+  };
+  for (let y = 0; y < WALL_H; y++) {
+    for (let x = 0; x < SCENE_W; x++) {
+      const o = owner[y * SCENE_W + x];
+      if (o < 0) continue;
+      if (y === WALL_H - 1 || x === 0 || x === SCENE_W - 1) anchored[o]++;
+      const right = x + 1 < SCENE_W ? owner[y * SCENE_W + x + 1] : -1;
+      const below = y + 1 < WALL_H ? owner[(y + 1) * SCENE_W + x] : -1;
+      if (right >= 0 && right !== o) touch(o, right);
+      if (below >= 0 && below !== o) touch(o, below);
+    }
+  }
+  return { holds, anchored };
+};
+
+/** Which pieces still stand: those a chain of firm holds reaches from the anchors. */
+const standing = (holds: Map<number, number>[], anchored: Float32Array, gone: Uint8Array) => {
+  const n = holds.length;
+  const held = new Uint8Array(n);
+  const queue: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (!gone[i] && anchored[i] >= HOLD_PX) {
+      held[i] = 1;
+      queue.push(i);
+    }
+  }
+  while (queue.length) {
+    const i = queue.pop() as number;
+    for (const [j, edge] of holds[i]) {
+      if (gone[j] || held[j] || edge < HOLD_PX) continue;
+      held[j] = 1;
+      queue.push(j);
+    }
+  }
+  return held;
+};
 
 /** Break `seed`'s wall into pieces and work out when each goes. */
 const wallOf = (seed: number, { fixtures, openings, fronts }: Setting): Wall => {
@@ -128,13 +216,21 @@ const wallOf = (seed: number, { fixtures, openings, fronts }: Setting): Wall => 
       if (o >= 0) pixels[o].push({ x, y });
     }
   }
-  // Where the roof came down: a collapse or two along the top, each with a reach at the blast
-  // and a reach years on. Distance is wider than deep: walls split along their courses.
-  const falls = Array.from({ length: 2 + Math.floor(rand() * 2) }, () => ({
-    x: 20 + rand() * (SCENE_W - 40),
-    burst: 12 + rand() * 10,
-    reach: 45 + rand() * 30,
-  }));
+  // Where the roof comes down: two or three places at the blast, then more as the years go by.
+  // Each takes what is nearest at once and spreads from there. Distance is wider than deep:
+  // walls split along their courses.
+  const falls: { x: number; start: number; burst: number; pace: number }[] = [];
+  const first = 2 + Math.floor(rand() * 2);
+  let start = 0;
+  for (let n = 0; n < first + COLLAPSES; n++) {
+    if (n >= first) start += COLLAPSE_S * (0.6 + 0.8 * rand());
+    falls.push({
+      x: 20 + rand() * (SCENE_W - 40),
+      start,
+      burst: (n < first ? 12 : 4) + rand() * (n < first ? 10 : 6),
+      pace: 0.35 + 0.2 * rand(),
+    });
+  }
   const pieces: Body[] = pixels.map((px, i) => {
     if (!px.length)
       return { x: 0, y: 0, w: 0, h: 0, at: Infinity, vx: 0, land: 0, k0: 0, tumble: true };
@@ -145,16 +241,15 @@ const wallOf = (seed: number, { fixtures, openings, fronts }: Setting): Wall => 
     const cx = xs.reduce((s, v) => s + v, 0) / px.length;
     const cy = ys.reduce((s, v) => s + v, 0) / px.length;
     const jitter = 0.85 + 0.3 * hash(seed, i, 1);
-    let at = Infinity;
+    // Loose of its own accord some time, the top of the wall sooner than its foot.
+    let at = 300 + LOOSE_S * hash(seed, i, 6) * (0.5 + cy / WALL_H);
     for (const f of falls) {
       const d = Math.hypot((cx - f.x) / 1.4, cy) * jitter;
       const t =
         d <= f.burst
           ? 1 + (d / f.burst) * BURST_S
-          : d <= f.reach
-            ? BURST_S + CREEP_S * ((d - f.burst) / (f.reach - f.burst)) ** 2
-            : Infinity;
-      at = Math.min(at, t);
+          : BURST_S + ((d - f.burst) / f.pace) ** (1 / SPREAD);
+      at = Math.min(at, f.start + t);
     }
     const w = Math.max(...xs) - x + 1;
     const h = Math.max(...ys) - y + 1;
@@ -163,6 +258,7 @@ const wallOf = (seed: number, { fixtures, openings, fronts }: Setting): Wall => 
     const land = restOn(fronts, x + vx * fallFrom(y + h, floor), w, floor);
     return { x, y, w, h, at, vx, land, k0: Math.floor(hash(seed, i, 4) * 4), tumble: true };
   });
+  const { holds, anchored } = settle(seed, owner, pieces);
   // A fixture hangs from the piece just above it, and goes when that does.
   const fixtures2: Record<string, Body> = {};
   for (const [name, r] of Object.entries(fixtures)) {
@@ -192,9 +288,23 @@ const wallOf = (seed: number, { fixtures, openings, fronts }: Setting): Wall => 
     fixtures: fixtures2,
     openings: holes,
     sprites: pieces.map(() => null),
+    data: pieces.map(() => null),
     pixels,
+    holds,
+    anchored,
   };
   return built;
+};
+
+/**
+ * How many pieces hang in the air `since` seconds into friday: standing, with no firm chain to
+ * the dado or the side walls, and not about to fall within the second. None, if `settle` works.
+ */
+export const floatingAt = (since: number, seed: number, setting: Setting) => {
+  const w = wallOf(seed, setting);
+  const gone = Uint8Array.from(w.pieces, (p) => (!p.w || p.at <= since ? 1 : 0));
+  const held = standing(w.holds, w.anchored, gone);
+  return w.pieces.filter((p, i) => !gone[i] && !held[i] && p.at > since + 1).length;
 };
 
 /** Where a body is: still on the wall, falling, or down (with how long it has lain there). */
@@ -414,7 +524,8 @@ const paintRubble = (w: Wall, lying: { i: number; at: Where }[], since: number) 
     const showing = Math.ceil(th * (1 - sink));
     if (showing <= 0) continue;
     const moss = (at.age - MOSS_FROM) / MOSS_S;
-    const sprite = spriteOf(w, i).getContext("2d")?.getImageData(0, 0, p.w, p.h).data;
+    w.data[i] ??= spriteOf(w, i).getContext("2d")?.getImageData(0, 0, p.w, p.h).data ?? null;
+    const sprite = w.data[i];
     if (!sprite) continue;
     for (let v = th - showing; v < th; v++) {
       for (let u = 0; u < tw; u++) {
@@ -463,8 +574,9 @@ export const drawRubble = (
   for (let n = 0; n < broken; n++) {
     const i = w.order[n];
     const at = whereAt(w.pieces[i], since);
-    if (at.phase === "down" && at.age >= BUMP_S) lying.push({ i, at });
-    else moving.push({ i, at });
+    if (at.phase !== "down" || at.age < BUMP_S) moving.push({ i, at });
+    // Gone into the ground: nothing left to draw.
+    else if (at.age < SINK_FROM + SINK_S) lying.push({ i, at });
   }
   if (lying.length) {
     // Repainted only when some piece has mossed or sunk a step further.
