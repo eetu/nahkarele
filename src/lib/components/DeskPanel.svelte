@@ -7,6 +7,7 @@
   import { sfx } from "$lib/audio/sfx.svelte";
   import { leaveKey } from "$lib/keys";
   import { DESK_CAPACITY } from "$lib/office/engine";
+  import { LONGEST } from "$lib/office/tasks";
   import { officeWeek } from "$lib/office/week.svelte";
 
   import DiffDialog from "./DiffDialog.svelte";
@@ -70,17 +71,23 @@
 
 <svelte:window onkeydown={onKey} />
 
-<section class="panel halo-card" aria-label="your desk">
-  <div class="screen" class:glyphs={task === "ok"} aria-live="polite">
-    {#if officeWeek.away}
-      <span class="idle">on a break. the AIs are handling it.</span>
-    {:else if prompt}
-      <span class="prompt">{prompt}</span>
+<section class="panel pixel-card" aria-label="your desk">
+  <div class="screen pixel-notch" class:glyphs={task === "ok"} aria-live="polite">
+    <!-- The longest message the day can send, unseen: the screen keeps its rows. -->
+    <span class="lines">
+      <span class="room prompt" aria-hidden="true">{LONGEST[task]}</span>
+      {#if officeWeek.away}
+        <span class="idle">on a break. the AIs are handling it.</span>
+      {:else if prompt}
+        <span class="prompt">{prompt}</span>
+      {:else}
+        <span class="idle">…</span>
+      {/if}
+    </span>
+    {#if !officeWeek.away && prompt}
       {#if task === "hard" || task === "easy"}
         <span class="typed num">{typed || "_"}</span>
       {/if}
-    {:else}
-      <span class="idle">…</span>
     {/if}
   </div>
   <div class="pile" role="img" aria-label="{officeWeek.hud.pile} on the desk">
@@ -96,7 +103,7 @@
     <div class="row">
       <button
         onmousedown={(e) => e.preventDefault()}
-        class="approve"
+        class="go"
         disabled={!prompt}
         onclick={() => submit("approve")}
       >
@@ -104,7 +111,7 @@
       </button>
       <button
         onmousedown={(e) => e.preventDefault()}
-        class="reject"
+        class="stop"
         disabled={!prompt}
         onclick={() => submit("reject")}
       >
@@ -166,6 +173,14 @@
     flex-direction: column;
     gap: 0.6rem;
     padding: 1rem;
+    container-type: inline-size;
+  }
+
+  /* Over the scene on a desktop the panel is small: the words stay, the icons go. */
+  @container (max-width: 22rem) {
+    .row button :global(svg) {
+      display: none;
+    }
   }
 
   .screen {
@@ -180,6 +195,19 @@
     color: #9fcf6a;
     font-family: ui-monospace, Menlo, monospace;
     font-size: 0.95rem;
+  }
+
+  .lines {
+    flex: 1;
+    display: grid;
+  }
+
+  .lines > * {
+    grid-area: 1 / 1;
+  }
+
+  .room {
+    visibility: hidden;
   }
 
   .screen.glyphs .prompt {
@@ -204,8 +232,7 @@
 
   .pile span {
     flex: 1;
-    height: 4px;
-    border-radius: 2px;
+    height: var(--px);
     background: var(--halo-off-bg);
   }
 
@@ -225,16 +252,9 @@
   .row button {
     flex: 1;
     justify-content: center;
-    padding-block: 0.7rem;
+    gap: 0.3rem;
+    padding: 0.7rem 0.3rem;
     min-height: 44px;
-  }
-
-  .approve:not(:disabled) {
-    border-color: var(--halo-connected);
-  }
-
-  .reject:not(:disabled) {
-    border-color: var(--halo-error);
   }
 
   .pad {
@@ -260,6 +280,5 @@
     justify-content: center;
     font-size: 2rem;
     padding: 1.2rem;
-    border-radius: 999px;
   }
 </style>

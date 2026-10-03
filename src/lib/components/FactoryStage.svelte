@@ -51,9 +51,12 @@
   const st = createStagecraft();
 
   const act = (stampIt: boolean) => {
-    if (!staffed || week.away || !decide(week.sim, stampIt)) return;
+    if (!staffed || week.away) return;
+    const item = decide(week.sim, stampIt);
+    if (!item) return;
     if (stampIt) {
       st.plungeAt = week.sim.t;
+      st.plungeId = item.id;
       sfx.stamp();
     } else {
       st.pullAt = week.sim.t;
@@ -210,7 +213,7 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="stage" bind:this={wrap}>
-  <div class="box">
+  <div class="box" style:--px="{fit.sceneCss / SCENE_W}px">
     <div class="viewport" style:width="{fit.viewCss}px">
       <div class="frame" bind:this={frameEl} style:width="{fit.sceneCss}px">
         <canvas

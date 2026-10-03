@@ -8,3 +8,11 @@ export const debugDay = (e: KeyboardEvent): number | null => {
   const m = /^Digit([1-9])$/.exec(e.code);
   return m ? Number(m[1]) - 1 : null;
 };
+
+/** Dev only: the key left of 1 (backquote / §) flips between the game and the workbench. */
+export const benchKey = (e: KeyboardEvent): boolean =>
+  import.meta.env.DEV &&
+  (e.code === "Backquote" || e.code === "IntlBackslash") &&
+  !e.metaKey &&
+  !e.ctrlKey &&
+  !e.altKey;

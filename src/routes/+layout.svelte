@@ -4,12 +4,45 @@
   import "@fontsource/inter/600.css";
   import "@fontsource/space-grotesk/400.css";
   import "@fontsource/space-grotesk/500.css";
+  import "@fontsource/pixelify-sans/400.css";
+  import "@fontsource/pixelify-sans/600.css";
   import "$lib/styles/halo.css";
+  import "$lib/styles/pixel.css";
 
+  import type { Component } from "svelte";
+
+  import { goto } from "$app/navigation";
+  import { resolve } from "$app/paths";
   import { page, updated } from "$app/state";
   import { sfx } from "$lib/audio/sfx.svelte";
+  import { benchKey } from "$lib/debug";
+  import { leaveKey } from "$lib/keys";
 
   let { children } = $props();
+
+  // Dev only, and loaded only in dev: a production build drops this branch and the bar with it.
+  let DevBar = $state<Component | null>(null);
+  if (import.meta.env.DEV) {
+    void import("$lib/components/DevBar.svelte").then((m) => (DevBar = m.default));
+  }
+
+  /** Set when the key opened the workbench, so the same key goes back to where it was. */
+  let fromGame = false;
+
+  const onKey = (e: KeyboardEvent) => {
+    sfx.unlock();
+    if (!benchKey(e) || leaveKey(e)) return;
+    e.preventDefault();
+    if (page.url.pathname !== resolve("/workbench")) {
+      fromGame = true;
+      void goto(resolve("/workbench"));
+    } else if (fromGame) {
+      fromGame = false;
+      history.back();
+    } else {
+      void goto(resolve("/"));
+    }
+  };
 
   // A new deploy loads straight away on the front page, where nothing is lost. In a room the
   // week stays; SvelteKit reloads on the next navigation anyway.
@@ -31,10 +64,12 @@
   onpointerup={sfx.unlock}
   ontouchend={sfx.unlock}
   onclick={sfx.unlock}
-  onkeydown={sfx.unlock}
+  onkeydown={onKey}
 />
 
 {@render children()}
+
+{#if DevBar && page.url.pathname !== resolve("/workbench")}<DevBar />{/if}
 
 <style>
   :global(html),

@@ -12,7 +12,7 @@ import {
   setAway,
   step,
 } from "../engine";
-import { makeMessage } from "../tasks";
+import { LONGEST, makeMessage } from "../tasks";
 
 type Player = (s: OfficeState) => void;
 
@@ -132,6 +132,17 @@ describe("tasks", () => {
       expect(makeMessage("hard", rand).answer).toMatch(/^-?\d+$/);
       expect(makeMessage("easy", rand).answer).toMatch(/^\d$/);
       expect(["approve", "reject"]).toContain(makeMessage("review", rand).answer);
+    }
+  });
+
+  it("no message is longer than the room the screen keeps for it", () => {
+    let seed = 3;
+    const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const length = (text: string) => Array.from(text).length;
+    for (const task of ["review", "hard", "easy", "ok"] as const) {
+      for (let i = 0; i < 2000; i++) {
+        expect(length(makeMessage(task, rand).prompt)).toBeLessThanOrEqual(length(LONGEST[task]));
+      }
     }
   });
 });

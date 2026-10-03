@@ -15,7 +15,7 @@
 
 {#if result}
   {@const t = result.tally}
-  <section class="card halo-card" aria-label="performance review">
+  <section class="card pixel-card" aria-label="performance review">
     <div class="head">
       <SpriteIcon sprite={SPRITES.foreman} animation="write" scale={3} label="the foreman" />
       <div>

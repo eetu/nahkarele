@@ -13,9 +13,11 @@
     onclick?: () => void;
     /** Pulse a few times when it appears: this one is meant to be pressed. */
     invite?: boolean;
+    /** Light the sign on hover. Off for a thing in the scene that is not a sign: a tree. */
+    wash?: boolean;
   };
 
-  let { at, scene, label, home = false, onclick, invite = false }: Props = $props();
+  let { at, scene, label, home = false, onclick, invite = false, wash = true }: Props = $props();
 
   const left = $derived(`${(at.x / scene.w) * 100}%`);
   const top = $derived(`${(at.y / scene.h) * 100}%`);
@@ -38,6 +40,7 @@
 {:else}
   <button
     class="sign"
+    class:wash
     class:invite
     onmousedown={(e) => e.preventDefault()}
     {onclick}
@@ -72,7 +75,7 @@
      changes, so a toggled sign kept its old frame until the pointer left. A touch screen has
      no hover, and a tapped sign would otherwise stay lit. */
   @media (hover: hover) {
-    .sign:hover {
+    .sign.wash:hover {
       background: rgb(255 255 255 / 18%);
     }
   }

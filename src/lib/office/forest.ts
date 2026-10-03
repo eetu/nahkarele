@@ -1,7 +1,8 @@
 // Friday, later: the office becomes a wood, and then the wood has seasons. Everything here
-// is a function of `since`, the seconds since friday began (see Mood), like the garden it
-// grows out of; the only state is the baked canvases, which are caches.
+// is a function of `since`, the seconds since friday began, and of friday's `seed` (see
+// Mood), which shapes the trees; the only state is caches: the stand and baked canvases.
 
+import type { Weather } from "$lib/scene/sky";
 import butterfly from "$lib/sprites/butterfly.json";
 import fox from "$lib/sprites/fox.json";
 import hedgehog from "$lib/sprites/hedgehog.json";
@@ -10,6 +11,22 @@ import rabbit from "$lib/sprites/rabbit.json";
 import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 
 import { FLOOR_Y, SCENE_H, SCENE_W } from "./engine";
+import { hash, ramp, rect, smooth } from "./pixel";
+import {
+  appleOnTree,
+  autumnOf,
+  crownOf,
+  deciduous,
+  drawApple,
+  grownAt,
+  type Look,
+  paintTree,
+  perchOf,
+  type Plan,
+  planTree,
+  SPECIES,
+  type Species,
+} from "./trees";
 
 const S = {
   rabbit: rabbit as Sprite,
@@ -19,26 +36,6 @@ const S = {
   hedgehog: hedgehog as Sprite,
 };
 
-/** A unit hash of a few integers: the same every frame, so nothing reshuffles on redraw. */
-const hash = (...n: number[]): number => {
-  let h = 2166136261;
-  for (const v of n) h = Math.imul(h ^ (v | 0), 16777619);
-  return ((h ^ (h >>> 13)) >>> 0) / 4294967296;
-};
-
-const rect = (ctx: CanvasRenderingContext2D, c: string, x: number, y: number, w = 1, h = 1) => {
-  ctx.fillStyle = c;
-  ctx.fillRect(x, y, w, h);
-};
-
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-const smooth = (v: number) => {
-  const t = clamp01(v);
-  return t * t * (3 - 2 * t);
-};
-/** 0 before `a`, 1 after `b`, linear between. */
-const ramp = (v: number, a: number, b: number) => clamp01((v - a) / (b - a));
-
 /** Something drawn once per quantised state and reused: trees, snow cover, leaf litter. */
 const baked = new Map<string, { key: string; canvas: HTMLCanvasElement }>();
 const layer = (
@@ -46,6 +43,7 @@ const layer = (
   name: string,
   key: string,
   paint: (off: CanvasRenderingContext2D) => void,
+  dx = 0,
 ) => {
   let hit = baked.get(name);
   if (!hit || hit.key !== key) {
@@ -59,7 +57,7 @@ const layer = (
     hit = { key, canvas };
     baked.set(name, hit);
   }
-  ctx.drawImage(hit.canvas, 0, 0);
+  ctx.drawImage(hit.canvas, dx, 0);
 };
 
 // --- Seasons --------------------------------------------------------------------------
@@ -98,145 +96,239 @@ const litter = ({ k, p }: Season) =>
 
 // --- Trees ----------------------------------------------------------------------------
 
-type Tree = {
-  /** Where the trunk leaves the floor, at a crack. */
-  x: number;
-  /** Full height, scene px. */
-  h: number;
-  /** Seconds into friday the sapling shows. */
-  start: number;
-  /** Trunk drift per px of height, signed. */
-  lean: number;
-};
-
-const TREES: Tree[] = [
-  { x: 84, h: 100, start: 50, lean: -0.08 },
-  { x: 136, h: 96, start: 95, lean: 0.06 },
-  { x: 232, h: 72, start: 65, lean: -0.04 },
-  { x: 258, h: 62, start: 120, lean: -0.1 },
+/** Where the trees come up, at the cracks, and when; their kind and shape come from the seed. */
+const SLOTS = [
+  { x: 62, h: 134, start: 60 },
+  { x: 100, h: 142, start: 40 },
+  { x: 140, h: 138, start: 95 },
+  { x: 190, h: 124, start: 75 },
+  { x: 232, h: 114, start: 55 },
+  { x: 262, h: 98, start: 120 },
 ];
+/** How tall each kind stands against its slot. */
+const SIZE: Record<Species, number> = {
+  birch: 1,
+  rowan: 0.8,
+  apple: 0.72,
+  oak: 1,
+  maple: 1,
+  cherry: 0.72,
+  plum: 0.75,
+  spruce: 1.05,
+  pine: 1.15,
+};
 /** Seconds from sapling to full crown. */
 const GROW_S = 180;
 /** Growth is drawn in this many steps; a tree is re-baked when it reaches the next one. */
 const GROW_STEPS = 40;
-const BARK = "#4a3320";
-const BARK_LIT = "#6a4a2c";
-const LEAVES = ["#3f6a2a", "#4f7f33", "#5f9a3a", "#46732e"];
-const LEAVES_LIT = "#7ab648";
 const AUTUMN = ["#d9a441", "#e07b2a", "#c8452f", "#b3741f"];
-const BLOSSOM = ["#f4c6d0", "#f8e8ee", "#e89aa8"];
 const SNOW = ["#f4f7fa", "#e4ebf0"];
 
-const growth = (i: number, since: number) => smooth((since - TREES[i].start) / GROW_S);
+const growth = (i: number, since: number) => smooth((since - SLOTS[i].start) / GROW_S);
 
-type Pt = { x: number; y: number };
+let stand: { seed: number; plans: Plan[] } | null = null;
 
-/** The top of tree `i`'s trunk at `since`. */
-const crown = (i: number, since: number): Pt => {
-  const t = TREES[i];
-  const g = growth(i, since);
-  return { x: t.x + t.lean * t.h * g, y: FLOOR_Y + 3 - t.h * g };
-};
-
-const line = (ctx: CanvasRenderingContext2D, a: Pt, b: Pt, c: string, w: number) => {
-  const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y)));
-  for (let k = 0; k <= n; k++) {
-    const t = k / n;
-    rect(
-      ctx,
-      c,
-      Math.round(a.x + (b.x - a.x) * t - w / 2),
-      Math.round(a.y + (b.y - a.y) * t),
-      w,
-      1,
-    );
+/** `items` in an order the seed picks. */
+const shuffled = <T>(items: T[], seed: number, salt: number): T[] => {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(hash(seed, i, salt) * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
   }
+  return out;
 };
 
-/** A broken line of snow along the top of a branch. */
-const snowLine = (ctx: CanvasRenderingContext2D, a: Pt, b: Pt, seed: number) => {
-  const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y)));
-  for (let k = 0; k <= n; k++) {
-    if (hash(seed, k) < 0.3) continue;
-    const t = k / n;
-    rect(ctx, SNOW[0], Math.round(a.x + (b.x - a.x) * t), Math.round(a.y + (b.y - a.y) * t) - 1);
+/** Friday's trees: always the apple tree, and five of the other kinds, each shaped by the seed. */
+const standOf = (seed: number): Plan[] => {
+  if (stand?.seed === seed) return stand.plans;
+  const rest = SPECIES.filter((k) => k !== "apple");
+  const others = shuffled<Species>(rest, seed, 2).slice(0, SLOTS.length - 1);
+  const kinds = shuffled<Species>(["apple", ...others], seed, 3);
+  const plans = SLOTS.map((slot, i) =>
+    planTree(
+      Math.floor(hash(seed, i, 9) * 2 ** 31),
+      { x: slot.x, y: FLOOR_Y + 3 },
+      slot.h * SIZE[kinds[i]] * (0.9 + 0.2 * hash(seed, i, 5)),
+      kinds[i],
+    ),
+  );
+  stand = { seed, plans };
+  return plans;
+};
+
+/** How long the storm after the blast lasts before the year takes the window. */
+const STORM_S = 90;
+/** How far into the day the light is, per season: Finnish light, bright summer nights, dark
+ *  winters. Values on the shift's 0..1 scale (`scene/sky.ts`): 0.45 midday, 0.9 night. */
+const LIGHT = [0.45, 0.72, 0.9, 0.55];
+
+/** Friday's window: the storm after the blast, then the wood's seasons and their weather. */
+export const windowAt = (since: number): { progress: number; weather: Weather } => {
+  if (since < STORM_S) return { progress: 0.9, weather: "storm" };
+  if (since < SEASONS_FROM) {
+    // The first summer comes in while the wood grows.
+    const u = smooth((since - STORM_S) / (SEASONS_FROM - STORM_S));
+    return { progress: 0.9 + (LIGHT[0] - 0.9) * u, weather: since < 160 ? "rain" : "clear" };
   }
+  const { k, p } = seasonAt(since);
+  const progress = LIGHT[k] + (LIGHT[(k + 1) % 4] - LIGHT[k]) * smooth((p - 0.7) / 0.3);
+  const between = (a: number, b: number) => p >= a && p < b;
+  const weather: Weather =
+    k === 2
+      ? between(0.02, 0.9)
+        ? "snow"
+        : "clear"
+      : k === 1
+        ? between(0.15, 0.75)
+          ? "rain"
+          : "clear"
+        : between(k === 0 ? 0.4 : 0.3, k === 0 ? 0.55 : 0.45)
+          ? "rain"
+          : "clear";
+  return { progress, weather };
 };
 
-/** The colour of one leaf pixel in the season: turning in autumn, blossom first in spring. */
-const leafColour = (h: number, lit: boolean, { k, p }: Season): string => {
-  if (k === 1 && h < ramp(p, 0, 0.55)) return AUTUMN[Math.floor(h * 97) % AUTUMN.length];
-  if (k === 3 && h > ramp(p, 0.45, 0.95)) return BLOSSOM[Math.floor(h * 97) % BLOSSOM.length];
-  return lit ? LEAVES_LIT : LEAVES[Math.floor(h * 97) % LEAVES.length];
-};
-
-/** A dithered ellipse of leaves, lit from the upper left, thinned to `density`. */
-const blob = (
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  r: number,
-  seed: number,
-  season: Season,
-  density: number,
-) => {
-  if (density <= 0) return;
-  const ry = r * 0.75;
-  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
-    for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
-      const d = ((x - cx) / r) ** 2 + ((y - cy) / ry) ** 2;
-      if (d > 1) continue;
-      const h = hash(x, y, seed);
-      // A ragged edge, not a stamped oval; and the leaves go from the outside in.
-      if (d > 0.7 && h < 0.4) continue;
-      if (hash(y, x, seed) > density * (1.15 - d * 0.3)) continue;
-      const lit = y < cy - ry * 0.25 && x < cx + r * 0.2 && h > 0.6;
-      rect(ctx, leafColour(h, lit, season), x, y);
-    }
-  }
-};
-
-const paintTree = (ctx: CanvasRenderingContext2D, i: number, g: number, season: Season) => {
-  const t = TREES[i];
-  const base = { x: t.x, y: FLOOR_Y + 3 };
-  const top = { x: t.x + t.lean * t.h * g, y: FLOOR_Y + 3 - t.h * g };
-  if (g < 0.2) {
-    // A sapling: a green stem and two leaves.
-    line(ctx, base, top, "#4f7f33", 1);
-    rect(ctx, LEAVES[2], Math.round(top.x) - 2, Math.round(top.y) + 1, 2, 1);
-    rect(ctx, LEAVES[2], Math.round(top.x) + 1, Math.round(top.y) + 2, 2, 1);
-    return;
-  }
-  const density = foliage(season);
-  const snowy = snowCover(SEASONS_FROM + (season.k + season.p) * SEASON_S) > 0.5;
-  const trunkW = 1 + Math.round(2 * g);
-  line(ctx, base, top, BARK, trunkW);
-  if (trunkW > 1) line(ctx, { x: base.x - 1, y: base.y }, { x: top.x - 1, y: top.y }, BARK_LIT, 1);
-  // Branches leave the upper half of the trunk, alternating sides, each with its leaves.
-  const branches = 2 + Math.floor(g * 4);
-  for (let k = 0; k < branches; k++) {
-    const f = 0.5 + 0.45 * hash(i, k, 1);
-    const side = k % 2 ? 1 : -1;
-    const len = t.h * g * (0.2 + 0.14 * hash(i, k, 2));
-    const angle = (0.6 + 0.4 * hash(i, k, 3)) * (Math.PI / 2);
-    const from = { x: base.x + (top.x - base.x) * f, y: base.y + (top.y - base.y) * f };
-    const to = { x: from.x + side * Math.cos(angle) * len, y: from.y - Math.sin(angle) * len };
-    line(ctx, from, to, BARK, 1);
-    if (snowy) snowLine(ctx, from, to, i * 31 + k);
-    blob(ctx, to.x, to.y, (5 + 6 * hash(i, k, 4)) * g, i * 31 + k, season, density);
-  }
-  blob(ctx, top.x, top.y + 2, (7 + 4 * hash(i, 9, 5)) * g, i * 31 + 99, season, density);
-};
-
-export const drawTrees = (ctx: CanvasRenderingContext2D, since: number) => {
+/** How the trees look at `since`: the season, its leaves and its snow. */
+export const lookAt = (since: number): Look => {
   const season = seasonAt(since);
-  TREES.forEach((_, i) => {
+  return { k: season.k, p: season.p, leaves: foliage(season), snow: snowCover(since) };
+};
+
+export const drawTrees = (
+  ctx: CanvasRenderingContext2D,
+  since: number,
+  seed: number,
+  knocks: Knocks,
+) => {
+  const look = lookAt(since);
+  // A shaken tree sways a pixel or two for a moment.
+  const shook = since - Math.max(-Infinity, ...Object.values(knocks));
+  const sway = shook < 0.5 ? Math.round(Math.sin(shook * 45) * 1.5 * (1 - shook / 0.5)) : 0;
+  standOf(seed).forEach((plan, i) => {
     const g = growth(i, since);
     if (g <= 0) return;
     const step = Math.round(g * GROW_STEPS);
-    const key = `${step}|${season.k}|${Math.round(season.p * 24)}`;
-    layer(ctx, `tree${i}`, key, (off) => paintTree(off, i, step / GROW_STEPS, season));
+    const key = `${seed}|${step}|${look.k}|${Math.round(look.p * 24)}`;
+    const dx = plan.species === "apple" ? sway : 0;
+    layer(ctx, `tree${i}`, key, (off) => paintTree(off, plan, step / GROW_STEPS, look), dx);
   });
+};
+
+// --- Apples -----------------------------------------------------------------------------
+
+/** Apples knocked down early by a shake, by `year:apple`, at the moment of the shake. */
+export type Knocks = Record<string, number>;
+
+const YEAR_S = 4 * SEASON_S;
+const APPLE_FALL_S = 0.6;
+
+/** The apple year `since` is in, counted from the first summer of the seasons; -1 before. */
+const yearOf = (since: number) =>
+  since < SEASONS_FROM ? -1 : Math.floor((since - SEASONS_FROM) / YEAR_S);
+
+const autumnOfYear = (y: number) => SEASONS_FROM + y * YEAR_S + SEASON_S;
+
+/** When apple `j` lets go: some time in the autumn, or when a shake knocked it down. */
+const dropAt = (y: number, j: number, knocks: Knocks) =>
+  Math.min(
+    autumnOfYear(y) + (0.05 + 0.75 * hash(j, y, 61)) * SEASON_S,
+    knocks[`${y}:${j}`] ?? Infinity,
+  );
+
+/** By then the fallen apples are under the snow. */
+const buriedAt = (y: number) => SEASONS_FROM + y * YEAR_S + 2.3 * SEASON_S;
+
+/** The apple tree and its slot. */
+const appleTree = (seed: number) => {
+  const plans = standOf(seed);
+  const i = plans.findIndex((p) => p.species === "apple");
+  return i < 0 ? null : { plan: plans[i], i };
+};
+
+/** Where apple `j` comes to rest, in the grass below where it hung. */
+const groundOf = (hang: { x: number }, y: number, j: number) => ({
+  x: Math.min(SCENE_W - 3, Math.max(2, hang.x + (hash(j, y, 62) - 0.5) * 10)),
+  y: FLOOR_Y + 2 + Math.floor(hash(j, y, 63) * 16),
+});
+
+/** The apples, hanging, falling, and lying in the grass. Drawn with the trees, behind the desk. */
+export const drawApples = (
+  ctx: CanvasRenderingContext2D,
+  since: number,
+  seed: number,
+  knocks: Knocks,
+) => {
+  const tree = appleTree(seed);
+  const y = yearOf(since);
+  if (!tree || y < 0) return;
+  const on = appleOnTree(lookAt(since));
+  const at = grownAt(tree.plan, growth(tree.i, since));
+  tree.plan.fruit.forEach((f, j) => {
+    const hang = at(f);
+    const drop = dropAt(y, j, knocks);
+    if (since < drop) {
+      if (on) drawApple(ctx, hang.x, hang.y, on.size, on.ripe, j);
+      return;
+    }
+    if (since >= buriedAt(y)) return;
+    const ground = groundOf(hang, y, j);
+    const u = Math.min(1, (since - drop) / APPLE_FALL_S);
+    const fx = hang.x + (ground.x - hang.x) * u;
+    const fy = hang.y + (ground.y - hang.y) * u * u;
+    drawApple(ctx, fx, fy, 2, true, j);
+  });
+};
+
+/** Where apples came down in the grass between two moments of friday: for the thud. */
+export const appleCue = (from: number, to: number, seed: number, knocks: Knocks): number[] => {
+  const tree = appleTree(seed);
+  const y = yearOf(to);
+  if (!tree || y < 0 || to <= from) return [];
+  const at = grownAt(tree.plan, growth(tree.i, to));
+  return tree.plan.fruit.flatMap((f, j) => {
+    const landed = dropAt(y, j, knocks) + APPLE_FALL_S;
+    return landed > from && landed <= to ? [groundOf(at(f), y, j).x] : [];
+  });
+};
+
+/** The ripe apples still hanging, soonest to fall first. */
+const ripeHanging = (since: number, seed: number, knocks: Knocks) => {
+  const tree = appleTree(seed);
+  const y = yearOf(since);
+  if (!tree || y < 0 || !appleOnTree(lookAt(since))?.ripe) return [];
+  return tree.plan.fruit
+    .map((_, j) => ({ j, drop: dropAt(y, j, knocks) }))
+    .filter((a) => a.drop > since)
+    .sort((a, b) => a.drop - b.drop)
+    .map((a) => `${y}:${a.j}`);
+};
+
+/** Where to tap to shake the apple tree, while it has ripe apples to give: its crown. */
+export const appleTreeAt = (since: number, seed: number, knocks: Knocks) => {
+  const tree = appleTree(seed);
+  if (!tree || !ripeHanging(since, seed, knocks).length) return null;
+  const at = grownAt(tree.plan, growth(tree.i, since));
+  const { clumps } = tree.plan;
+  const left = Math.min(...clumps.map((c) => at({ x: c.x - c.r, y: c.y }).x));
+  const right = Math.max(...clumps.map((c) => at({ x: c.x + c.r, y: c.y }).x));
+  const top = Math.min(...clumps.map((c) => at({ x: c.x, y: c.y - c.r }).y));
+  const bottom = Math.max(...clumps.map((c) => at({ x: c.x, y: c.y + c.r }).y));
+  return {
+    x: Math.round(left),
+    y: Math.round(top),
+    w: Math.round(right - left),
+    h: Math.round(bottom - top),
+  };
+};
+
+/** A shake: the next ripe apple comes down now. The key to record in the knocks, or null. */
+export const shakeApple = (since: number, seed: number, knocks: Knocks): string | null =>
+  ripeHanging(since, seed, knocks)[0] ?? null;
+
+/** Once the first apple of the year is down, the hedgehog has one on its spines. */
+const hedgehogApple = (since: number) => {
+  const y = yearOf(since);
+  return y >= 0 && since > autumnOfYear(y) + 0.1 * SEASON_S;
 };
 
 // --- The ground: leaf litter, then snow -----------------------------------------------
@@ -305,21 +397,30 @@ const drawSnowCaps = (ctx: CanvasRenderingContext2D, since: number) => {
 
 // --- Weather: falling leaves, falling snow --------------------------------------------
 
-const drawFallingLeaves = (ctx: CanvasRenderingContext2D, since: number, season: Season) => {
+const drawFallingLeaves = (
+  ctx: CanvasRenderingContext2D,
+  since: number,
+  season: Season,
+  seed: number,
+) => {
   const on =
     season.k === 1 ? ramp(season.p, 0.3, 0.5) : season.k === 2 ? 1 - ramp(season.p, 0, 0.15) : 0;
   if (on <= 0) return;
+  const plans = standOf(seed);
+  const shedding = plans.flatMap((plan, i) => (deciduous(plan.species) ? [i] : []));
+  if (!shedding.length) return;
   for (let i = 0; i < 28; i++) {
     if (hash(i, 41) > on) continue;
-    const tree = Math.floor(hash(i, 42) * TREES.length);
-    const from = crown(tree, since);
+    const tree = shedding[Math.floor(hash(i, 42) * shedding.length)];
+    const from = crownOf(plans[tree], growth(tree, since));
+    const colours = autumnOf(plans[tree].species);
     const x0 = from.x + (hash(i, 43) - 0.5) * 30;
     const y0 = from.y - 10 + hash(i, 44) * 20;
     const period = 5 + 3 * hash(i, 45);
     const t = ((since + hash(i, 46) * period) % period) / period;
     const x = x0 + Math.sin(t * 6 + i) * 8 + t * 12 * (hash(i, 47) - 0.5);
     const y = y0 + t * (FLOOR_Y + 4 - y0);
-    rect(ctx, AUTUMN[i % AUTUMN.length], Math.round(x), Math.round(y), 2, 1);
+    rect(ctx, colours[i % colours.length], Math.round(x), Math.round(y), 2, 1);
   }
 };
 
@@ -327,11 +428,16 @@ const drawSnowfall = (ctx: CanvasRenderingContext2D, since: number, season: Seas
   const on = season.k === 2 ? ramp(season.p, 0.02, 0.1) * (1 - ramp(season.p, 0.9, 1)) : 0;
   if (on <= 0) return;
   ctx.globalAlpha = 0.9 * on;
-  for (let i = 0; i < 70; i++) {
-    const speed = 12 + 10 * hash(i, 51);
-    const x = hash(i, 52) * SCENE_W + Math.sin(since * 0.7 + i) * 6;
-    const y = ((since * speed + hash(i, 53) * SCENE_H) % (SCENE_H + 10)) - 5;
-    rect(ctx, SNOW[0], Math.round(x), Math.round(y));
+  // Spread over the whole room, drifting a little on the draught from the broken window; one
+  // flake in four is nearer, bigger and quicker.
+  const span = SCENE_W + 10;
+  for (let i = 0; i < 90; i++) {
+    const near = i % 4 === 0;
+    const speed = near ? 20 + 8 * hash(i, 51) : 10 + 7 * hash(i, 51);
+    const drift = since * (near ? 4 : 2.5) + Math.sin(since * 0.6 + i) * 4;
+    const x = ((((hash(i, 52) * span + drift) % span) + span) % span) - 5;
+    const y = ((since * speed + hash(i, 53) * (SCENE_H + 10)) % (SCENE_H + 10)) - 5;
+    rect(ctx, SNOW[0], Math.round(x), Math.round(y), near ? 2 : 1, near ? 2 : 1);
   }
   ctx.globalAlpha = 1;
 };
@@ -494,26 +600,28 @@ const drawHedgehog = (ctx: CanvasRenderingContext2D, since: number, season: Seas
   ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 8 - S.hedgehog.h * HEDGEHOG_SCALE);
   ctx.scale(HEDGEHOG_SCALE * face, HEDGEHOG_SCALE);
   drawSprite(ctx, S.hedgehog, 0, 0, { frame: frameOf(S.hedgehog, "shuffle", since * 3) });
+  if (hedgehogApple(since)) drawApple(ctx, 4, -1, 2, true, 1);
   ctx.restore();
 };
 
 // --- The owl --------------------------------------------------------------------------
 
 const OWL_FROM = 200;
-/** The owl takes the tree by the clock, a branch below its crown. */
-const OWL_TREE = 2;
+/** The owl takes the tree by the clock, on a branch three fifths of the way up. */
+const OWL_TREE = 4;
 const HOOT_CYCLE = 23;
 const HOOT_S = 1.2;
 
-const drawOwl = (ctx: CanvasRenderingContext2D, since: number) => {
-  if (since < OWL_FROM || growth(OWL_TREE, since) < 0.8) return;
-  const top = crown(OWL_TREE, since);
+const drawOwl = (ctx: CanvasRenderingContext2D, since: number, seed: number) => {
+  const g = growth(OWL_TREE, since);
+  if (since < OWL_FROM || g < 0.8) return;
+  const perch = perchOf(standOf(seed)[OWL_TREE], g);
   const c = (since - OWL_FROM) % HOOT_CYCLE;
   const frame =
     c < HOOT_S ? frameOf(S.owl, "hoot", (c / HOOT_S) * 3) : frameOf(S.owl, "perch", since * 0.7);
   // It looks about: the head turns now and then.
   const flip = Math.floor(since / 9) % 3 === 0 ? "h" : undefined;
-  drawSprite(ctx, S.owl, top.x - 2, top.y + 12, { frame, flip });
+  drawSprite(ctx, S.owl, perch.x - 4, perch.y - S.owl.h + 1, { frame, flip });
 };
 
 /** What the wood says between two moments of friday, if anything. */
@@ -547,15 +655,24 @@ const drawFireflies = (ctx: CanvasRenderingContext2D, since: number, season: Sea
 };
 
 /** The animals and the weather of the wood, drawn over everything else in the room. */
-export const drawWoodlife = (ctx: CanvasRenderingContext2D, since: number) => {
+/**
+ * What stands on the floor, back to front by where its feet are (rabbit, fox, hedgehog), over
+ * the snow on the furniture. The office draws the deer, nearest of all, after this.
+ */
+export const drawGroundlife = (ctx: CanvasRenderingContext2D, since: number) => {
   const season = seasonAt(since);
   drawSnowCaps(ctx, since);
-  drawButterflies(ctx, since, season);
-  drawHedgehog(ctx, since, season);
   drawRabbit(ctx, since, season);
   drawFox(ctx, since);
-  drawOwl(ctx, since);
+  drawHedgehog(ctx, since, season);
+};
+
+/** What flies or falls, over everything on the floor. */
+export const drawWoodlife = (ctx: CanvasRenderingContext2D, since: number, seed: number) => {
+  const season = seasonAt(since);
+  drawButterflies(ctx, since, season);
+  drawOwl(ctx, since, seed);
   drawFireflies(ctx, since, season);
-  drawFallingLeaves(ctx, since, season);
+  drawFallingLeaves(ctx, since, season, seed);
   drawSnowfall(ctx, since, season);
 };

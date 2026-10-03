@@ -11,7 +11,7 @@
 
 {#if r}
   {@const t = r.tally}
-  <section class="card halo-card" aria-label="payslip">
+  <section class="card pixel-card" aria-label="payslip">
     <div class="label">payslip · {officeWeek.current.name}</div>
     <p>{remark(r)}</p>
     {#if r.inToilet}

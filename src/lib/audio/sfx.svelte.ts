@@ -603,6 +603,30 @@ class Sfx {
     });
   }
 
+  /** A shaken apple tree: a dry rustle of leaves. */
+  rustle() {
+    const ctx = this.#live();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    for (let i = 0; i < 9; i++) {
+      this.#hiss(ctx, t + i * 0.035 + Math.random() * 0.02, {
+        f0: 2600 + Math.random() * 1800,
+        q: 1.2,
+        peak: 0.05 * (1 - i / 12),
+        dur: 0.05,
+      });
+    }
+  }
+
+  /** An apple landing in the grass. */
+  apple(pan = 0) {
+    const ctx = this.#live();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    this.#tone(ctx, t, { f0: 150, f1: 90, peak: 0.16, dur: 0.12, pan });
+    this.#hiss(ctx, t, { filter: "lowpass", f0: 900, peak: 0.06, dur: 0.05, pan });
+  }
+
   /** A beak on a glass lid. */
   peck() {
     const ctx = this.#live();

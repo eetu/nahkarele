@@ -16,7 +16,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<section class="card halo-card" aria-label="memo">
+<section class="card pixel-card" aria-label="memo">
   <div class="label">memo · day {officeWeek.day + 1} of {OFFICE_DAYS.length} · {day.name}</div>
   <p>{day.memo}</p>
   <div class="row">

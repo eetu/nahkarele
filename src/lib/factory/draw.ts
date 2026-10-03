@@ -14,6 +14,7 @@ import {
   MACHINE_IN,
   MACHINE_OUT,
   MACHINE_S,
+  next,
   OUT_X,
   SCENE_H,
   SCENE_W,
@@ -25,6 +26,11 @@ import { FACTORY_GLASS, skyOf } from "./sky";
 /** Scene-only state the engine does not care about: the press, the lever, the sparkles. */
 export type Stagecraft = {
   plungeAt: number;
+  /** The boot the press came down on; the carriage stays over it until the stamp lifts. */
+  plungeId: number | null;
+  /** Where the press carriage is along its beam, and the scene time it was last moved. */
+  pressX: number;
+  pressT: number;
   pullAt: number;
   sparkles: { at: number; caught: boolean }[];
   /** What the wall signs show: the speaker's state, and fullscreen (null where unsupported). */
@@ -34,6 +40,9 @@ export type Stagecraft = {
 
 export const createStagecraft = (): Stagecraft => ({
   plungeAt: -10,
+  plungeId: null,
+  pressX: GATE_X,
+  pressT: 0,
   pullAt: -10,
   sparkles: [],
   muted: false,
@@ -116,9 +125,13 @@ const rect = (
   ctx.fillRect(Math.round(x), Math.round(y), w, h);
 };
 
-const PRESS_REST = 84;
+/** The beam the press runs along: over the whole lit stretch, just under the window sill. */
+const BEAM = { from: ZONE.from - 10, to: GATE_X + 42, y: 67 };
+const PRESS_REST = 87;
 const PRESS_DOWN = BELT_Y - ITEM_W - 4;
 const PLUNGE_S = 0.09;
+/** How long the carriage stays on a stamped boot before going after the next one. */
+const PRESS_HOLD_S = 0.3;
 
 /** 0 → 1 → 0 over one stamp. */
 const plunge = (t: number, at: number): number => {
@@ -161,17 +174,36 @@ const drawLamp = (ctx: CanvasRenderingContext2D) => {
   rect(ctx, C.bulb, x - 2, 18, 5, 2);
 };
 
-const drawPress = (ctx: CanvasRenderingContext2D, st: Stagecraft, t: number) => {
-  const left = GATE_X - 40;
-  const right = GATE_X + 42;
-  rect(ctx, C.steel, left, 0, 2, 66);
-  rect(ctx, C.steel, right - 2, 0, 2, 66);
-  rect(ctx, C.steel, left, 64, right - left, 3);
-  const x = GATE_X;
-  const head = PRESS_REST + (PRESS_DOWN - PRESS_REST) * plunge(t, st.plungeAt);
-  rect(ctx, C.red, x - 6, 60, 12, 9);
-  rect(ctx, C.steelDark, x - 6, 68, 12, 1);
-  rect(ctx, C.steel, x - 1, 69, 3, head - 69);
+/**
+ * The press rides its beam over the next boot to decide, the one a stamp would land on, and
+ * waits at the end of the lamp for boots still on their way. It stays on a stamped boot until
+ * the stamp lifts.
+ */
+const movePress = (st: Stagecraft, s: FactoryState) => {
+  const holding = s.t - st.plungeAt < PRESS_HOLD_S;
+  const item = (holding && s.items.find((i) => i.id === st.plungeId)) || next(s);
+  const dt = Math.min(0.1, Math.max(0, s.t - st.pressT));
+  st.pressT = s.t;
+  if (!item) return;
+  const to = Math.min(GATE_X, Math.max(ZONE.from, item.x + ITEM_W / 2));
+  st.pressX += (to - st.pressX) * (1 - Math.exp(-(holding ? 40 : 14) * dt));
+};
+
+const drawPress = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactoryState) => {
+  const { from, to, y } = BEAM;
+  const leg = GATE_X - 40;
+  rect(ctx, C.steel, leg, 0, 2, y + 2);
+  rect(ctx, C.steel, to - 2, 0, 2, y + 2);
+  rect(ctx, C.steel, from, y, to - from, 3);
+  // A knee brace carries the beam out past the leg, toward the window.
+  for (let i = 0; i <= 28; i++) rect(ctx, C.steel, leg - i, y - 21 + Math.round(i * 0.75), 2, 2);
+  movePress(st, s);
+  const x = Math.round(st.pressX);
+  const head = Math.round(PRESS_REST + (PRESS_DOWN - PRESS_REST) * plunge(s.t, st.plungeAt));
+  rect(ctx, C.steelDark, x - 4, y - 1, 8, 1);
+  rect(ctx, C.red, x - 6, y - 4, 12, 9);
+  rect(ctx, C.steelDark, x - 6, y + 4, 12, 1);
+  rect(ctx, C.steel, x - 1, y + 5, 3, head - y - 5);
   rect(ctx, C.steelDark, x - 6, head, 12, 4);
   rect(ctx, C.red, x - 5, head + 4, 10, 1);
 };
@@ -551,7 +583,7 @@ export const drawFactory = (
   if (staffed) drawButtons(ctx, st, s);
   drawItems(ctx, s, "belt");
   drawItems(ctx, s, "shipped");
-  drawPress(ctx, st, s.t);
+  drawPress(ctx, st, s);
   drawGate(ctx, s);
   drawRejects(ctx, s);
   drawShredder(ctx, s);

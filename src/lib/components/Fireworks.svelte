@@ -122,7 +122,7 @@
   });
 </script>
 
-<canvas bind:this={canvas} width={W} height={H} aria-hidden="true"></canvas>
+<canvas class="pixel-notch" bind:this={canvas} width={W} height={H} aria-hidden="true"></canvas>
 
 <style>
   canvas {
@@ -131,6 +131,5 @@
     aspect-ratio: 160 / 60;
     height: auto;
     image-rendering: pixelated;
-    border-radius: var(--halo-radius);
   }
 </style>

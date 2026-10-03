@@ -45,6 +45,9 @@ const loadFriday = (): number | null => {
   }
 };
 
+/** Friday's wood is shaped by when friday began: the same through reloads, new each week. */
+const woodSeed = (at: number) => Math.floor(at / 1000) % 2 ** 31;
+
 const saveFriday = (at: number | null) => {
   try {
     if (at === null) localStorage.removeItem(FRIDAY_KEY);
@@ -73,10 +76,12 @@ class OfficeWeek {
     pile: 0,
   });
   sim: OfficeState = createOffice(OFFICE_DAYS[0], seed());
-  mood: Mood = { blast: null, after: false, since: 0, pressedAt: -10 };
+  mood: Mood = { blast: null, after: false, since: 0, pressedAt: -10, seed: 0, knocks: {} };
   diff = { read: 0, total: 0 };
   /** Wall-clock start of friday's loop, while it runs. */
   private fridayAt: number | null = null;
+  /** Dev only: how fast friday's clock runs; negative runs it back. */
+  rate = $state(1);
 
   get current() {
     return OFFICE_DAYS[this.day];
@@ -94,11 +99,12 @@ class OfficeWeek {
 
   clockIn = () => {
     this.away = false;
-    this.mood = { blast: null, after: false, since: 0, pressedAt: -10 };
+    this.mood = { blast: null, after: false, since: 0, pressedAt: -10, seed: 0, knocks: {} };
     if (this.current.task === "jar") {
       this.fridayAt = Date.now();
       saveFriday(this.fridayAt);
       this.mood.after = true;
+      this.mood.seed = woodSeed(this.fridayAt);
       this.screen = "loop";
       return;
     }
@@ -123,7 +129,11 @@ class OfficeWeek {
       this.mood.blast += dt;
       if (this.mood.blast > BLAST_S) this.endDay();
     } else if (this.screen === "loop") {
-      // Wall time, not frame time: a sleeping phone wakes to a wood that kept growing.
+      // Wall time, not frame time: a sleeping phone wakes to a wood that kept growing. A dev
+      // rate moves the start instead, so everything that reads the clock follows.
+      if (this.rate !== 1 && this.fridayAt !== null) {
+        this.fridayAt = Math.min(Date.now(), this.fridayAt - dt * 1000 * (this.rate - 1));
+      }
       this.mood.since = (Date.now() - (this.fridayAt ?? Date.now())) / 1000;
     }
     this.sync();
@@ -191,13 +201,34 @@ class OfficeWeek {
     this.fresh();
   };
 
+  /** Dev only: put friday's clock at `since` seconds. */
+  warp = (since: number) => {
+    if (this.fridayAt === null) return;
+    this.fridayAt = Date.now() - Math.max(0, since) * 1000;
+    saveFriday(this.fridayAt);
+    this.mood.since = Math.max(0, since);
+  };
+
+  /** Dev only: run friday's clock at `rate` (1 is real time). */
+  setRate = (rate: number) => {
+    this.rate = rate;
+    if (this.fridayAt !== null) saveFriday(this.fridayAt);
+  };
+
   /** Friday, once reached, is where the room stays: the loop picks up where the clock is. */
   resume = () => {
     const at = loadFriday();
     if (at === null) return;
     this.fridayAt = at;
     this.day = OFFICE_DAYS.length - 1;
-    this.mood = { blast: null, after: true, since: (Date.now() - at) / 1000, pressedAt: -10 };
+    this.mood = {
+      blast: null,
+      after: true,
+      since: (Date.now() - at) / 1000,
+      pressedAt: -10,
+      seed: woodSeed(at),
+      knocks: {},
+    };
     this.screen = "loop";
   };
 
@@ -205,7 +236,7 @@ class OfficeWeek {
     this.fridayAt = null;
     saveFriday(null);
     this.screen = "memo";
-    this.mood = { blast: null, after: false, since: 0, pressedAt: -10 };
+    this.mood = { blast: null, after: false, since: 0, pressedAt: -10, seed: 0, knocks: {} };
     this.sim = createOffice(this.current, seed());
     this.sync();
   };

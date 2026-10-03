@@ -33,7 +33,7 @@
 
 <dialog
   bind:this={dialog}
-  class="halo-dialog halo-card"
+  class="halo-dialog pixel-card"
   aria-label="review"
   onclose={onClose}
   onclick={onClick}
@@ -46,7 +46,7 @@
     <button class="key" aria-label="close" onclick={onClose}><X size={18} /></button>
   </header>
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div data-body onscroll={onScroll} tabindex="0" aria-label="the diff">
+  <div class="pixel-notch" data-body onscroll={onScroll} tabindex="0" aria-label="the diff">
     <pre>{#each diff.lines as l (l.id)}<span
           class={l.mark === "+" ? "add" : l.mark === "-" ? "del" : ""}
           >{l.mark} {l.text}
@@ -65,8 +65,14 @@
     --halo-dialog-width: 46rem;
     height: calc(100dvh - 4rem);
     margin: 0;
-    border: none;
-    color: var(--halo-text-main);
+    padding: 0;
+  }
+
+  [data-body] {
+    margin: 0 var(--halo-card-padding);
+    padding: 0.6rem 0.8rem;
+    background: #0d1a12;
+    color: #6f9a78;
   }
 
   dialog::backdrop {
@@ -82,10 +88,10 @@
   }
 
   .add {
-    color: var(--halo-connected);
+    color: #b8f07a;
   }
 
   .del {
-    color: var(--halo-error);
+    color: #ff8a70;
   }
 </style>

@@ -13,7 +13,7 @@
   const corrections = $derived(week.results.reduce((sum, r) => sum + r.tally.corrections, 0));
 </script>
 
-<section class="card halo-card" aria-label="end of week">
+<section class="card pixel-card" aria-label="end of week">
   <Fireworks />
   <div class="label">end of week · kumitehdas</div>
   <div class="grade">
@@ -22,7 +22,7 @@
   </div>
   <ol>
     {#each week.results.toSorted((a, b) => a.day - b.day) as r (r.day)}
-      <li>
+      <li class="pixel-notch">
         <span class="label">{DAYS[r.day].name.slice(0, 2)}</span>
         <span class="num">{r.grade}</span>
       </li>
@@ -83,7 +83,6 @@
     flex-direction: column;
     align-items: center;
     padding: 0.3rem 0;
-    border-radius: var(--halo-radius);
     background: var(--halo-bg-light);
   }
 

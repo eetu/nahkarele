@@ -271,6 +271,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fontsource/pixelify-sans@npm:^5.3.0":
+  version: 5.3.0
+  resolution: "@fontsource/pixelify-sans@npm:5.3.0"
+  checksum: 10c0/09daa179bfbaa4ac593b73fd29a53209c0386849d091dc578ee7309961804e7c7468016d4d521f52e85eca779edf6488daf8ea158697f9786f67cbeca09de43a
+  languageName: node
+  linkType: hard
+
 "@fontsource/space-grotesk@npm:^5.3.0":
   version: 5.3.0
   resolution: "@fontsource/space-grotesk@npm:5.3.0"
@@ -1906,6 +1913,7 @@ __metadata:
   dependencies:
     "@anarkisti/eslint-config": "npm:^1.1.0"
     "@fontsource/inter": "npm:^5.3.0"
+    "@fontsource/pixelify-sans": "npm:^5.3.0"
     "@fontsource/space-grotesk": "npm:^5.3.0"
     "@glowbox/lcd": "npm:^1.12.0"
     "@glowbox/nixie": "npm:^1.12.0"

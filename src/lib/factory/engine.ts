@@ -398,11 +398,15 @@ export const step = (s: FactoryState, dt: number) => {
   if (s.phase === "closing" && s.items.length === 0) s.phase = "done";
 };
 
-/** The boot waiting for a decision: the front of the queue, once it is under the lamp. */
-export const current = (s: FactoryState): Item | null => {
-  const front = onBelt(s)
+/** The front of the queue: the next boot to decide, under the lamp or still on its way. */
+export const next = (s: FactoryState): Item | null =>
+  onBelt(s)
     .filter((i) => !i.decided)
     .reduce<Item | null>((a, i) => (!a || i.x > a.x ? i : a), null);
+
+/** The boot waiting for a decision: the front of the queue, once it is under the lamp. */
+export const current = (s: FactoryState): Item | null => {
+  const front = next(s);
   return front && front.x + ITEM_W / 2 >= ZONE.from ? front : null;
 };
 

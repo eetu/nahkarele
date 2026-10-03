@@ -94,3 +94,15 @@ export const makeMessage = (task: Task, rand: Rand): Message =>
       : task === "easy"
         ? easy(rand)
         : ok(rand);
+
+/**
+ * The longest message each task can put on the screen. The desk keeps room for it, so the
+ * screen holds its size from one message to the next.
+ */
+export const LONGEST: Record<Task, string> = {
+  review: "Migrated 60 of 60 tables. Row counts: 60000 source, 63000 target. Matching.",
+  hard: "det [9 9; 9 9] = ?",
+  easy: "4 + 4 = ?",
+  ok: GLYPHS[0].repeat(14),
+  jar: "",
+};

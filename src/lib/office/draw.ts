@@ -30,7 +30,18 @@ import {
   SCENE_W,
   TRAY,
 } from "./engine";
-import { drawGround, drawIvy, drawTrees, drawWoodlife, overgrown } from "./forest";
+import {
+  drawApples,
+  drawGround,
+  drawGroundlife,
+  drawIvy,
+  drawTrees,
+  drawWoodlife,
+  type Knocks,
+  overgrown,
+  snowCover,
+  windowAt,
+} from "./forest";
 
 const S = {
   specialist: specialist as Sprite,
@@ -56,6 +67,10 @@ export type Mood = {
   since: number;
   /** When the specialist last pressed something, for the typing frame. */
   pressedAt: number;
+  /** Friday's wood grows from this: a new friday, a new stand of trees. */
+  seed: number;
+  /** Apples shaken down early, and when. */
+  knocks: Knocks;
 };
 
 export const GLASS = { x: 126, y: 18, w: 68, h: 42 };
@@ -118,11 +133,10 @@ const rect = (
   ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 };
 
-const skyOf = (s: OfficeState, mood: Mood): SkyInput => ({
-  t: mood.after ? mood.since : s.t,
-  progress: mood.after ? 0.9 : progress(s),
-  weather: mood.after ? "storm" : s.day.weather,
-});
+const skyOf = (s: OfficeState, mood: Mood): SkyInput =>
+  mood.after
+    ? { t: mood.since, ...windowAt(mood.since) }
+    : { t: s.t, progress: progress(s), weather: s.day.weather };
 
 const drawRoom = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => {
   rect(ctx, C.wall, 0, 0, SCENE_W, 100);
@@ -271,10 +285,11 @@ const drawMoss = (ctx: CanvasRenderingContext2D, since: number) => {
   ctx.globalAlpha = 1;
 };
 
-const drawGarden = (ctx: CanvasRenderingContext2D, since: number) => {
+const drawGarden = (ctx: CanvasRenderingContext2D, mood: Mood) => {
+  const { since, seed, knocks } = mood;
   drawCracks(ctx);
   drawMoss(ctx, since);
-  drawTrees(ctx, since);
+  drawTrees(ctx, since, seed, knocks);
   drawGround(ctx, since);
   for (const t of TUFTS) {
     const h = Math.min(6, Math.max(0, (since - t.delay) * 0.25));
@@ -308,6 +323,7 @@ const drawGarden = (ctx: CanvasRenderingContext2D, since: number) => {
       rect(ctx, "#f2c230", x, y, 1, 1);
     }
   });
+  drawApples(ctx, since, seed, knocks);
 };
 
 /**
@@ -370,8 +386,10 @@ const drawDeer = (ctx: CanvasRenderingContext2D, since: number) => {
 /** Things that move in once nobody is looking: ants, ladybugs, a snail, a spider. */
 const drawCritters = (ctx: CanvasRenderingContext2D, since: number) => {
   const step = Math.floor(since * 8);
+  // The floor's small life goes under as the snow comes, and back out as it melts.
+  const bare = Math.max(0, 1 - snowCover(since) * 1.6);
   // Ants, a few more every so often, in both directions along the floor.
-  const ants = Math.min(14, Math.floor((since - 8) / 5));
+  const ants = Math.floor(Math.min(14, Math.floor((since - 8) / 5)) * bare);
   for (let i = 0; i < ants; i++) {
     const dir = i % 2 ? -1 : 1;
     const speed = 9 + (i % 4) * 3;
@@ -385,7 +403,7 @@ const drawCritters = (ctx: CanvasRenderingContext2D, since: number) => {
     rect(ctx, "#15120f", x + 2 - legs, y - 1, 1, 1);
   }
   // Ladybugs, dawdling on the moss.
-  for (let i = 0; i < Math.min(4, Math.floor((since - 20) / 12)); i++) {
+  for (let i = 0; i < Math.floor(Math.min(4, Math.floor((since - 20) / 12)) * bare); i++) {
     const x = Math.round(40 + i * 70 + Math.sin(since * 0.25 + i * 2) * 26);
     const y = Math.round(FLOOR_Y + 6 + i * 5 + Math.sin(since * 0.4 + i) * 3);
     rect(ctx, "#d0342c", x, y, 3, 2);
@@ -764,23 +782,25 @@ export const drawOffice = (
   if (mood.after) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
   else drawLedClock(ctx, CLOCK, clockAt(progress(s)), sky.t);
   drawPay(ctx, s, mood);
-  // Lit signs, so they read in the dark; the speaker and the screen show their state.
+  if (mood.after) drawGarden(ctx, mood);
+  // Lit signs, so they read in the dark, and through friday's leaves: the speaker and the screen
+  // show their state.
   drawSprite(ctx, S.exit, SIGNS.exit.x, SIGNS.exit.y);
   drawSprite(ctx, S.wc, SIGNS.wc.x, SIGNS.wc.y);
   drawSprite(ctx, S.speaker, SIGNS.speaker.x, SIGNS.speaker.y, { frame: signs.muted ? 1 : 0 });
   if (signs.fullscreen !== null) {
     drawSprite(ctx, S.screen, SIGNS.screen.x, SIGNS.screen.y, { frame: signs.fullscreen ? 1 : 0 });
   }
-  if (mood.after) drawGarden(ctx, mood.since);
   drawSlab(ctx, 1, s, mood);
   drawSlab(ctx, 2, s, mood);
   drawDesk(ctx, s, mood);
   if (mood.after) {
     drawArc(ctx, mood.since);
     drawCritters(ctx, mood.since);
+    drawGroundlife(ctx, mood.since);
     drawDeer(ctx, mood.since);
     drawVisitors(ctx, mood.since);
-    drawWoodlife(ctx, mood.since);
+    drawWoodlife(ctx, mood.since, mood.seed);
   } else {
     drawTokens(ctx, s);
     drawDrone(ctx, s);

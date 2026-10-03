@@ -13,7 +13,7 @@
     SCENE_H,
     SCENE_W,
   } from "$lib/office/engine";
-  import { forestCue } from "$lib/office/forest";
+  import { appleCue, appleTreeAt, forestCue, shakeApple } from "$lib/office/forest";
   import { officeWeek } from "$lib/office/week.svelte";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
 
@@ -38,6 +38,18 @@
   let frameEl: HTMLDivElement | undefined = $state();
   let fit = $state<Fit>({ scale: 2, sceneCss: SCENE_W, viewCss: SCENE_W });
   const SCENE = { w: SCENE_W, h: SCENE_H };
+
+  /** The apple tree's crown on friday, while there is a ripe apple to shake down. */
+  let appleRect = $state<{ x: number; y: number; w: number; h: number } | null>(null);
+  let appleKey = "";
+
+  const shake = () => {
+    const { mood } = officeWeek;
+    const key = shakeApple(mood.since, mood.seed, mood.knocks);
+    if (!key) return;
+    mood.knocks[key] = mood.since;
+    sfx.rustle();
+  };
   const staffed = $derived(officeWeek.screen === "shift");
   /** A viewport shorter than this (a phone on its side) puts the desk beside the scene. */
   const SHORT_PX = 520;
@@ -130,6 +142,16 @@
         if (cue === "chirp") sfx.chirp();
         else if (cue === "peck") sfx.peck();
         if (forestCue(before.since, mood.since)) sfx.hoot();
+        for (const x of appleCue(before.since, mood.since, mood.seed, mood.knocks)) {
+          sfx.apple(pan(x));
+        }
+        // The tree takes a tap while it has ripe apples; the rect changes rarely.
+        const tree = appleTreeAt(mood.since, mood.seed, mood.knocks);
+        const key = tree ? `${tree.x},${tree.y},${tree.w},${tree.h}` : "";
+        if (key !== appleKey) {
+          appleKey = key;
+          appleRect = tree;
+        }
       }
       // The AIs' fans, and the drone's rotors pitched by how fast it is going.
       sfx.bed("fans", 0.03);
@@ -162,12 +184,21 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="stage" bind:this={wrap}>
-  <div class="box">
+  <div class="box" style:--px="{fit.sceneCss / SCENE_W}px">
     <div class="viewport" style:width="{fit.viewCss}px">
       <div class="frame" bind:this={frameEl} style:width="{fit.sceneCss}px">
         <canvas bind:this={canvas} aria-label="an office: two AI slabs and a desk between them"
         ></canvas>
         <!-- Leaving is leaving: the next visit starts a new week. -->
+        {#if appleRect && officeWeek.screen === "loop"}
+          <SceneSign
+            at={appleRect}
+            scene={SCENE}
+            label="shake the apple tree"
+            onclick={shake}
+            wash={false}
+          />
+        {/if}
         <SceneSign at={SIGNS.exit} scene={SCENE} label="exit" home onclick={officeWeek.newWeek} />
         <SceneSign
           at={SIGNS.speaker}

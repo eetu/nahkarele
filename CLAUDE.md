@@ -17,7 +17,7 @@ src/lib/scene/       shared: the winter window (sky, weather, blast, cracks) and
 src/lib/sprites/     dab-format sprite JSON for both rooms + a reader
 src/lib/tape/        orientation cassette: mechanics (from scene), canvas drawing, script + cues
 src/lib/components/  Intro · FactoryStage + Memo/DayReview/WeekReview · OfficeStage + DeskPanel/Payslip
-src/routes/          / (front page) · /tehdas · /specialist
+src/routes/          / (front page) · /tehdas · /specialist · /workbench (dev only)
 static/              favicon.svg (icon source) + generated PNGs + manifest
 default.conf         nginx: SPA fallback, immutable caching for /_app/immutable
 docker/              optional Liwan tracker entrypoint (same as logo)
@@ -46,6 +46,10 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   the day and the count, TÄ'h's readout and the shredder/crate counters, the office pay under
   the clock, and `SceneSign` buttons over sprites for EXIT, WC, sound and fullscreen. In-scene
   text uses the 5x7 face in `scene/pixelfont.ts` (ASCII plus a euro sign).
+- **Cards are pixel frames.** Memos, reviews, the payslip, the desk and the diff use
+  `.pixel-card` (`styles/pixel.css`: 9-slice SVG tiles, Pixelify Sans); one frame pixel is
+  `--px`, which each stage sets to its scene pixel. The paper is the same in both themes, so
+  the card pins the halo tokens it draws with. `.pixel-notch` cuts pixel corners.
 - **A toilet break hands the job to the machines.** The WC sign on the wall (or `w`) starts and
   ends it. `setAway` opens the factory gate (TÄ'h
   decides, correctly) or sends office tokens AI to AI; the stage runs time 3×. Whatever is
@@ -58,7 +62,16 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   `../dice`). Engines push what can be heard onto `state.events`; the stage drains it each
   frame and plays it. Nothing audible feeds back into the engine.
 - **Friday in the office is a loop, not a day.** `mood.since` drives everything (grass, vines,
-  bird, drone) as functions of time; there is nothing to finish.
+  bird, drone) as functions of time; there is nothing to finish. The trees (`office/trees.ts`:
+  always an apple tree, plus five of birch, rowan, oak, maple, cherry, plum, spruce, pine,
+  each grown the way the species grows) are generated from `mood.seed`, so each friday grows
+  its own wood and a reload keeps it. In dev a scrubber under the room runs friday's clock
+  at any speed, backwards too. Apples ripen, fall
+  through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
+  early (`mood.knocks`), the one thing on friday that answers the player.
+- **Scene pieces draw themselves.** A tree, a sprite, the calendar, pixel text: a draw function
+  over a canvas context and plain values, no DOM. That is what lets the workbench show them
+  alone; keep new pieces that way.
 - **The cassette canvas animates only while something moves.** The factory canvas runs every
   frame while mounted: the line keeps running between shifts, which is the point.
 - Voice: lowercase, dry, numbers do the talking. The AIs' messages are the exception: they
@@ -69,6 +82,11 @@ docker/              optional Liwan tracker entrypoint (same as logo)
 `yarn dev` (:5173; on `/tehdas` and `/specialist` Shift + 1–5 jumps to that day, dev
 builds only) ·
 `yarn validate` (typecheck, lint, format, test) · `yarn build` → `dist/`.
+In dev, a bar under every page jumps between days, holds friday's scrubber and opens
+`/workbench` (so does the key left of 1, backquote): each unit drawn alone with live
+controls, `g` for a grid of seeds, `[` `]` between units; a unit with `tap` answers clicks
+(the wood: shake the apple tree). A unit is a small adapter in
+`src/routes/workbench/units.ts` over a draw function in `$lib`; production builds answer 404.
 `./install-hooks.sh` once after clone; the pre-commit hook runs `validate`. Icons: edit
 `static/favicon.svg`, then `scripts/gen-icons.sh` (needs librsvg + ImageMagick). Tape: edit
 `src/lib/tape/orientation.json`, then `uv run scripts/gen-tape.py` (Piper on mini, ffmpeg); it
