@@ -8,6 +8,7 @@ import { drawDeer, drawFliers, drawGlowing, drawSmallLife } from "./life";
 import { drawCracks, drawGrass, drawMoss, drawVines } from "./overgrowth";
 import { drawSticks } from "./shedding";
 import { drawApples, drawTrees, type Knocks } from "./stand";
+import { drawSwallows } from "./swallows";
 import { drawBackShrubs, drawFrontShrubs } from "./undergrowth";
 import { climbTo, drawOnWall, drawRubble, fixtureAt, type Setting } from "./wall";
 import { drawFalling, drawGround, drawSillSnow, drawSnowCaps } from "./weather";
@@ -78,6 +79,7 @@ export const drawAir = (
 ) => {
   drawFliers(ctx, since, seed, knocks);
   drawCrow(ctx, since, seed, fallen.wall, knocks, "air");
+  drawSwallows(ctx, since);
   drawFalling(ctx, since, seed);
 };
 

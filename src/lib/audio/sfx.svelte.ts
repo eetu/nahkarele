@@ -604,6 +604,24 @@ class Sfx {
     }
   }
 
+  /** A swallow going over: a quick twitter of rising vit-vit notes. */
+  twitter(pan = 0) {
+    const ctx = this.#live();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    for (let i = 0; i < 4; i++) {
+      const f = 4600 + Math.random() * 900;
+      this.#tone(ctx, t + i * 0.075, {
+        f0: f,
+        f1: f * 1.25,
+        peak: 0.022,
+        dur: 0.035,
+        attack: 0.003,
+        pan,
+      });
+    }
+  }
+
   /** The tit in spring: its ti-ti-tyy, two quick high notes and a longer lower one. */
   song() {
     const ctx = this.#live();

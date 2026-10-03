@@ -18,7 +18,7 @@ src/lib/office/      software specialist: engine (messages, desk, pay), tasks, d
                      move) · posed (draws both) · stand (the six trees' lives, apples) ·
                      undergrowth (the shrubs) · overgrowth (cracks, grass, climbers) · moss ·
                      wall (the back wall coming down) · outside (the world behind it) ·
-                     weather · life
+                     weather · life · tit, crow, swallows (the birds)
 src/lib/audio/       synthesized sound for both rooms, the mute
 src/lib/scene/       shared: the winter window, shift clock, calendar, LED, pixel font, pixel helpers
 src/lib/sprites/     dab-format sprite JSON for both rooms + a reader
@@ -85,7 +85,11 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   an apple tree. In dev a shuttle under the room runs friday's clock
   ahead or back while held, faster the further it is pulled. Apples ripen, fall
   through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
-  early (`mood.knocks`), the one thing on friday that answers the player. The wind
+  early (`mood.knocks`), the one thing on friday that answers the player. The birds keep the
+  year and the day: the great tit stays the winter (fluffed up), sings in spring and brings a
+  fledgling in summer; barn swallows come in late spring, nest on AI #1 and leave in early
+  autumn; a hooded crow struts, caws from the broken wall, takes fallen apples and scares the
+  tit off the jar. All of them sleep the nights. The wind
   (`wood/wind.ts`) is a function of time too: a mean by season, gusts that cross the room
   from the upwind side. Every tree moves by one simulation (`wood/sway.ts`): its wood is a
   rig of pieces hung off their parents, each turning about its base against its width cubed,

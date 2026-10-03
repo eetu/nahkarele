@@ -17,6 +17,7 @@
   import { owlCue } from "$lib/office/wood/life";
   import { shedCue } from "$lib/office/wood/shedding";
   import { appleCue, appleTreeAt, fellCue, shakeApple } from "$lib/office/wood/stand";
+  import { swallowCue } from "$lib/office/wood/swallows";
   import { windAt } from "$lib/office/wood/wind";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
 
@@ -150,6 +151,7 @@
         else if (cue === "alarm") sfx.alarm();
         else if (cue === "song") sfx.song();
         for (const x of crowCaws(before.since, mood.since, mood)) sfx.caw(pan(x));
+        for (const x of swallowCue(before.since, mood.since)) sfx.twitter(pan(x));
         if (owlCue(before.since, mood.since, mood.seed)) sfx.hoot();
         for (const x of appleCue(before.since, mood.since, mood.seed, mood.knocks)) {
           sfx.apple(pan(x));
