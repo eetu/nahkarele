@@ -218,8 +218,9 @@ export const paintStone = (
       const [ya, yb] = [r0 - h / 2, r1 - h / 2];
       const span = r1 - r0 - 1;
       const at = (u: number) => r0 + Math.min(span, Math.max(0, Math.round(u * span)));
-      // Its top and bottom: fresh where it broke; its own stone, a row in from the face, lit
-      // facing up and shaded facing down; or plain bed.
+      // Its top and bottom: fresh where it broke; its own stone (taken from the middle of the
+      // column, clear of the mortar round it), lit facing up and shaded facing down; or plain
+      // bed.
       const own = (r: number) =>
         paint.face
           ? paint.face(body.ox + c, body.oy + Math.min(r1 - 1, Math.max(r0, r)), false)
@@ -227,11 +228,11 @@ export const paintStone = (
       if (upper) {
         const fr = fresh?.[r0 * w + c];
         const word = fr
-          ? own(r0 + 1)
-            ? lighter(own(r0 + 1), 0.3)
+          ? own((r0 + r1) >> 1)
+            ? lighter(own((r0 + r1) >> 1), 0.3)
             : BED.fresh
-          : own(r0 + 1)
-            ? lighter(own(r0 + 1), 0.1)
+          : own((r0 + r1) >> 1)
+            ? lighter(own((r0 + r1) >> 1), 0.1)
             : sf > 0.5
               ? BED.side
               : BED.up;
@@ -240,11 +241,11 @@ export const paintStone = (
       if (lower) {
         const fr = fresh?.[(r1 - 1) * w + c];
         const word = fr
-          ? own(r1 - 2)
-            ? lighter(own(r1 - 2), 0.3)
+          ? own((r0 + r1) >> 1)
+            ? lighter(own((r0 + r1) >> 1), 0.3)
             : BED.fresh
-          : own(r1 - 2)
-            ? darker(own(r1 - 2), 0.25)
+          : own((r0 + r1) >> 1)
+            ? darker(own((r0 + r1) >> 1), 0.25)
             : BED.down;
         fill(c, project(yb, -T / 2), project(yb, T / 2), () => word);
       }

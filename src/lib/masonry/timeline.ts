@@ -39,8 +39,9 @@ const LETGO = 0.15;
  */
 export type Kind = "knock" | "weather" | "slip" | "drop" | "topple";
 
-/** A block leaving the wall: when, how, and which way (1 toward the viewer, -1 away). */
-export type Release = { i: number; t: number; kind: Kind; dir: 1 | -1 };
+/** A block leaving the wall: when, how, which way (1 toward the viewer, -1 away), and
+ *  whether it wore loose (it cracks and shakes first) rather than being brought down. */
+export type Release = { i: number; t: number; kind: Kind; dir: 1 | -1; worn?: boolean };
 
 export type Ruin = {
   spec: Spec;
@@ -156,12 +157,12 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
     dirty.clear();
   };
 
-  const release = (i: number, t: number, kind: Kind, dir: 1 | -1) => {
+  const release = (i: number, t: number, kind: Kind, dir: 1 | -1, worn = false) => {
     for (const j of near[i]) dirty.add(j);
     standing[i] = 0;
     releaseAt[i] = t;
     due[i] = Infinity;
-    releases.push({ i, t, kind, dir });
+    releases.push(worn ? { i, t, kind, dir, worn } : { i, t, kind, dir });
   };
   // What holds an insert: the block over its middle, the blocks at its sides, and (all of
   // them together) what it sits on.
@@ -253,7 +254,7 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
       // Worn loose: over an edge it topples, under a load it slips out, free it tips out.
       const held = blocks[di].top.some((c) => standing[c.j]);
       const how = classes[di] === "glued" ? "topple" : held ? "slip" : "weather";
-      release(di, t, how, dirOf(seed, di, t));
+      release(di, t, how, dirOf(seed, di, t), true);
     }
     refresh(t, cascade(t));
   }

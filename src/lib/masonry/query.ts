@@ -117,13 +117,14 @@ export const cuesBetween = (r: Ruin, from: number, to: number) =>
 export const CRACK_S = 3;
 export const SHAKE_S = 0.3;
 
-/** Blocks about to work loose at `t`: cracked, and in their last moment shaking. */
+/** Blocks about to wear loose at `t` (not those a fall or a blow brings down): cracked, and in
+ *  their last moment shaking. */
 export const warningAt = (r: Ruin, t: number) => {
   const out: { i: number; shake: boolean }[] = [];
   for (let k = releasedBy(r, t); k < r.releases.length; k++) {
     const rel = r.releases[k];
     if (rel.t > t + CRACK_S) break;
-    if (rel.kind === "knock" || rel.kind === "drop") continue;
+    if (!rel.worn) continue;
     out.push({ i: rel.i, shake: rel.t - t < SHAKE_S });
   }
   return out;

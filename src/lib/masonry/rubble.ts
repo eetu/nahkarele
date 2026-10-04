@@ -204,6 +204,7 @@ export const bakeRubble = (
     b: { w: number; h: number; block: number },
     drift: number,
     spin: number,
+    tumble: number,
   ) => {
     const last = phases[phases.length - 1];
     const c = phasePose(last, last.t1);
@@ -214,7 +215,7 @@ export const bakeRubble = (
       t1: last.t1 + LONGEST,
       c,
       v: { x: v.x + drift, y: v.y, z: v.z },
-      omega: last.k === "ease" ? 0.3 * Math.sign(v.z || 1) : v.phi,
+      omega: last.k === "ease" ? tumble * Math.sign(v.z || 1) : v.phi,
       spin,
       g,
     };
@@ -253,6 +254,18 @@ export const bakeRubble = (
     const spin = (hash(seed, i, 43) - 0.5) * 1.2;
     const edge = dir > 0 ? 0 : -T;
     const phases: Phase[] = [];
+    // A piece deeper than it is tall (a brick, a rubble stone) cannot tip out over its front
+    // edge: it would have to turn most of a right angle first. It is pushed or slides out of
+    // the wall instead, then falls tumbling a little. A slab tips.
+    const deep = T >= blk.h * 0.9;
+    const slideOut = (t0: number, from: Pose, pushed: boolean): Phase => ({
+      k: "ease",
+      t0,
+      t1: t0 + (pushed ? 0.12 + 0.08 * hash(seed, i, 47) : 0.3 + 0.3 * hash(seed, i, 44)),
+      a: from,
+      b: { ...from, z: dir > 0 ? T / 2 + 0.5 : -T - T / 2 - 0.5 },
+      p: 1,
+    });
     const pivotFrom = (t0: number, from: Pose, bottom: number, kick: number) =>
       pivotOf(
         t0,
@@ -269,13 +282,11 @@ export const bakeRubble = (
         g,
         kick,
       );
-    if (rel.kind === "knock" || rel.kind === "weather") {
+    if ((rel.kind === "knock" || rel.kind === "weather") && !deep) {
       phases.push(pivotFrom(rel.t, upright, blk.y + blk.h, rel.kind === "knock" ? 1.4 : 1));
-    } else if (rel.kind === "slip") {
-      // Slid out from under its load, then off.
-      const out = dir > 0 ? T / 2 + 0.5 : -T - T / 2 - 0.5;
-      const t1 = rel.t + 0.3 + 0.3 * hash(seed, i, 44);
-      phases.push({ k: "ease", t0: rel.t, t1, a: upright, b: { ...upright, z: out }, p: 1 });
+    } else if (rel.kind === "knock" || rel.kind === "weather" || rel.kind === "slip") {
+      // Pushed out, or slid out from under its load, then off.
+      phases.push(slideOut(rel.t, upright, rel.kind === "knock"));
     } else {
       // Over the edge of its bed first, if it topples; then down onto what stands below.
       let from = upright;
@@ -292,11 +303,15 @@ export const bakeRubble = (
       const dt = Math.sqrt((2 * drop) / g);
       const on = { ...from, y: from.y + drop };
       phases.push({ k: "ease", t0: t, t1: t + dt, a: from, b: on, p: 2 });
-      const off = pivotFrom(t + dt, on, sill, 1);
-      if (off.k === "pivot") off.theta = from.theta;
-      phases.push(off);
+      if (deep) phases.push(slideOut(t + dt, on, false));
+      else {
+        const off = pivotFrom(t + dt, on, sill, 1);
+        if (off.k === "pivot") off.theta = from.theta;
+        phases.push(off);
+      }
     }
-    const flight = fly(phases, { w: blk.w, h: blk.h, block: i }, drift, spin);
+    const tumble = rel.kind === "knock" ? 2 + 2 * hash(seed, i, 48) : 0.3 + 1.2 * hash(seed, i, 48);
+    const flight = fly(phases, { w: blk.w, h: blk.h, block: i }, drift, spin, tumble);
     phases.push(flight);
     const hit = phasePose(flight, flight.t1);
     const out = hit.z < -T;

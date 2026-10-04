@@ -50,7 +50,9 @@ export type Param =
   | { kind: "range"; key: string; min: number; max: number; step: number }
   | { kind: "select"; key: string; options: readonly string[] }
   | { kind: "seed"; key: string }
-  | { kind: "text"; key: string };
+  | { kind: "text"; key: string }
+  /** On or off: a checkbox, its value 1 or 0. */
+  | { kind: "toggle"; key: string };
 
 export type Values = Record<string, number | string>;
 

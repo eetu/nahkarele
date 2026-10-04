@@ -59,7 +59,8 @@
 
   const input = (p: Param, e: Event) => {
     const el = e.currentTarget as HTMLInputElement | HTMLSelectElement;
-    set(p.key, p.kind === "range" || p.kind === "seed" ? Number(el.value) : el.value);
+    if (p.kind === "toggle") set(p.key, (el as HTMLInputElement).checked ? 1 : 0);
+    else set(p.key, p.kind === "range" || p.kind === "seed" ? Number(el.value) : el.value);
   };
 </script>
 
@@ -106,6 +107,8 @@
           <select value={v[p.key]} onchange={(e) => input(p, e)}>
             {#each p.options as o (o)}<option value={o}>{o}</option>{/each}
           </select>
+        {:else if p.kind === "toggle"}
+          <input type="checkbox" checked={Boolean(v[p.key])} onchange={(e) => input(p, e)} />
         {:else if p.kind === "seed"}
           <input type="number" value={v[p.key]} oninput={(e) => input(p, e)} />
           <button onclick={reseed}>new</button>

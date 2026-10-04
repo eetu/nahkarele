@@ -24,12 +24,14 @@ describe("what comes off the wall", () => {
     }
   });
 
-  it("tips off the top turning, and lands turned a good way over", () => {
+  it("tips a slab off the top turning, and lands it turned a good way over", () => {
     for (const seed of SEEDS) {
       const r = bake(SPEC, seed);
       for (const body of r.bodies) {
         const rel = r.releases.find((x) => x.i === body.block);
         if (rel?.kind !== "weather" && rel?.kind !== "knock") continue;
+        // A piece deeper than it is tall slides out instead.
+        if (body.T >= body.h * 0.9) continue;
         const flight = body.phases.find((p) => p.k === "fly");
         if (!flight) throw new Error("no flight");
         const phi = Math.abs(phasePose(flight, flight.t1).phi);

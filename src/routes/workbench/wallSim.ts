@@ -49,17 +49,18 @@ const specs = new Map<string, Spec>();
 /** The wall as built and coated in the controls, the same object for the same choice. */
 const specFor = (v: Values): Spec => {
   const bond = String(v.wall) as Build;
-  const key = `${bond}|${v.plaster}`;
+  const plaster = Boolean(v.plaster);
+  const key = `${bond}|${plaster}`;
   let spec = specs.get(key);
   if (!spec) {
-    spec = { ...SPEC, bond, plaster: v.plaster === "on", ...BUILDS[bond] };
+    spec = { ...SPEC, bond, plaster, ...BUILDS[bond] };
     specs.set(key, spec);
   }
   return spec;
 };
 
+/** How fast its clock runs against the bench's (which space pauses). */
 const RATES: Record<string, number> = {
-  paused: 0,
   "1×": 1,
   "10×": 10,
   "100×": 100,
@@ -268,7 +269,8 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
     }
   });
   // What falls behind the wall shows in its gaps; then the wall over it; then the room.
-  const inFlight = moving(r, since);
+  // Farthest first, so what overlaps stays put from frame to frame.
+  const inFlight = moving(r, since).sort((a, b) => a.pose.z - b.pose.z || a.body.id - b.body.id);
   const behind = ({ body, pose }: { body: Body; pose: Pose }) =>
     pose.z + halfDepth(body.h, body.T, pose.phi) <= 0.5;
   const back = new ImageData(W, H);
@@ -347,7 +349,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   // The readout, on the dado.
   const standing = state.standing.reduce((s, x) => s + x, 0);
   const lines = [
-    `${hms(since)}  ${String(v.rate)}  seed ${v.seed}`,
+    `${hms(since)}  ${String(v.rate).replace("×", "x")}  seed ${v.seed}`,
     `standing ${standing}/${bond.blocks.length}  released ${releasedBy(r, since)}  window ${state.inserts[0] ? "in" : "out"}`,
     `bake ${ms.toFixed(0)}ms  taps ${tapsOf(Number(v.seed)).length}  cracked ${warn.size} (${CRACK_S}s ahead)`,
     `falling ${inFlight.length}  lying ${down.length}  thuds ${r.cues.filter((c) => c.t <= since).length}`,
@@ -360,10 +362,10 @@ export const wallSim: Unit = {
   defaults: {
     seed: 1,
     since: 0,
-    rate: "10×",
+    rate: "1×",
     show: "look",
     wall: "block",
-    plaster: "on",
+    plaster: 1,
     tap: "knock out",
     ...Object.fromEntries(TUNE.map((p) => [p.key, p.get(PACE)])),
   },
@@ -372,7 +374,7 @@ export const wallSim: Unit = {
     { kind: "range", key: "since", min: 0, max: 43200, step: 0.1 },
     { kind: "select", key: "rate", options: Object.keys(RATES) },
     { kind: "select", key: "wall", options: Object.keys(BUILDS) },
-    { kind: "select", key: "plaster", options: ["on", "off"] },
+    { kind: "toggle", key: "plaster" },
     { kind: "select", key: "show", options: ["look", "classes", "hazard", "order", "pile"] },
     { kind: "select", key: "tap", options: ["knock out", "roof", "forget taps"] },
     ...TUNE.map(({ key, min, max, step }) => ({ kind: "range" as const, key, min, max, step })),
