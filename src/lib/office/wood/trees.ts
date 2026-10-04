@@ -5,7 +5,7 @@
 import { hash, ramp, rect } from "$lib/scene/pixel";
 import { mix } from "$lib/scene/sky";
 
-import { type Conk, drawConk } from "./conks";
+import { type Conk, drawConk, drawConkLevel } from "./conks";
 import type { Part } from "./posed";
 
 export type Species =
@@ -461,7 +461,8 @@ export const paintTreeParts = (
     const cx = a.x + (b.x - a.x) * c.t;
     const cy = a.y + (b.y - a.y) * c.t;
     const left = Math.round(cx - w / 2);
-    drawConk(ctx, c.side > 0 ? left + w : left - 1, Math.round(cy - c.tall * 0.4), c);
+    if (c.level) drawConkLevel(ctx, Math.round(cx), Math.round(cy), c);
+    else drawConk(ctx, c.side > 0 ? left + w : left - 1, Math.round(cy - c.tall * 0.4), c);
   }
   // A dead broadleaf stays bare; a dead conifer rusts, then drops its needles.
   const dead = look.dead ?? 0;

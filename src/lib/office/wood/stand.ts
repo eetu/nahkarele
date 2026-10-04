@@ -9,7 +9,7 @@ import { prefersReducedMotion } from "$lib/keys";
 import { hash, smooth } from "$lib/scene/pixel";
 
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
-import { type Conk, conkKey, conksOn } from "./conks";
+import { annual, type Conk, conkKey, conksOn } from "./conks";
 import { type Arch, archOf, fruitAt, lifespanOf, planAt } from "./growth";
 import { mossesAt } from "./moss";
 import {
@@ -395,8 +395,12 @@ const drawDown = (ctx: CanvasRenderingContext2D, life: Life, since: number, seed
   const t = since - life.falls;
   const plan = downOf(life);
   const about = pivotOf(plan, life.side);
-  // Its conks go down with it and grow on while it lies.
-  const conks = conksAt(life, plan, since, 0);
+  // Its conks go down with it and grow on while it lies: turned over with it at first, then
+  // level again, an annual from its next coming, a perennial from its first new cap a year on.
+  const flat = t >= FALL_S + BOUNCE_S;
+  const conks = conksAt(life, plan, since, 0).map((c) =>
+    flat && (annual(c.kind) || t - FALL_S >= YEAR_S) ? { ...c, level: life.side } : c,
+  );
   const paint: Painter = (rec, part) => {
     paintTreeParts(rec, plan, 1, DOWN, part, conks);
     part({ kind: "still" });

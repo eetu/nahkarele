@@ -103,6 +103,9 @@ export type Conk = {
   withered: number;
   snow: boolean;
   seed: number;
+  /** Grown level again on a log lying turned a quarter to that side (1 right), drawn as seen
+   *  from in front on its face; otherwise side-on from the wood, as it grew. */
+  level?: 1 | -1;
 };
 
 /** How tall a `kind` of conk is, px, sticking `reach` px out. */
@@ -257,7 +260,7 @@ export const conkKey = (conks: Conk[]) =>
   conks
     .map(
       (c) =>
-        `${c.piece}${c.kind[0]}${c.reach}.${c.tall}.${c.bands}${c.fresh ? "f" : ""}${Math.round(c.withered * 8)}${c.snow ? "s" : ""}`,
+        `${c.piece}${c.kind[0]}${c.reach}.${c.tall}.${c.bands}${c.fresh ? "f" : ""}${Math.round(c.withered * 8)}${c.snow ? "s" : ""}${c.level ?? ""}`,
     )
     .join(",");
 
@@ -368,4 +371,91 @@ export const drawConk = (
       put(colour, col, row);
     }
   }
+};
+
+/** How tall a conk is seen from in front, and how wide: as wide as it reaches out and half
+ *  again, its front a little lower than it is thick. */
+const frontOf = (c: Pick<Conk, "reach" | "tall">) => ({
+  w: Math.max(3, Math.round(c.reach * 1.6)) | 1,
+  h: Math.max(2, Math.round(c.tall * 0.7)),
+});
+
+/** One conk seen from in front, level, its top row at `top` and its middle at `cx`: its top
+ *  in bands, its margin along the bottom, the corners rounded off under it. */
+export const drawConkFront = (
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  top: number,
+  c: Pick<Conk, "kind" | "reach" | "tall" | "bands" | "fresh" | "withered" | "snow" | "seed">,
+) => {
+  const look = LOOKS[c.kind];
+  const aged = (colour: string) => {
+    if (c.withered <= 0) return colour;
+    const w = c.withered;
+    return w < 0.5 ? mix(colour, CHALK, w * 1.6) : mix(CHALK, ROTTEN, (w - 0.5) * 2);
+  };
+  const put = (colour: string, x: number, y: number) => {
+    if (c.withered > 0.6 && hash(c.seed, x, y, 7) < (c.withered - 0.6) * 2.2) return;
+    rect(ctx, aged(colour), cx + x, top + y);
+  };
+  /** A shelf `w` wide and `h` deep from row `y`, its rows coloured by `colour`. */
+  const shelf = (w: number, h: number, y: number, colour: (row: number) => string) => {
+    const half = (w - 1) / 2;
+    for (let row = 0; row < h; row++) {
+      const span = Math.round(half * Math.sqrt(1 - (row / h) ** 2));
+      for (let x = -span; x <= span; x++) put(colour(row), x, y + row);
+    }
+  };
+  const { w, h } = frontOf(c);
+  if (c.kind === "sulphur") {
+    // Tiers of thin shelves, one under another, each a little narrower.
+    const tiers = 2 + Math.floor(hash(c.seed, 4) * 3);
+    for (let i = 0; i < tiers; i++) {
+      shelf(Math.max(3, w - 2 * (i % 2) - (i === 0 ? 2 : 0)), 2, i * 3, (row) =>
+        row === 0 ? look.crust[0] : look.rim,
+      );
+    }
+    return;
+  }
+  if (c.snow) for (let x = -(w - 3) / 2; x <= (w - 3) / 2; x++) rect(ctx, SNOW, cx + x, top - 1);
+  shelf(w, h, 0, (row) => {
+    if (row === h - 1) return c.fresh ? look.rim : look.under;
+    if (c.kind === "redbelt") return look.crust[Math.min(3, Math.floor((row / (h - 1)) * 4))];
+    if (c.kind === "polypore" || c.kind === "cushion") return look.crust[row === 0 ? 0 : 1];
+    return look.crust[row % look.crust.length];
+  });
+};
+
+/**
+ * One conk grown level on a log, `c.level` its lying side, drawn on the log's face at `x`, `y`
+ * (the middle of the wood it grows on) as the log was before it went over: turned a quarter
+ * back, so turned over with the log it is level. A quarter turn moves whole pixels: nothing
+ * is resampled.
+ */
+export const drawConkLevel = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  c: Pick<
+    Conk,
+    "kind" | "reach" | "tall" | "bands" | "fresh" | "withered" | "snow" | "seed" | "level"
+  >,
+) => {
+  const side = c.level ?? 1;
+  const turned = {
+    set fillStyle(colour: string) {
+      ctx.fillStyle = colour;
+    },
+    get fillStyle() {
+      return ctx.fillStyle as string;
+    },
+    // The log goes over clockwise for side 1, taking a point (dx, dy) from where it grew to
+    // (-dy, dx); the conk is drawn at the inverse, (dy, -dx), and so the other way for -1.
+    fillRect(px: number, py: number, w: number, h: number) {
+      const [dx, dy] = [px - x, py - y];
+      if (side > 0) ctx.fillRect(x + dy, y - dx - w + 1, h, w);
+      else ctx.fillRect(x - dy - h + 1, y + dx, h, w);
+    },
+  } as unknown as CanvasRenderingContext2D;
+  drawConkFront(turned, x, y - Math.floor(frontOf(c).h / 2), c);
 };
