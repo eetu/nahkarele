@@ -68,8 +68,10 @@ export const fracture = (mask: Uint8Array, w: number, h: number, seed: number, f
     }
   }
   let labels = cracks.length + 1;
-  // Chips off the edges, near the cracks and the corners.
-  const chips = 1 + Math.floor(rand() * (2 + 3 * far));
+  // Chips off the edges, near the cracks and the corners: fewer off a small piece (a brick).
+  let n = 0;
+  for (let q = 0; q < w * h; q++) n += mask[q];
+  const chips = Math.floor((1 + rand() * (2 + 3 * far)) * Math.min(1, n / 120));
   const edge: number[] = [];
   for (let q = 0; q < w * h; q++) {
     if (label[q] < 0) continue;
