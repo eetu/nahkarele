@@ -61,6 +61,20 @@ export type Paint = {
   /** Only what is in front of the wall's face, or only what is behind it: a stone leaving
    *  the wall is drawn twice, its parts still in the wall seen only through the gaps. */
   depth?: "front" | "back";
+  /** The nearest depth drawn so far at each pixel of `out` (from `nearOf`): stones passing
+   *  through each other show whichever is nearer pixel by pixel, whatever order they come in. */
+  near?: Float32Array;
+};
+
+const nears = new Map<string, Float32Array>();
+/** A depth buffer `size` long, kept by `name` and cleared to nothing drawn, for a frame. */
+export const nearOf = (name: string, size: number) => {
+  let near = nears.get(name);
+  if (!near || near.length !== size) {
+    near = new Float32Array(size);
+    nears.set(name, near);
+  }
+  return near.fill(-Infinity);
 };
 
 /** A colour as a word, darker by `k` (0 to 1). */
@@ -361,13 +375,19 @@ export const paintStone = (
       if (q < 0) continue;
       let px = buf[q];
       if (!px || !kept(q) || paint.hidden?.(X, Y)) continue;
+      const o = (Y - top) * W + X;
+      if (paint.near) {
+        const z = pose.z + depth[q];
+        if (z <= paint.near[o]) continue;
+        paint.near[o] = z;
+      }
       if (paint.moss > 0) {
         const climb = (bottom - Y) / tall;
         if (paint.moss > climb * 0.8 + hash(X, Y, body.id, 77) * 0.25) {
           px = wordOf(mossColour(X, Y, !src(X, Y - 1), paint.since));
         }
       }
-      out[(Y - top) * W + X] = px;
+      out[o] = px;
       touched = true;
     }
   }

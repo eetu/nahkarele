@@ -25,7 +25,7 @@ import { bake, type Ruin } from "$lib/masonry/timeline";
 import type { Knock, Spec } from "$lib/masonry/types";
 import { WALL } from "$lib/office/draw";
 import { SCENE_H, SCENE_W } from "$lib/office/engine";
-import { faceOf, K, paintStone } from "$lib/office/wood/stones";
+import { faceOf, K, nearOf, paintStone } from "$lib/office/wood/stones";
 import { specOf } from "$lib/office/wood/wall";
 import { rect } from "$lib/scene/pixel";
 import { drawPixelText } from "$lib/scene/pixelfont";
@@ -272,6 +272,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   // Farthest first, so what overlaps stays put from frame to frame.
   const inFlight = moving(r, since).sort((a, b) => a.pose.z - b.pose.z || a.body.id - b.body.id);
   const back = new ImageData(W, H);
+  const backNear = nearOf("sim-back", W * H);
   const backPx = new Uint32Array(back.data.buffer);
   for (const m of inFlight) {
     paintStone(backPx, W, H, 0, m.body, m.pose, {
@@ -281,6 +282,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
       since,
       ground: H,
       depth: "back",
+      near: backNear,
     });
   }
   layer ??= document.createElement("canvas");
@@ -306,6 +308,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
     return { canvas, image, pixels: new Uint32Array(image.data.buffer) };
   })();
   room.pixels.fill(0);
+  const near = nearOf("sim-room", SCENE_W * SCENE_H);
   const down = lying(r, since);
   const floorAt = (body: Body, pose: Pose) =>
     SPEC.ground + Math.round(K * Math.max(0, pose.z + halfDepth(body.h, body.T, pose.phi)));
@@ -316,6 +319,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
       moss: 0,
       since,
       ground: floorAt(l.body, l.pose),
+      near,
     });
   }
   for (const m of inFlight) {
@@ -326,6 +330,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
       since,
       ground: floorAt(m.body, m.pose),
       depth: "front",
+      near,
     });
   }
   room.canvas.getContext("2d")?.putImageData(room.image, 0, 0);

@@ -27,7 +27,7 @@ import { hash, smooth } from "$lib/scene/pixel";
 
 import { FLOOR_Y, G, SCENE_H, SCENE_W } from "../engine";
 import { drawSheet, grow, sheetOf } from "./posed";
-import { K, paintStone } from "./stones";
+import { K, nearOf, paintStone } from "./stones";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
@@ -297,6 +297,7 @@ export const drawWall = (
   off.drawImage(outside, 0, 0);
   // What falls behind the wall, seen through the gaps.
   const sheet = sheetOf("stones-behind", SCENE_W, WALL_H);
+  const near = nearOf("stones-behind", SCENE_W * WALL_H);
   for (const { body, pose } of byDepth(moving(r, since))) {
     const box = paintStone(sheet.pixels, SCENE_W, WALL_H, 0, body, pose, {
       sink: 0,
@@ -304,6 +305,7 @@ export const drawWall = (
       since,
       ground: WALL_H,
       depth: "back",
+      near,
     });
     if (box) grow(sheet, box);
   }
@@ -324,6 +326,7 @@ const RUBBLE_H = 60;
 const paintRubble = (r: Ruin, since: number, fronts: Rect[]) => {
   const canvas = rubble?.canvas ?? canvasOf(SCENE_W, RUBBLE_H);
   const image = new ImageData(SCENE_W, RUBBLE_H);
+  const near = nearOf("stones-lying", SCENE_W * RUBBLE_H);
   const pixels = new Uint32Array(image.data.buffer);
   const hidden = behindFront(fronts);
   for (const { body, pose, sink, age } of lying(r, since)) {
@@ -333,6 +336,7 @@ const paintRubble = (r: Ruin, since: number, fronts: Rect[]) => {
       since,
       ground: FLOOR_Y + Math.round(K * (pose.z + halfDepth(body.h, body.T, pose.phi))),
       hidden,
+      near,
     });
   }
   canvas.getContext("2d")?.putImageData(image, 0, 0);
@@ -377,6 +381,7 @@ export const drawRubble = (
     rubble = { key, canvas: paintRubble(r, since, setting.fronts) };
   ctx.drawImage(rubble.canvas, 0, RUBBLE_TOP);
   const sheet = sheetOf("stones", SCENE_W, SCENE_H);
+  const near = nearOf("stones", SCENE_W * SCENE_H);
   const hidden = behindFront(setting.fronts);
   for (const { body, pose } of byDepth(moving(r, since))) {
     const box = paintStone(sheet.pixels, SCENE_W, SCENE_H, 0, body, pose, {
@@ -386,6 +391,7 @@ export const drawRubble = (
       ground: FLOOR_Y + Math.round(K * Math.max(0, pose.z + halfDepth(body.h, body.T, pose.phi))),
       hidden,
       depth: "front",
+      near,
     });
     if (box) grow(sheet, box);
   }
