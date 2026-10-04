@@ -468,20 +468,28 @@ const drawVisitors = (ctx: CanvasRenderingContext2D, mood: Mood) => {
 /** The room's shade at night. */
 const NIGHT = "#0a0f1c";
 
-let layer: HTMLCanvasElement | null = null;
+const layers = new Map<string, HTMLCanvasElement>();
 
 /**
- * `paint` drawn on a layer of its own, the layer shaded `alpha` of `colour` wherever it was
+ * `paint` drawn on layer `name`, the layer shaded `alpha` of `colour` wherever it was
  * painted, then put over `ctx`: a shade for what was drawn and nothing behind it. Painted at
- * scene px, which is all anything in the room draws at.
+ * scene px, which is all anything in the room draws at. A layer of its own for each thing
+ * shaded in a frame: one canvas drawn, refilled and drawn again in a frame leaves the browser
+ * to keep the first contents for the first draw, and Safari draws lazily, showing the second
+ * contents twice.
  */
 const drawShadedLayer = (
   ctx: CanvasRenderingContext2D,
+  name: string,
   paint: (ctx: CanvasRenderingContext2D) => void,
   alpha: number,
   colour: string,
 ) => {
-  layer ??= document.createElement("canvas");
+  let layer = layers.get(name);
+  if (!layer) {
+    layer = document.createElement("canvas");
+    layers.set(name, layer);
+  }
   if (layer.width !== SCENE_W) {
     layer.width = SCENE_W;
     layer.height = SCENE_H;
@@ -581,9 +589,9 @@ export const drawOffice = (
   const night = mood.after ? (1 - daylight(sky.progress)) * 0.32 : 0;
   if (night > 0) {
     drawShade(ctx, night, NIGHT, fixtureOf("window", mood).on ? GLASS : null);
-    drawShadedLayer(ctx, drawStanding, night, NIGHT);
+    drawShadedLayer(ctx, "standing", drawStanding, night, NIGHT);
     drawFallenExit(ctx);
-    drawShadedLayer(ctx, drawOver, night, NIGHT);
+    drawShadedLayer(ctx, "over", drawOver, night, NIGHT);
   } else {
     drawStanding(ctx);
     if (mood.after) {

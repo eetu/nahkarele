@@ -158,24 +158,33 @@ const CLASS: Record<string, string> = {
   topple: "#e04040",
 };
 
-/** What falls behind the wall, and the wall: a canvas each. One canvas drawn, refilled and
- *  drawn again in a frame leaves the browser to keep the first contents for the first draw;
- *  one that draws lazily shows the wall twice, and what falls behind it blinks out. */
-const layers: { back: HTMLCanvasElement | null; wall: HTMLCanvasElement | null } = {
-  back: null,
-  wall: null,
-};
-const layerOf = (which: "back" | "wall", image: ImageData) => {
-  const canvas = (layers[which] ??= document.createElement("canvas"));
-  if (canvas.width !== image.width || canvas.height !== image.height) {
-    canvas.width = image.width;
-    canvas.height = image.height;
+/** The canvases a tile draws through, by name: one for each layer (what falls behind the
+ *  wall, the wall, the room) and each tile of a grid of seeds, which all draw in one frame.
+ *  One canvas drawn, refilled and drawn again in a frame leaves the browser to keep the first
+ *  contents for the first draw; Safari draws lazily and shows the second contents twice. */
+type Layer = { canvas: HTMLCanvasElement; image: ImageData; pixels: Uint32Array };
+const layers = new Map<string, Layer>();
+const layerOf = (name: string, w: number, h: number): Layer => {
+  let it = layers.get(name);
+  if (!it || it.image.width !== w || it.image.height !== h) {
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const image = new ImageData(w, h);
+    it = { canvas, image, pixels: new Uint32Array(image.data.buffer) };
   }
+  // The latest last, so after many seeds the longest unused goes.
+  layers.delete(name);
+  layers.set(name, it);
+  if (layers.size > 64) layers.delete(layers.keys().next().value as string);
+  return it;
+};
+/** `image` onto layer `name`, ready to draw. */
+const shown = (name: string, image: ImageData) => {
+  const { canvas } = layerOf(name, image.width, image.height);
   canvas.getContext("2d")?.putImageData(image, 0, 0);
   return canvas;
 };
-
-let room: { canvas: HTMLCanvasElement; image: ImageData; pixels: Uint32Array } | null = null;
 
 const faces = new WeakMap<Ruin, Map<number, { face: Face; back?: Face }>>();
 /** A stone's faces: inside as the wall's face was when it left (plaster or masonry), outside
@@ -203,6 +212,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   const since = sinceOf(v, t);
   const { ruin: r, ms } = ruinFor(v);
   const { bond } = r;
+  const tile = Number(v.seed);
   const { w: W, h: H } = SPEC;
   const show = String(v.show);
   // The room around the wall: sky behind it, the dado, the floor.
@@ -315,8 +325,8 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
       near: backNear,
     });
   }
-  ctx.drawImage(layerOf("back", back), 0, 0);
-  ctx.drawImage(layerOf("wall", img), 0, 0);
+  ctx.drawImage(shown(`back${tile}`, back), 0, 0);
+  ctx.drawImage(shown(`wall${tile}`, img), 0, 0);
   // The hung things, outlined, while they hang.
   for (const { name, rect: f } of SPEC.hangs) {
     if (!hangOn(r, name, since)) continue;
@@ -324,13 +334,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
     ctx.lineWidth = 1;
     ctx.strokeRect(f.x + 0.5, f.y + 0.5, f.w - 1, f.h - 1);
   }
-  room ??= (() => {
-    const canvas = document.createElement("canvas");
-    canvas.width = SCENE_W;
-    canvas.height = SCENE_H;
-    const image = new ImageData(SCENE_W, SCENE_H);
-    return { canvas, image, pixels: new Uint32Array(image.data.buffer) };
-  })();
+  const room = layerOf(`room${tile}`, SCENE_W, SCENE_H);
   room.pixels.fill(0);
   const near = nearOf("sim-room", SCENE_W * SCENE_H);
   const down = lying(r, since);
@@ -426,7 +430,6 @@ export const wallSim: Unit = {
  *  for tuning how stones look. It stands on a strip of floor, lying or upright as turned. */
 const STONE = { w: 96, h: 64, ground: 44 };
 const PIECES = ["whole", "piece 1", "piece 2", "chip"] as const;
-let stoneTile: { canvas: HTMLCanvasElement; image: ImageData; pixels: Uint32Array } | null = null;
 
 const stoneOf = (v: Values): Body => {
   const seed = Number(v.seed);
@@ -503,13 +506,7 @@ export const stoneUnit: Unit = {
       phi,
       theta,
     };
-    stoneTile ??= (() => {
-      const canvas = document.createElement("canvas");
-      canvas.width = STONE.w;
-      canvas.height = STONE.h;
-      const image = new ImageData(STONE.w, STONE.h);
-      return { canvas, image, pixels: new Uint32Array(image.data.buffer) };
-    })();
+    const stoneTile = layerOf(`stone${v.seed}`, STONE.w, STONE.h);
     stoneTile.pixels.fill(0);
     paintStone(stoneTile.pixels, STONE.w, STONE.h, 0, body, pose, {
       sink: Number(v.sink),

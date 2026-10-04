@@ -284,10 +284,21 @@ export type Sheet = {
 };
 
 const sheets = new Map<string, Sheet>();
+/** Prefixed to sheet names while set: tiles of a grid of seeds all draw in one frame, and one
+ *  sheet refilled and drawn again in a frame shows its second contents twice in Safari, which
+ *  draws one canvas onto another lazily. */
+let scope = "";
+export const sheetScope = (prefix: string) => {
+  scope = prefix;
+};
 
 /** The sheet `name`, `w` × `h`, cleared for a frame's paintings. */
-export const sheetOf = (name: string, w: number, h: number): Sheet => {
+export const sheetOf = (named: string, w: number, h: number): Sheet => {
+  const name = scope + named;
   let sheet = sheets.get(name);
+  // The latest last, so after many scopes the longest unused goes.
+  if (sheet) sheets.delete(name);
+  if (sheets.size > 64) sheets.delete(sheets.keys().next().value as string);
   if (!sheet || sheet.image.width !== w || sheet.image.height !== h) {
     const canvas = document.createElement("canvas");
     canvas.width = w;
@@ -302,13 +313,13 @@ export const sheetOf = (name: string, w: number, h: number): Sheet => {
       x1: -1,
       y1: -1,
     };
-    sheets.set(name, sheet);
   } else if (sheet.x1 >= sheet.x0) {
     // Only what the last frame covered needs clearing.
     for (let y = sheet.y0; y <= sheet.y1; y++) {
       sheet.pixels.fill(0, y * w + sheet.x0, y * w + sheet.x1 + 1);
     }
   }
+  sheets.set(name, sheet);
   sheet.x0 = w;
   sheet.y0 = h;
   sheet.x1 = -1;

@@ -13,7 +13,7 @@ import {
 } from "$lib/office/wood/climbers";
 import { type GrassPlan, paintGrassParts, planGrass } from "$lib/office/wood/grass";
 import { archOf, fruitAt, planAt } from "$lib/office/wood/growth";
-import { drawPosed } from "$lib/office/wood/posed";
+import { drawPosed, sheetScope } from "$lib/office/wood/posed";
 import { rustleOf } from "$lib/office/wood/rustle";
 import { lookAt, SEASON_S, SEASONS_FROM } from "$lib/office/wood/seasons";
 import {
@@ -341,8 +341,11 @@ const wood: Unit = {
     const seed = num(v, "seed");
     const knocks = knocksOf(seed);
     office(ctx, SCENE_W, SCENE_H, FLOOR_Y);
+    // Sheets of its own: the tiles of a grid of seeds all draw in one frame.
+    sheetScope(`wood${seed}:`);
     drawTrees(ctx, since, seed, knocks, false);
     drawTrees(ctx, since, seed, knocks, true);
+    sheetScope("");
     drawGround(ctx, since);
     drawApples(ctx, since, seed, knocks, false);
     drawApples(ctx, since, seed, knocks, true);
