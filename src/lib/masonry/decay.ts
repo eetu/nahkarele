@@ -82,8 +82,16 @@ export const PACE: Pace = {
 };
 
 /** More roof coming down: when, where along the wall, how wide and how deep (px) a bite it
- *  takes, and which way it pushes the wall's top (1 into the room). */
-export type Collapse = { t: number; x: number; w: number; depth: number; dir: 1 | -1 };
+ *  takes, which way it pushes the wall's top (1 into the room), and whether it was given as
+ *  input (it comes without warning, and never as the blast). */
+export type Collapse = {
+  t: number;
+  x: number;
+  w: number;
+  depth: number;
+  dir: 1 | -1;
+  given?: boolean;
+};
 
 /** The collapses, fixed from the seed before anything else happens: some at the blast, then
  *  ever further apart, one in five a big one; and any given as input. */
@@ -116,7 +124,7 @@ export const scheduleOf = (spec: Spec, seed: number, pace: Pace, knocks: Knock[]
     });
   }
   for (const k of knocks) {
-    if (k.kind === "roof") out.push({ t: k.t, x: k.x, w: 52, depth: 28, dir: 1 });
+    if (k.kind === "roof") out.push({ t: k.t, x: k.x, w: 52, depth: 28, dir: 1, given: true });
   }
   return out.sort((a, b) => a.t - b.t || a.x - b.x);
 };
@@ -125,11 +133,12 @@ export const scheduleOf = (spec: Spec, seed: number, pace: Pace, knocks: Knock[]
 export const wearOf = (t: number, pace: Pace) => (t <= 0 ? 0 : (t / pace.eta) ** pace.beta);
 
 /** A collapse's shock gathered from long before it to `t`: rising toward it (but not at the
- *  blast, which comes without warning), then dying away. */
+ *  blast, nor for one given as input, which come without warning: a blow can't loosen the
+ *  wall before it is struck), then dying away. */
 export const shockOf = (c: Collapse, t: number, pace: Pace) => {
   const [ka, ca] = pace.after;
   const [kb0, cb, lead] = pace.before;
-  const kb = c.t > lead ? kb0 : 0;
+  const kb = c.t > lead && !c.given ? kb0 : 0;
   if (t < c.t - lead) return 0;
   if (t < c.t) return kb * Math.log((lead + cb) / (c.t - t + cb));
   return kb * Math.log((lead + cb) / cb) + ka * Math.log(1 + (t - c.t) / ca);

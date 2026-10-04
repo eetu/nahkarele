@@ -79,7 +79,9 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
   const W = spec.w;
   const n = blocks.length;
   const collapses = scheduleOf(spec, seed, pace, spec.knocks);
-  const knocks = (spec.knocks ?? []).filter((k) => k.kind === "block");
+  const knocks = (spec.knocks ?? [])
+    .filter((k) => k.kind === "block" && k.x >= 0 && k.x < W && k.y >= 0 && k.y < spec.h)
+    .sort((a, b) => a.t - b.t);
   const sound = soundOf(bond, seed, pace);
   const standing = new Uint8Array(n).fill(1);
   const inserts = new Uint8Array(spec.inserts.length).fill(1);
@@ -95,7 +97,7 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
     collapses.map((c, k) => [k, reachOf(c, b.cx, b.cy, pace)] as const).filter(([, a]) => a > 0.05),
   );
   const H = new Float64Array(n);
-  const blast = collapses.filter((c) => c.t < 5);
+  const blast = collapses.filter((c) => c.t < 5 && !c.given);
   for (const b of blocks) {
     const near = Math.max(0, ...blast.map((c) => reachOf(c, b.cx, b.cy, pace)));
     H[b.i] = sound[b.i] ? 0 : pace.blast * E[b.i] * near;
