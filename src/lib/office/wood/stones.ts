@@ -143,7 +143,8 @@ export const faceOf = (
       const w = open ? PLASTER.rim : hash(x, y, 13) < 0.08 ? PLASTER.grit : PLASTER.face;
       return edge ? darker(w, 0.2) : w;
     }
-    if (bond.joint[q]) return edge ? darker(mortar, 0.2) : mortar;
+    // Bare masonry needs no darkened outline: its mortar outlines it.
+    if (bond.joint[q]) return mortar;
     const u = bond.unit[q];
     let w = units[Math.floor(hash(u, 5) * units.length)];
     if (bricks) {
@@ -153,7 +154,7 @@ export const faceOf = (
       else if (grain > 0.95) w = lighter(w, 0.1);
     } else if (q >= W && bond.joint[q - W]) w = lighter(w, 0.12);
     else if (q + W < bond.joint.length && bond.joint[q + W]) w = darker(w, 0.12);
-    return edge ? darker(w, 0.2) : w;
+    return w;
   };
 };
 

@@ -103,8 +103,16 @@ export const bakeRubble = (
 
   /** The top of what still stands under columns `x0`..`x1` from row `y` down at `t`: the
    *  wall's sill, or the base. */
+  /** Pieces that have left the wall but are still within its thickness, on their way out:
+   *  their columns, their top, and while they are there. A piece dropping from above lands on
+   *  them, not through them. */
+  const inWall: { x0: number; x1: number; top: number; from: number; until: number }[] = [];
   const sillOf = (x0: number, x1: number, y: number, self: number, t: number) => {
     let sill = spec.h;
+    for (const o of inWall) {
+      if (t < o.from || t >= o.until || o.x1 < x0 || o.x0 > x1 || o.top < y) continue;
+      sill = Math.min(sill, Math.floor(o.top));
+    }
     for (let x = Math.max(0, Math.floor(x0)); x <= Math.min(W - 1, Math.floor(x1)); x++) {
       for (let row = Math.max(0, Math.floor(y)); row < sill; row++) {
         const o = owner[row * W + x];
@@ -309,13 +317,24 @@ export const bakeRubble = (
       const dt = Math.sqrt((2 * drop) / g);
       const on = { ...from, y: from.y + drop };
       phases.push({ k: "ease", t0: t, t1: t + dt, a: from, b: on, p: 2 });
-      if (deep) phases.push(slideOut(t + dt, on, false));
+      // Landed on what stands below, inside the wall, it is kicked out at once.
+      if (deep) phases.push(slideOut(t + dt, on, true));
       else {
         const off = pivotFrom(t + dt, on, sill, 1);
         if (off.k === "pivot") off.theta = from.theta;
         phases.push(off);
       }
     }
+    // While it is still within the wall's thickness, where it sits there.
+    const leaving = phases[phases.length - 1];
+    const sits = phasePose(leaving, leaving.t0);
+    inWall.push({
+      x0: sits.x - blk.w / 2,
+      x1: sits.x + blk.w / 2 - 1,
+      top: sits.y - blk.h / 2,
+      from: rel.t,
+      until: leaving.t1 + 0.1,
+    });
     const tumble = rel.kind === "knock" ? 2 + 2 * hash(seed, i, 48) : 0.3 + 1.2 * hash(seed, i, 48);
     const flight = fly(phases, { w: blk.w, h: blk.h, block: i }, drift, spin, tumble);
     phases.push(flight);
