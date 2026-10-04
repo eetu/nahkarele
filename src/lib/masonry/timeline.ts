@@ -214,7 +214,8 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
     return undefined;
   };
   // What a collapse knocks off: in each column of its band, the standing wall from its top
-  // down to `depth` px (whatever pieces that takes), the nearest first.
+  // down to `depth` px (whatever pieces that takes), the nearest first, each piece as far from
+  // where it hit as its nearest column.
   const knockedBy = (c: Collapse) => {
     const hit = new Map<number, number>();
     for (let x = Math.max(0, Math.round(c.x - c.w / 2)); x < Math.min(W, c.x + c.w / 2); x++) {
@@ -228,7 +229,8 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
         if (y >= pace.bite) break;
         if (top < 0) top = y;
         if (y - top >= c.depth) break;
-        if (!sound[o] && !hit.has(o)) hit.set(o, Math.min(1, Math.abs(x - c.x) / (c.w / 2)));
+        const off = Math.min(1, Math.abs(x - c.x) / (c.w / 2));
+        if (!sound[o]) hit.set(o, Math.min(hit.get(o) ?? 1, off));
       }
     }
     return [...hit].sort((a, b) => a[1] - b[1] || a[0] - b[0]);

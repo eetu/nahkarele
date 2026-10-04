@@ -7,6 +7,8 @@ import { SPEC } from "./spec";
 
 const HOUR = 3600;
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
+const BRICK = { ...SPEC, bond: "brick" as const, course: 4, unit: 10, thickness: 9 };
+const RUBBLE = { ...SPEC, bond: "rubble" as const, course: 12, unit: 18, thickness: 20 };
 
 describe("the ruin over time", () => {
   it("never leaves a block standing on nothing", () => {
@@ -77,6 +79,31 @@ describe("the ruin over time", () => {
         const above = r.bond.owner[(rect.y - 3) * spec.w + Math.round(rect.x + rect.w / 2)];
         if (above >= 0) expect(r.hangAt[name]).toBeLessThanOrEqual(r.releaseAt[above] + 0.2);
       }
+    }
+  });
+
+  it("knocks off either side of where the roof came down as soon as the other", () => {
+    for (const spec of [SPEC, BRICK, RUBBLE]) {
+      const delay = { left: [0, 0], right: [0, 0] };
+      for (const seed of [1, 2, 3]) {
+        const knocks = [60, 130, 220, 280].map((x, k) => ({
+          t: 400 + 50 * k,
+          x,
+          y: 0,
+          kind: "roof" as const,
+        }));
+        const r = bake({ ...spec, knocks }, seed);
+        for (const k of knocks) {
+          for (const rel of r.releases) {
+            if (rel.kind !== "knock" || rel.t < k.t || rel.t > k.t + 0.3) continue;
+            const side = r.bond.blocks[rel.i].cx < k.x ? delay.left : delay.right;
+            side[0] += rel.t - k.t;
+            side[1]++;
+          }
+        }
+      }
+      const [left, right] = [delay.left[0] / delay.left[1], delay.right[0] / delay.right[1]];
+      expect(Math.abs(left - right)).toBeLessThan(0.05);
     }
   });
 
