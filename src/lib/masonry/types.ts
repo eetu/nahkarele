@@ -24,7 +24,12 @@ export type Spec = {
   inserts: Named[];
   /** What hangs on the face (a clock, a sign): it goes with what holds it up. */
   hangs: Named[];
+  /** Blows given from outside, in time order: a block knocked out, or roof brought down. */
+  knocks?: Knock[];
 };
+
+/** A blow at `t`: the block at `x`, `y` knocked out, or the roof brought down at `x`. */
+export type Knock = { t: number; x: number; y: number; kind: "block" | "roof" };
 
 /** A contact's other side, when it is not a block. */
 export const BASE = -1;
@@ -51,10 +56,12 @@ export type Block = {
   cy: number;
   /** Its pixels, as `y * spec.w + x`. */
   px: Int32Array;
-  /** What it rests on, what rests on it, and its neighbours in the course. */
+  /** What it rests on, what rests on it, its neighbours in the course (blocks, an insert, an
+   *  abutment), and the inserts sitting on it. */
   bed: Contact[];
   top: Contact[];
   heads: Contact[];
+  caps: Contact[];
 };
 
 /** A laid wall: which block each pixel is (-1 in an opening), the blocks, and each course's

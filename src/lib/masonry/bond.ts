@@ -1,7 +1,7 @@
 // Laying a wall: courses of blocks in running bond, each course half a block along from the one
 // below, joints wandering a little off straight, and here and there a half block (a bat) where
 // it breaks no joint above or below. Then what touches what: what each block rests on (its
-// bed), what rests on it, and its neighbours in the course.
+// bed), what rests on it, its neighbours in the course, and any insert sitting on it.
 
 import { hash } from "$lib/scene/pixel";
 
@@ -239,12 +239,14 @@ const withContacts = (spec: Spec, edges: number[], raw: Int32Array, parts: Part[
       bed: [],
       top: [],
       heads: [],
+      caps: [],
     };
   });
   // Shared edges, pixel by pixel: under a block (another block, an insert, or the base) and
   // beside it (another block, or an abutment at the wall's end).
   const beds = blocks.map(() => new Map<number, Contact>());
   const sides = blocks.map(() => new Map<number, Contact>());
+  const caps = blocks.map(() => new Map<number, Contact>());
   const add = (m: Map<number, Contact>, j: number, at: number) => {
     const c = m.get(j);
     if (c) {
@@ -268,13 +270,24 @@ const withContacts = (spec: Spec, edges: number[], raw: Int32Array, parts: Part[
           if (k >= 0) add(beds[o], insertRef(k), x);
         }
       }
+      if (y > 0 && owner[(y - 1) * W + x] < 0) {
+        const k = insertAt(x, y - 1);
+        if (k >= 0) add(caps[o], insertRef(k), x);
+      }
       if (x === 0 || x === W - 1) add(sides[o], ABUT, y);
       if (x + 1 < W) {
         const right = owner[y * W + x + 1];
         if (right >= 0 && right !== o) {
           add(sides[o], right, y);
           add(sides[right], o, y);
+        } else if (right < 0) {
+          const k = insertAt(x + 1, y);
+          if (k >= 0) add(sides[o], insertRef(k), y);
         }
+      }
+      if (x > 0 && owner[y * W + x - 1] < 0) {
+        const k = insertAt(x - 1, y);
+        if (k >= 0) add(sides[o], insertRef(k), y);
       }
     }
   }
@@ -291,6 +304,7 @@ const withContacts = (spec: Spec, edges: number[], raw: Int32Array, parts: Part[
   }
   for (const b of blocks) {
     for (const c of b.bed) if (c.j >= 0) blocks[c.j].top.push({ ...c, j: b.i });
+    b.caps = [...caps[b.i].values()].filter((c) => c.n >= HOLD);
   }
   return { spec, owner, blocks, edges };
 };
