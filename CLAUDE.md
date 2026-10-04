@@ -11,13 +11,17 @@ shape), `../dice` (same SvelteKit stack), `eetu/scene` (origin of `src/lib/tape/
 
 ```
 src/lib/factory/     kumitehdas: engine (belt, gate, TÄ'h, floor bots), days, drawing, week store
+src/lib/masonry/     a wall coming down, for any game: bond (blocks, bricks, rubble) · stability
+                     (what stands) · decay + timeline (when each piece goes) · fall + rubble +
+                     pile (falls, the heap) · fracture · skin (plaster) · query (read at any t)
 src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, week store
   wood/              friday's wood: garden (draw order) · seasons · wind · growth + trees + sway
                      (how trees grow, look and move) · shedding (dead branches coming down) ·
                      shrubs, climbers, grass + sprawl + rustle (the soft plants and how they
                      move) · posed (draws both) · stand (the six trees' lives, apples) ·
                      undergrowth (the shrubs) · overgrowth (cracks, grass, climbers) · moss ·
-                     wall (the back wall coming down) · outside (the world behind it) ·
+                     wall + stones (the back wall coming down, as drawn) · outside (the world
+                     behind it) ·
                      weather · life · tit, crow, swallows (the birds)
 src/lib/audio/       synthesized sound for both rooms, the mute
 src/lib/scene/       shared: the winter window, shift clock, calendar, LED, pixel font, pixel helpers
@@ -101,12 +105,18 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   winter. Both answer the wind's history through the same damped
   spring (`springOf`), and both are painted once into pixel lists and re-posed each frame
   (`wood/posed.ts`). Leaves and snow ride the wind's integral (`driftOf`); grass, the
-  window's rain and a sound bed follow it. The back wall is a wall of slabs, laid in courses
-  (`wood/wall.ts`): loosened from where the roof fell, they break away at the blast and for
-  years after, fall and land at its foot, and moss over and sink into the floor; what hangs on
-  the wall (window, clock, calendar, signs) goes with the piece above it, and the signs'
-  buttons follow (the exit sign lands in front of the desk); what is on the wall (cracks, climbers, the snail, the sill's snow) goes with
-  the wall. Rain and snow fall through the room in their spells. The trees clear of the desk
+  window's rain and a sound bed follow it. The back wall is masonry (`$lib/masonry`, the room's
+  side in `wood/wall.ts` and `wood/stones.ts`): blocks laid in courses, baked once per seed
+  into a timeline. A block stands while its centre of mass is over its bed (or mortar holds it
+  a little past, or the arch over a gap leans on it); the roof comes down at the blast and in
+  its first years, blocks wear loose from the top and the gaps' edges (Weibull wear times
+  exposure), and what loses its support comes down with them; part of the foot stands for
+  good. A block tips out of the wall into the room (or outside, seen through the gaps),
+  tumbles at real gravity, may break landing, and lies on the heap at the wall's foot until
+  moss has it and it sinks. What hangs on the wall (window, clock, calendar, signs) goes with
+  the block above it, and the signs' buttons follow (the exit sign lands in front of the
+  desk); what is on the wall (cracks, climbers, the snail, the sill's snow) goes with the
+  wall. Rain and snow fall through the room in their spells. The trees clear of the desk
   stand in front of the furniture, the rest behind it. The gaps and the window look out on one world (`wood/outside.ts`), ruined
   at the blast and healing over the years. Friday has days (`wood/daylight.ts`, a minute
   each): the season sets how long the sun is up and how high it climbs, how dark the night
@@ -129,7 +139,8 @@ builds only) ·
 In dev, a bar under every page jumps between days, holds friday's shuttle and opens
 `/workbench` (so does the key left of 1, backquote): each unit drawn alone with live
 controls, `g` for a grid of seeds, `[` `]` between units; a unit with `tap` answers clicks
-(the wood: shake the apple tree). A unit is a small adapter in
+(the wood: shake the apple tree; the wall simulator: knock a block out or bring roof down,
+then scrub, retune or switch the wall to bricks, rubble or plaster). A unit is a small adapter in
 `src/routes/workbench/units.ts` over a draw function in `$lib`; production builds answer 404.
 `./install-hooks.sh` once after clone; the pre-commit hook runs `validate`. Icons: edit
 `static/favicon.svg`, then `scripts/gen-icons.sh` (needs librsvg + ImageMagick). Tape: edit
