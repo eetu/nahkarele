@@ -81,7 +81,7 @@ export const moving = (r: Ruin, t: number) => {
   const out: { body: Body; pose: Pose }[] = [];
   for (const body of r.bodies) {
     if (body.start > t) break;
-    const end = body.out ? body.lands : body.settled;
+    const end = body.out || body.broken ? body.lands : body.settled;
     if (t < end) out.push({ body, pose: poseAt(body.phases, t) });
   }
   return out;

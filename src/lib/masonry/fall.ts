@@ -101,6 +101,15 @@ export const velocityAt = (ph: Phase) => {
   };
 };
 
+/** A point of a body, `x`, `y`, `z` from its centre as it lies in the wall, turned as the body
+ *  is turned: `phi` out of the plane (top toward the viewer), then `theta` in it. */
+export const turnPoint = (x: number, y: number, z: number, phi: number, theta: number) => {
+  const [cf, sf] = [Math.cos(phi), Math.sin(phi)];
+  const [ct, st] = [Math.cos(theta), Math.sin(theta)];
+  const y1 = y * cf + z * sf;
+  return { x: x * ct - y1 * st, y: x * st + y1 * ct, z: -y * sf + z * cf };
+};
+
 /** Half a block's extent up and down, and in depth, turned `phi` out of the plane and
  *  `theta` in it: `w` along the wall, `h` up it, `T` through it. */
 export const halfHeight = (w: number, h: number, T: number, phi: number, theta: number) =>

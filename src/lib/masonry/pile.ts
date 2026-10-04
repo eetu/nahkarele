@@ -39,6 +39,13 @@ export type Pile = {
   cells: number[][];
   lying: Lying[];
   byId: Map<number, Lying>;
+  /** The highest any piece has ever stood, for a quick "nowhere near the heap". */
+  top: number;
+  /** Sinking worked out at one moment, kept while that moment is asked about; and a stamp
+   *  per piece, for counting each once over a footprint. */
+  memo: { t: number; sink: Map<number, number> };
+  stamp: Int32Array;
+  stamps: number;
 };
 
 export const pileOf = (w: number, depth: number, sink: [number, number], repose: number): Pile => ({
@@ -49,6 +56,10 @@ export const pileOf = (w: number, depth: number, sink: [number, number], repose:
   cells: Array.from({ length: Math.ceil(w / CELL) * Math.ceil((depth + 1) / CELL) }, () => []),
   lying: [],
   byId: new Map(),
+  top: 0,
+  memo: { t: NaN, sink: new Map() },
+  stamp: new Int32Array(64),
+  stamps: 0,
 });
 
 const nzOf = (p: Pile) => Math.ceil((p.depth + 1) / CELL);
@@ -57,13 +68,18 @@ const nzOf = (p: Pile) => Math.ceil((p.depth + 1) / CELL);
  *  sunk since it came to rest on it, whichever is more. */
 export const sinkOf = (p: Pile, l: Lying, t: number): number => {
   if (t <= l.rest) return 0;
+  if (p.memo.t !== t) p.memo = { t, sink: new Map() };
+  const known = p.memo.sink.get(l.id);
+  if (known !== undefined) return known;
   const [from, over] = p.sink;
   let s = smooth((t - l.rest - from) / over) * l.top;
   for (const u of l.under) {
     const below = p.byId.get(u.id);
     if (below) s = Math.max(s, sinkOf(p, below, t) - u.at);
   }
-  return Math.min(s, l.top);
+  s = Math.min(s, l.top);
+  p.memo.sink.set(l.id, s);
+  return s;
 };
 
 /** Whether piece `l` has gone into the ground by `t`. */
@@ -75,7 +91,7 @@ export const heightOver = (p: Pile, x0: number, x1: number, z0: number, z1: numb
   const nz = nzOf(p);
   const nx = Math.ceil(p.w / CELL);
   let h = 0;
-  const seen = new Set<number>();
+  const stamp = ++p.stamps;
   for (
     let ix = Math.max(0, Math.floor(x0 / CELL));
     ix <= Math.min(nx - 1, Math.floor(x1 / CELL));
@@ -87,8 +103,8 @@ export const heightOver = (p: Pile, x0: number, x1: number, z0: number, z1: numb
       iz++
     ) {
       for (const id of p.cells[ix * nz + iz]) {
-        if (seen.has(id)) continue;
-        seen.add(id);
+        if (p.stamp[id] === stamp) continue;
+        p.stamp[id] = stamp;
         const l = p.byId.get(id) as Lying;
         if (l.rest <= t) h = Math.max(h, l.top - sinkOf(p, l, t));
       }
@@ -170,5 +186,12 @@ export const lay = (
   l.under = [...under].map((o) => ({ id: o, at: sinkOf(p, p.byId.get(o) as Lying, t) }));
   p.lying.push(l);
   p.byId.set(id, l);
+  p.top = Math.max(p.top, l.top);
+  if (id >= p.stamp.length) {
+    const grown = new Int32Array(Math.max(id + 1, p.stamp.length * 2));
+    grown.set(p.stamp);
+    p.stamp = grown;
+  }
+  p.memo = { t: NaN, sink: new Map() };
   return l;
 };

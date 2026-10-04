@@ -43,11 +43,11 @@ describe("what comes off the wall", () => {
   it("lands what falls outside out of the heap, and everything else on it", () => {
     for (const seed of SEEDS) {
       const r = bake(SPEC, seed);
-      expect(r.bodies.length).toBe(r.releases.length);
+      expect(r.bodies.filter((b) => b.parent === null).length).toBe(r.releases.length);
       expect(r.bodies.some((b) => b.out)).toBe(true);
       for (const b of r.bodies) {
-        expect(b.lying === null).toBe(b.out);
-        if (!b.out) expect(b.settled).toBeGreaterThan(b.lands);
+        expect(b.lying === null).toBe(b.out || b.broken);
+        if (b.lying) expect(b.settled).toBeGreaterThanOrEqual(b.lands);
       }
     }
   });

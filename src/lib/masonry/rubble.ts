@@ -14,8 +14,10 @@ import {
   phasePose,
   pivotOf,
   type Pose,
+  turnPoint,
   velocityAt,
 } from "./fall";
+import { breakOdds, fracture } from "./fracture";
 import { heightOver, lay, type Lying, pileOf, restingPlace } from "./pile";
 import type { Release } from "./timeline";
 import type { Block, Bond } from "./types";
@@ -40,6 +42,12 @@ export type Body = {
   out: boolean;
   settled: number;
   lying: Lying | null;
+  /** Broken where it landed (it goes then, its pieces carry on); for a piece, what it broke
+   *  from, whether it is a chip, and which of its pixels are fresh break. */
+  broken: boolean;
+  parent: number | null;
+  chip: boolean;
+  fresh: Uint8Array | null;
 };
 
 /** A body hitting the ground: when, where, how big a piece, from how high, outside or in. */
@@ -109,8 +117,10 @@ export const bakeRubble = (
 
   /** Where the ground is under pose `p` of a body `w` by `h` at `t`: the heap in the room,
    *  the ground outside, or the sill while it is still within the wall. */
-  const groundUnder = (p: Pose, w: number, h: number, t: number, self: number) => {
+  const groundUnder = (p: Pose, w: number, h: number, t: number, self: number, bottom: number) => {
     if (p.z > 0) {
+      // Well above anything the heap has reached: the heap need not be asked.
+      if (bottom < ground - pile.top - 1) return ground - pile.top;
       const d = halfDepth(h, T, p.phi);
       return (
         ground - heightOver(pile, p.x - w / 2, p.x + w / 2 - 1, Math.max(0, p.z - d), p.z + d, t)
@@ -118,6 +128,69 @@ export const bakeRubble = (
     }
     if (p.z < -T) return ground;
     return sillOf(p.x - w / 2, p.x + w / 2 - 1, p.y, self, t);
+  };
+
+  /** How much further out than where it lands a piece of `n` px fallen `fell` px comes to
+   *  rest: a whole block that fell far, up to 10 px; small stuff hardly at all. */
+  const push = (n: number, fell: number) =>
+    Math.min(10, (8 * Math.sqrt(n / whole) * Math.max(0, fell)) / 100);
+
+  /** From pose `from` at `t`, moving `v` (down positive), a hop and a settle to where the heap
+   *  lets `body` lie flat, `out` px further out; then laid on the heap. */
+  const comeToRest = (
+    body: Body,
+    from: Pose,
+    v: { x: number; y: number; z: number },
+    t: number,
+    out: number,
+    dir: 1 | -1,
+  ) => {
+    const up = pace.bounce[0] * Math.max(0, v.y);
+    const th = (2 * up) / g;
+    const hops = th >= 0.06;
+    const vx = v.x * pace.bounce[1];
+    const vz = v.z * pace.bounce[1];
+    const lands = hops ? { x: from.x + vx * th, z: from.z + vz * th } : from;
+    const rest = restingPlace(pile, lands.x, lands.z + out, body.w, body.h, t);
+    const phi = (Math.abs(from.phi) < 0.05 ? dir : Math.sign(from.phi)) * (Math.PI / 2);
+    const half = (x0: number, x1: number) =>
+      heightOver(pile, x0, x1, rest.z - body.h / 2, rest.z + body.h / 2 - 1, t);
+    const tilt =
+      (half(rest.x, rest.x + body.w / 2 - 1) - half(rest.x - body.w / 2, rest.x - 1)) /
+      (body.w / 2);
+    const theta =
+      Math.max(-0.35, Math.min(0.35, -Math.atan(tilt))) + (hash(seed, body.id, 46) - 0.5) * 0.08;
+    const still: Pose = { x: rest.x, y: ground - rest.base - body.T / 2, z: rest.z, phi, theta };
+    let at = from;
+    let when = t;
+    if (hops) {
+      const hop: Phase = {
+        k: "fly",
+        t0: t,
+        t1: t + th,
+        c: from,
+        v: { x: vx, y: -up, z: vz },
+        omega: (phi - from.phi) / th,
+        spin: (theta - from.theta) / th + (body.chip ? (hash(seed, body.id, 53) - 0.5) * 12 : 0),
+        g,
+      };
+      body.phases.push(hop);
+      at = phasePose(hop, hop.t1);
+      when = hop.t1;
+    }
+    body.phases.push({ k: "ease", t0: when, t1: when + 0.25, a: at, b: still, p: 0.5 });
+    body.settled = when + 0.25;
+    body.lying = lay(
+      pile,
+      body.id,
+      rest.x,
+      rest.z,
+      body.w,
+      body.h,
+      rest.base,
+      body.T,
+      body.settled,
+    );
   };
 
   /** Fly from the end of `phases` until the body touches the ground; returns the flight. */
@@ -142,7 +215,8 @@ export const bakeRubble = (
     };
     const touches = (t: number) => {
       const p = phasePose(flight, t);
-      return p.y + halfHeight(b.w, b.h, T, p.phi, p.theta) >= groundUnder(p, b.w, b.h, t, b.block);
+      const bottom = p.y + halfHeight(b.w, b.h, T, p.phi, p.theta);
+      return bottom >= groundUnder(p, b.w, b.h, t, b.block, bottom);
     };
     let lo = flight.t0;
     let hi = flight.t1;
@@ -239,58 +313,70 @@ export const bakeRubble = (
       out,
       settled: Infinity,
       lying: null,
+      broken: false,
+      parent: null,
+      chip: false,
+      fresh: null,
     };
     bodies.push(body);
     if (out) continue;
 
-    // In the room: a hop, then settle flat where the heap lets it lie. Big blocks run on
-    // further out than small stuff.
-    const push = Math.min(10, (8 * Math.sqrt(blk.n / whole) * Math.max(0, fell)) / 100);
-    const rest = restingPlace(pile, hit.x, hit.z + push, blk.w, blk.h, flight.t1);
-    const phi = (hit.phi === 0 ? dir : Math.sign(hit.phi)) * (Math.PI / 2);
-    const left = heightOver(
-      pile,
-      rest.x - blk.w / 2,
-      rest.x - 1,
-      rest.z - blk.h / 2,
-      rest.z + blk.h / 2 - 1,
-      flight.t1,
-    );
-    const right = heightOver(
-      pile,
-      rest.x,
-      rest.x + blk.w / 2 - 1,
-      rest.z - blk.h / 2,
-      rest.z + blk.h / 2 - 1,
-      flight.t1,
-    );
-    const theta =
-      Math.max(-0.35, Math.min(0.35, -Math.atan((right - left) / (blk.w / 2)))) +
-      (hash(seed, i, 46) - 0.5) * 0.08;
-    const still: Pose = { x: rest.x, y: ground - rest.base - T / 2, z: rest.z, phi, theta };
-    const vy = flight.v.y + g * (flight.t1 - flight.t0);
-    const up = pace.bounce[0] * vy;
-    const th = (2 * up) / g;
-    let from = hit;
-    let t = flight.t1;
-    if (th >= 0.06) {
-      const hop: Phase = {
-        k: "fly",
-        t0: t,
-        t1: t + th,
-        c: hit,
-        v: { x: flight.v.x * pace.bounce[1], y: -up, z: flight.v.z * pace.bounce[1] },
-        omega: (phi - hit.phi) / th,
-        spin: (theta - hit.theta) / th,
-        g,
-      };
-      phases.push(hop);
-      from = phasePose(hop, hop.t1);
-      t = hop.t1;
+    // In the room: it may break where it lands; whole or in pieces, it hops, then settles
+    // flat where the heap lets it lie. Big blocks run on further out than small stuff.
+    const v = { x: flight.v.x, y: flight.v.y + g * (flight.t1 - flight.t0), z: flight.v.z };
+    const edgeOn = Math.abs((Math.abs(hit.phi) % (Math.PI / 2)) - Math.PI / 4) < 0.35;
+    const onRubble =
+      heightOver(
+        pile,
+        hit.x - blk.w / 2,
+        hit.x + blk.w / 2 - 1,
+        Math.max(0, hit.z - 4),
+        hit.z + 4,
+        flight.t1,
+      ) > 0;
+    if (blk.n >= 60 && hash(seed, i, 47) < breakOdds(fell, edgeOn, onRubble)) {
+      body.broken = true;
+      for (const [k, pc] of fracture(
+        body.mask,
+        blk.w,
+        blk.h,
+        hash(seed, i, 48) * 2 ** 31,
+        fell,
+      ).entries()) {
+        // The piece where it was in the block, as the block lay when it hit.
+        const lx = pc.dx + pc.w / 2 - blk.w / 2;
+        const ly = pc.dy + pc.h / 2 - blk.h / 2;
+        const off = turnPoint(lx, ly, 0, hit.phi, hit.theta);
+        const from: Pose = { ...hit, x: hit.x + off.x, y: hit.y + off.y, z: hit.z + off.z };
+        const away = Math.sign(lx) || (k % 2 ? 1 : -1);
+        const apart = {
+          x: v.x + away * (10 + 15 * hash(seed, i, k, 49)),
+          y: v.y * (0.8 + 0.4 * hash(seed, i, k, 50)),
+          z: v.z + (hash(seed, i, k, 52) - 0.4) * 30,
+        };
+        const piece: Body = {
+          ...body,
+          id: bodies.length,
+          mask: pc.mask,
+          fresh: pc.fresh,
+          w: pc.w,
+          h: pc.h,
+          T: pc.chip ? Math.min(T, Math.max(2, Math.round(Math.sqrt(pc.n)))) : T,
+          n: pc.n,
+          ox: blk.x + pc.dx,
+          oy: blk.y + pc.dy,
+          start: flight.t1,
+          phases: [],
+          parent: body.id,
+          broken: false,
+          chip: pc.chip,
+        };
+        bodies.push(piece);
+        comeToRest(piece, from, apart, flight.t1, pc.chip ? 0 : push(pc.n, fell) / 2, dir);
+      }
+      continue;
     }
-    phases.push({ k: "ease", t0: t, t1: t + 0.25, a: from, b: still, p: 0.5 });
-    body.settled = t + 0.25;
-    body.lying = lay(pile, body.id, rest.x, rest.z, blk.w, blk.h, rest.base, T, body.settled);
+    comeToRest(body, hit, v, flight.t1, push(blk.n, fell), dir);
   }
 
   // One thud for impacts together: big if any of them is a whole block fallen far indoors.
