@@ -7,7 +7,7 @@ import { SPEC } from "./spec";
 /** The same wall built three ways, with how many pieces each should come to. */
 const BUILDS: [Spec, number, number][] = [
   [SPEC, 75, 110],
-  [{ ...SPEC, bond: "brick", course: 12, unit: 30, thickness: 9 }, 60, 130],
+  [{ ...SPEC, bond: "brick", course: 4, unit: 10, thickness: 9 }, 550, 800],
   [{ ...SPEC, bond: "rubble", course: 12, unit: 18, thickness: 20 }, 120, 230],
 ];
 
@@ -37,8 +37,8 @@ describe("laying the bond", () => {
       expect(blocks.length).toBeGreaterThanOrEqual(lo);
       expect(blocks.length).toBeLessThanOrEqual(hi);
       for (const b of blocks) {
-        expect(b.n).toBeGreaterThanOrEqual(12);
-        expect(Math.min(b.w, b.h)).toBeGreaterThanOrEqual(5);
+        expect(b.n).toBeGreaterThanOrEqual(Math.min(12, (spec.unit * spec.course) / 4));
+        expect(Math.min(b.w, b.h)).toBeGreaterThanOrEqual(Math.min(5, spec.course - 1));
       }
     }
   });

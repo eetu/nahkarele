@@ -21,7 +21,7 @@ const EPS = 1;
 
 /** A run of empty cells, course by column: its top course and its extent there, and whether
  *  the wall arches over it. */
-export type Gap = { cells: number[]; top: number; a: number; b: number; arched: boolean };
+export type Gap = { top: number; a: number; b: number; arched: boolean };
 
 type Cells = { nc: number; owner: Int16Array; insert: Int8Array };
 const cellsCache = new WeakMap<Bond, Cells>();
@@ -51,50 +51,59 @@ const cellsOf = (bond: Bond): Cells => {
   return cells;
 };
 
-/** The gaps in the wall, and which gap each cell is in (-1 for none). */
+/** Buffers for finding gaps, kept between calls: asked thousands of times a bake. */
+let scratch: { gapOf: Int32Array; empty: Uint8Array; stack: Int32Array } | null = null;
+
+/**
+ * The gaps in the wall, and which gap each cell is in (-1 for none). The cell map is shared
+ * between calls: it holds until the next.
+ */
 export const gapsOf = (bond: Bond, state: State) => {
   const { nc, owner, insert } = cellsOf(bond);
   const { w: W, unit } = bond.spec;
-  const empty = (k: number) =>
-    owner[k] >= 0 ? !state.standing[owner[k]] : insert[k] >= 0 ? !state.inserts[insert[k]] : false;
-  const gapOf = new Int32Array(nc * W).fill(-1);
+  const N = nc * W;
+  if (!scratch || scratch.gapOf.length < N) {
+    scratch = { gapOf: new Int32Array(N), empty: new Uint8Array(N), stack: new Int32Array(N) };
+  }
+  const { empty, stack } = scratch;
+  const gapOf = scratch.gapOf.subarray(0, N);
+  for (let k = 0; k < N; k++) {
+    const o = owner[k];
+    const i = insert[k];
+    empty[k] = o >= 0 ? (state.standing[o] ? 0 : 1) : i >= 0 ? (state.inserts[i] ? 0 : 1) : 0;
+  }
+  gapOf.fill(-1);
   const gaps: Gap[] = [];
-  for (let start = 0; start < nc * W; start++) {
-    if (gapOf[start] >= 0 || !empty(start)) continue;
-    const g: Gap = { cells: [], top: nc, a: W, b: -1, arched: false };
+  for (let start = 0; start < N; start++) {
+    if (!empty[start] || gapOf[start] >= 0) continue;
     const id = gaps.length;
+    const g: Gap = { top: nc, a: W, b: -1, arched: false };
+    let sp = 0;
+    stack[sp++] = start;
     gapOf[start] = id;
-    const queue = [start];
-    while (queue.length) {
-      const k = queue.pop() as number;
-      g.cells.push(k);
+    while (sp) {
+      const k = stack[--sp];
       const x = k % W;
       const c = (k - x) / W;
-      for (const [nc2, nx] of [
-        [c, x - 1],
-        [c, x + 1],
-        [c - 1, x],
-        [c + 1, x],
-      ]) {
-        if (nx < 0 || nx >= W || nc2 < 0 || nc2 >= nc) continue;
-        const n = nc2 * W + nx;
-        if (gapOf[n] < 0 && empty(n)) {
+      // Its top course, and its extent there, as it fills.
+      if (c < g.top) [g.top, g.a, g.b] = [c, x, x];
+      else if (c === g.top) [g.a, g.b] = [Math.min(g.a, x), Math.max(g.b, x)];
+      const push = (n: number) => {
+        if (empty[n] && gapOf[n] < 0) {
           gapOf[n] = id;
-          queue.push(n);
+          stack[sp++] = n;
         }
-      }
-    }
-    for (const k of g.cells) g.top = Math.min(g.top, Math.floor(k / W));
-    for (const k of g.cells) {
-      if (Math.floor(k / W) !== g.top) continue;
-      g.a = Math.min(g.a, k % W);
-      g.b = Math.max(g.b, k % W);
+      };
+      if (x > 0) push(k - 1);
+      if (x < W - 1) push(k + 1);
+      if (c > 0) push(k - W);
+      if (c < nc - 1) push(k + W);
     }
     gaps.push(g);
   }
   // Solid: no empty cell in that stretch of the course; past the wall's ends, the abutments.
   const solid = (c: number, x0: number, x1: number) => {
-    for (let x = Math.max(0, x0); x <= Math.min(W - 1, x1); x++) if (empty(c * W + x)) return false;
+    for (let x = Math.max(0, x0); x <= Math.min(W - 1, x1); x++) if (empty[c * W + x]) return false;
     return true;
   };
   for (const g of gaps) {
@@ -112,12 +121,95 @@ export const gapsOf = (bond: Bond, state: State) => {
   return { gaps, gapOf };
 };
 
+/** Marks for `archesOf`, kept between calls, and a stamp that makes old marks stale. */
+let lazy: { mark: Int32Array; stack: Int32Array; seen: Int32Array; stamp: number } | null = null;
+
+/**
+ * Whether the gap at cell `k` is arched, found only for the gaps asked about and only as far
+ * as needed: filling upward first, a gap that reaches the top course has its answer (no arch)
+ * at once, and so does one that runs into a gap already found open. What is found is kept for
+ * the rest of the call. The answer for a gap is the same as `gapsOf` gives.
+ */
+const archesOf = (bond: Bond, state: State) => {
+  const { nc, owner, insert } = cellsOf(bond);
+  const { w: W, unit } = bond.spec;
+  const N = nc * W;
+  if (!lazy || lazy.mark.length < N || lazy.stamp > 2 ** 30) {
+    lazy = { mark: new Int32Array(N), stack: new Int32Array(N), seen: new Int32Array(N), stamp: 0 };
+  }
+  const L = lazy;
+  L.stamp += 4;
+  const base = L.stamp;
+  const [VISITED, OPEN, ARCHED] = [base + 1, base + 2, base + 3];
+  const empty = (k: number) => {
+    const o = owner[k];
+    const i = insert[k];
+    return o >= 0 ? !state.standing[o] : i >= 0 ? !state.inserts[i] : false;
+  };
+  const solid = (c: number, x0: number, x1: number) => {
+    for (let x = Math.max(0, x0); x <= Math.min(W - 1, x1); x++) if (empty(c * W + x)) return false;
+    return true;
+  };
+  return (start: number) => {
+    if (!empty(start)) return false;
+    if (L.mark[start] === OPEN) return false;
+    if (L.mark[start] === ARCHED) return true;
+    let sp = 0;
+    let seen = 0;
+    let open = false;
+    let [top, a, b] = [nc, W, -1];
+    L.stack[sp++] = start;
+    L.mark[start] = VISITED;
+    while (sp && !open) {
+      const k = L.stack[--sp];
+      L.seen[seen++] = k;
+      const x = k % W;
+      const c = (k - x) / W;
+      if (c === 0) open = true;
+      if (c < top) [top, a, b] = [c, x, x];
+      else if (c === top) [a, b] = [Math.min(a, x), Math.max(b, x)];
+      // Down and along first on the stack, so up is tried first.
+      for (const n of [
+        c < nc - 1 ? k + W : -1,
+        x > 0 ? k - 1 : -1,
+        x < W - 1 ? k + 1 : -1,
+        c > 0 ? k - W : -1,
+      ]) {
+        if (n < 0 || !empty(n)) continue;
+        const m = L.mark[n];
+        if (m === OPEN) {
+          open = true;
+          break;
+        }
+        if (m === VISITED) continue;
+        L.mark[n] = VISITED;
+        L.stack[sp++] = n;
+      }
+    }
+    let arched = false;
+    if (!open) {
+      const closes = Math.ceil((b - a + 1) / unit);
+      const apex = top - closes;
+      arched =
+        top >= 1 &&
+        apex >= 1 &&
+        solid(apex - 1, a, b) &&
+        solid(top, a - unit, a - 1) &&
+        solid(top, b + 1, b + unit);
+    }
+    // What was reached is settled; what was pushed but not reached is left to be asked again.
+    for (let s = 0; s < seen; s++) L.mark[L.seen[s]] = arched ? ARCHED : OPEN;
+    while (sp) L.mark[L.stack[--sp]] = 0;
+    return arched;
+  };
+};
+
 /** How each block stands or fails in `state` (undefined for those already down). `glue` is
  *  how far past its bed mortar holds a block. */
 export const classify = (bond: Bond, state: State, glue = GLUE): (Class | undefined)[] => {
   const { blocks, spec } = bond;
   const W = spec.w;
-  const { gaps, gapOf } = gapsOf(bond, state);
+  const arched = archesOf(bond, state);
   const nc = bond.edges.length - 1;
   return blocks.map((b) => {
     if (!state.standing[b.i]) return undefined;
@@ -138,9 +230,8 @@ export const classify = (bond: Bond, state: State, glue = GLUE): (Class | undefi
     const below = b.course + 1;
     const edge = left ? L - 1 : R + 1;
     if (below < nc && edge >= 0 && edge < W) {
-      const g = gapOf[below * W + edge];
       const carries = b.top.some((c) => state.standing[c.j]);
-      if (g >= 0 && gaps[g].arched && carries) return "pinned";
+      if (carries && arched(below * W + edge)) return "pinned";
     }
     return over <= glue ? "glued" : "topple";
   });
@@ -149,7 +240,8 @@ export const classify = (bond: Bond, state: State, glue = GLUE): (Class | undefi
 /** One wave of a cascade: the blocks that fail together, and how. */
 export type Wave = { i: number; kind: "drop" | "topple" }[];
 
-/** Bring down whatever fails in `state`, wave after wave, until all that is left stands. */
+/** Bring down whatever fails in `state`, wave after wave, until all that is left stands; with
+ *  how that last stands. */
 export const settle = (bond: Bond, state: State, glue = GLUE) => {
   const standing = state.standing.slice();
   const waves: Wave[] = [];
@@ -159,9 +251,8 @@ export const settle = (bond: Bond, state: State, glue = GLUE) => {
     classes.forEach((c, i) => {
       if (c === "drop" || c === "topple") wave.push({ i, kind: c });
     });
-    if (!wave.length) break;
+    if (!wave.length) return { waves, standing, classes };
     for (const { i } of wave) standing[i] = 0;
     waves.push(wave);
   }
-  return { waves, standing };
 };

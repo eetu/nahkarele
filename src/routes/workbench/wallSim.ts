@@ -37,10 +37,10 @@ import type { Unit, Values } from "./units";
 const SPEC: Spec = specOf(WALL);
 
 /** Ways of building it: course height, a piece's length and the wall's thickness, px. Bricks
- *  come away in chunks a few bricks long; rubble stone by stone, from a wall 50 cm thick. */
+ *  come away brick by brick, rubble stone by stone, from a wall 50 cm thick. */
 const BUILDS = {
   block: { course: 14, unit: 26, thickness: 8, brittle: 1 },
-  brick: { course: 12, unit: 30, thickness: 9, brittle: 1.2 },
+  brick: { course: 4, unit: 10, thickness: 9, brittle: 1.2 },
   rubble: { course: 12, unit: 18, thickness: 20, brittle: 0.25 },
 } as const;
 type Build = keyof typeof BUILDS;
@@ -76,7 +76,7 @@ const TUNE: { key: string; min: number; max: number; step: number; get: (p: Pace
   { key: "confined", min: 0, max: 0.5, step: 0.01, get: (p) => p.confined },
   { key: "shock", min: 0, max: 0.1, step: 0.005, get: (p) => p.after[0] },
   { key: "collapses", min: 0, max: 30, step: 1, get: (p) => p.collapses },
-  { key: "bite", min: 1, max: 7, step: 1, get: (p) => p.bite },
+  { key: "bite", min: 4, max: 97, step: 1, get: (p) => p.bite },
   { key: "sinks", min: 60, max: 14400, step: 60, get: (p) => p.sink[1] },
   { key: "bounce", min: 0, max: 0.8, step: 0.05, get: (p) => p.bounce[0] },
   { key: "repose", min: 0.3, max: 1.5, step: 0.05, get: (p) => p.repose },

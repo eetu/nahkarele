@@ -106,7 +106,9 @@ export const heightOver = (p: Pile, x0: number, x1: number, z0: number, z1: numb
         if (p.stamp[id] === stamp) continue;
         p.stamp[id] = stamp;
         const l = p.byId.get(id) as Lying;
-        if (l.rest <= t) h = Math.max(h, l.top - sinkOf(p, l, t));
+        // Sinking, a few thousandths of a px a second, asked to the second: many asks share
+        // one working out.
+        if (l.rest <= t) h = Math.max(h, l.top - sinkOf(p, l, Math.floor(t)));
       }
     }
   }

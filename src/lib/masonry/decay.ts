@@ -15,7 +15,8 @@ export type Pace = {
   /** Wear: Weibull scale, s, and shape (above 1, a wall wears faster the older it gets). */
   eta: number;
   beta: number;
-  /** How hard each course is to loosen, top course first; the last goes on down. */
+  /** How hard the wall is to loosen, from its top course to its foot, spread over however
+   *  many courses it has. */
   resist: number[];
   /** Exposure, as multipliers on the hazard: top free, a neighbour gone, bed under 60% of it,
    *  glued over an edge, pinned under an arch, and (instead of all those) fully confined. */
@@ -26,13 +27,14 @@ export type Pace = {
   pinned: number;
   confined: number;
   cap: number;
-  /** The share of the bottom course, and of the one above, that stands for good. */
+  /** The share of the wall's foot (its lowest seventh), and of the seventh above, that
+   *  stands for good. */
   sound: [number, number];
   /** Collapses at the blast (from, to), then how many more and how far apart at first, s. */
   first: [number, number];
   collapses: number;
   gap: number;
-  /** How many courses down from the top a collapse can knock blocks off. */
+  /** How far down from the wall's top a collapse can knock pieces off, px. */
   bite: number;
   /** A collapse's shock, after (strength, s to fade) and before it (strength, s, lead time),
    *  and how far it reaches, px. */
@@ -67,7 +69,7 @@ export const PACE: Pace = {
   first: [2, 3],
   collapses: 10,
   gap: 600,
-  bite: 3,
+  bite: 42,
   after: [0.01, 20],
   before: [0.05, 5, 120],
   reach: 40,
@@ -79,8 +81,8 @@ export const PACE: Pace = {
   sink: [600, 3000],
 };
 
-/** More roof coming down: when, where along the wall, how wide and deep a bite it takes, and
- *  which way it pushes the wall's top (1 into the room). */
+/** More roof coming down: when, where along the wall, how wide and how deep (px) a bite it
+ *  takes, and which way it pushes the wall's top (1 into the room). */
 export type Collapse = { t: number; x: number; w: number; depth: number; dir: 1 | -1 };
 
 /** The collapses, fixed from the seed before anything else happens: some at the blast, then
@@ -96,7 +98,7 @@ export const scheduleOf = (spec: Spec, seed: number, pace: Pace, knocks: Knock[]
       t: 0.4 + rand() * 2.6,
       x: 20 + rand() * (W - 40),
       w: 26 + rand() * 26,
-      depth: 1,
+      depth: 14,
       dir: rand() < 0.7 ? 1 : -1,
     });
   }
@@ -109,12 +111,12 @@ export const scheduleOf = (spec: Spec, seed: number, pace: Pace, knocks: Knock[]
       t,
       x: 20 + rand() * (W - 40),
       w: big ? 60 + rand() * 30 : 20 + rand() * 30,
-      depth: big ? 2 : 1,
+      depth: big ? 28 : 14,
       dir: rand() < 0.7 ? 1 : -1,
     });
   }
   for (const k of knocks) {
-    if (k.kind === "roof") out.push({ t: k.t, x: k.x, w: 52, depth: 2, dir: 1 });
+    if (k.kind === "roof") out.push({ t: k.t, x: k.x, w: 52, depth: 28, dir: 1 });
   }
   return out.sort((a, b) => a.t - b.t || a.x - b.x);
 };
@@ -138,13 +140,21 @@ export const shockOf = (c: Collapse, t: number, pace: Pace) => {
 export const reachOf = (c: Collapse, cx: number, cy: number, pace: Pace) =>
   Math.exp(-Math.hypot(Math.max(0, Math.abs(cx - c.x) - c.w / 2), cy * 0.5) / pace.reach);
 
-/** Which blocks stand for good: the sound part of the bottom two courses. */
+/** Which pieces stand for good: the sound part of the wall's foot. */
 export const soundOf = (bond: Bond, seed: number, pace: Pace) => {
-  const nc = bond.edges.length - 1;
+  const h = bond.spec.h;
   return Uint8Array.from(bond.blocks, (b) => {
-    const share = b.course === nc - 1 ? pace.sound[0] : b.course === nc - 2 ? pace.sound[1] : 0;
+    const low = b.cy > h - h / 7;
+    const share = low ? pace.sound[0] : b.cy > h - (2 * h) / 7 ? pace.sound[1] : 0;
     return hash(seed, b.i, 32) < share ? 1 : 0;
   });
+};
+
+/** How hard a piece in `course` of `nc` is to loosen: `resist` spread over the courses. */
+const resistOf = (resist: number[], course: number, nc: number) => {
+  const at = (nc > 1 ? course / (nc - 1) : 0) * (resist.length - 1);
+  const k = Math.min(resist.length - 2, Math.floor(at));
+  return resist[k] + (resist[k + 1] - resist[k]) * (at - k);
 };
 
 /** How exposed block `i` is in `state`: the multiplier on its hazard. */
@@ -157,7 +167,7 @@ export const exposureOf = (
 ) => {
   const b = bond.blocks[i];
   const cls = classes[i];
-  let m = pace.resist[Math.min(b.course, pace.resist.length - 1)];
+  let m = resistOf(pace.resist, b.course, bond.edges.length - 1);
   const isIn = (j: number) => {
     const k = insertOf(j);
     return j >= 0 ? state.standing[j] === 1 : k >= 0 ? state.inserts[k] === 1 : true;

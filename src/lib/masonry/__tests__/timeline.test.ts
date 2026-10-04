@@ -94,7 +94,7 @@ describe("the ruin over time", () => {
 });
 
 describe("other builds and the plaster", () => {
-  const brick = { ...SPEC, bond: "brick" as const, course: 12, unit: 30, thickness: 9 };
+  const brick = { ...SPEC, bond: "brick" as const, course: 4, unit: 10, thickness: 9 };
   const rubble = { ...SPEC, bond: "rubble" as const, course: 12, unit: 18, thickness: 20 };
 
   it("never leaves a brick chunk or a stone standing on nothing", () => {

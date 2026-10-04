@@ -86,10 +86,12 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
   const insertAt = new Float64Array(spec.inserts.length).fill(Infinity);
   const releases: Release[] = [];
 
-  // Each block's threshold, the collapses that shake it and how hard, and the blast's start.
+  // Each block's threshold, the collapses that shake it and how hard (one that reaches it at
+  // under 5% of full strength adds a hundredth of a threshold at most: left out), and the
+  // blast's start.
   const E = Float64Array.from(blocks, (b) => -Math.log(1 - hash(seed, b.i, 31)));
   const shakes = blocks.map((b) =>
-    collapses.map((c, k) => [k, reachOf(c, b.cx, b.cy, pace)] as const).filter(([, a]) => a > 0.01),
+    collapses.map((c, k) => [k, reachOf(c, b.cx, b.cy, pace)] as const).filter(([, a]) => a > 0.05),
   );
   const H = new Float64Array(n);
   const blast = collapses.filter((c) => c.t < 5);
@@ -110,30 +112,52 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
   // When block i's hazard reaches its threshold, at its present exposure.
   const solve = (i: number) => {
     if (!m[i] || H[i] + gathered(i, since[i], HORIZON) < E[i]) return Infinity;
+    const reached = (t: number) => H[i] + gathered(i, since[i], t) >= E[i];
+    // Out in doubling steps until it is reached, then halve the step to a fiftieth of a second.
     let lo = since[i];
-    let hi = HORIZON;
-    for (let k = 0; k < 64 && hi - lo > 1e-3; k++) {
+    let step = 1;
+    while (lo + step < HORIZON && !reached(lo + step)) {
+      lo += step;
+      step *= 2;
+    }
+    let hi = Math.min(HORIZON, lo + step);
+    while (hi - lo > 0.02) {
       const mid = (lo + hi) / 2;
-      if (H[i] + gathered(i, since[i], mid) >= E[i]) hi = mid;
+      if (reached(mid)) hi = mid;
       else lo = mid;
     }
     return hi;
   };
   let classes = classify(bond, { standing, inserts }, pace.glue);
-  const refresh = (t: number) => {
-    classes = classify(bond, { standing, inserts }, pace.glue);
-    for (let i = 0; i < n; i++) {
+  // Exposure changes only next to what went, or where a piece's class changed: only those are
+  // looked at again. The neighbours of each piece, and of each insert, once.
+  const near = blocks.map((b) => [
+    ...new Set([...b.bed, ...b.top, ...b.heads].map((c) => c.j).filter((j) => j >= 0)),
+  ]);
+  const byInsert = spec.inserts.map((_, k) =>
+    blocks
+      .filter((b) => [...b.bed, ...b.heads, ...b.caps].some((c) => c.j === insertRef(k)))
+      .map((b) => b.i),
+  );
+  const dirty = new Set<number>(blocks.map((b) => b.i));
+  const refresh = (t: number, settled?: typeof classes) => {
+    const next = settled ?? classify(bond, { standing, inserts }, pace.glue);
+    for (let i = 0; i < n; i++) if (next[i] !== classes[i]) dirty.add(i);
+    classes = next;
+    for (const i of dirty) {
       if (!standing[i] || sound[i]) continue;
-      const next = exposureOf(bond, i, { standing, inserts }, classes, pace);
-      if (next === m[i] && due[i] !== Infinity) continue;
+      const exposed = exposureOf(bond, i, { standing, inserts }, classes, pace);
+      if (exposed === m[i] && due[i] !== Infinity) continue;
       H[i] += gathered(i, since[i], t);
       since[i] = t;
-      m[i] = next;
+      m[i] = exposed;
       due[i] = Math.max(t + 1e-3, solve(i));
     }
+    dirty.clear();
   };
 
   const release = (i: number, t: number, kind: Kind, dir: 1 | -1) => {
+    for (const j of near[i]) dirty.add(j);
     standing[i] = 0;
     releaseAt[i] = t;
     due[i] = Infinity;
@@ -155,7 +179,7 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
   // Bring down whatever no longer stands, wave by wave; let go of inserts whose holders went.
   const cascade = (t: number) => {
     for (let round = 0; round < 8; round++) {
-      const { waves } = settle(bond, { standing, inserts }, pace.glue);
+      const { waves, classes: after } = settle(bond, { standing, inserts }, pace.glue);
       let at = t;
       waves.forEach((wave, w) => {
         at += WAVE[0] + WAVE[1] * hash(seed, w, Math.floor(t * 8), 33);
@@ -178,28 +202,29 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
         if (!gone.length) return;
         inserts[k] = 0;
         insertAt[k] = Math.min(...gone.map((i) => releaseAt[i])) + LETGO;
+        for (const i of byInsert[k]) dirty.add(i);
         loose = true;
       });
-      if (!loose) return;
+      if (!loose) return after;
       t = Math.max(t, ...insertAt.filter(Number.isFinite));
     }
+    return undefined;
   };
-  // The blocks a collapse knocks off: the highest standing block in each column of its band
-  // (and the one under that, for a deep one), the nearest first.
+  // What a collapse knocks off: in each column of its band, the standing wall from its top
+  // down to `depth` px (whatever pieces that takes), the nearest first.
   const knockedBy = (c: Collapse) => {
     const hit = new Map<number, number>();
     for (let x = Math.max(0, Math.round(c.x - c.w / 2)); x < Math.min(W, c.x + c.w / 2); x++) {
-      let found = 0;
-      let last = -1;
-      for (let y = 0; y < spec.h && found < c.depth; y++) {
+      let top = -1;
+      for (let y = 0; y < spec.h; y++) {
         const o = owner[y * W + x];
         // A bite from the top stops at an opening.
         if (o < 0) break;
-        if (o === last || !standing[o]) continue;
+        if (!standing[o]) continue;
         // The roof bears on the wall's top: below its reach there is nothing to bite.
-        if (blocks[o].course >= pace.bite) break;
-        last = o;
-        found++;
+        if (y >= pace.bite) break;
+        if (top < 0) top = y;
+        if (y - top >= c.depth) break;
         if (!sound[o] && !hit.has(o)) hit.set(o, Math.min(1, Math.abs(x - c.x) / (c.w / 2)));
       }
     }
@@ -230,8 +255,7 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
       const how = classes[di] === "glued" ? "topple" : held ? "slip" : "weather";
       release(di, t, how, dirOf(seed, di, t));
     }
-    cascade(t);
-    refresh(t);
+    refresh(t, cascade(t));
   }
   releases.sort((a, b) => a.t - b.t || a.i - b.i);
 
@@ -254,6 +278,9 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
     hangAt[name] = Math.min(above >= 0 ? releaseAt[above] : Infinity, half) + LETGO;
   }
   const rubble = bakeRubble(bond, seed, pace, releases, releaseAt, insertAt);
+  // In the order they set off: a broken block's pieces set off when it lands, after blocks
+  // released since; reading what moves relies on this order.
+  rubble.bodies.sort((a, b) => a.start - b.start || a.id - b.id);
   const settled = rubble.bodies
     .filter((b) => Number.isFinite(b.settled))
     .sort((a, b) => a.settled - b.settled || a.id - b.id);

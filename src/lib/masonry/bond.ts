@@ -1,7 +1,7 @@
 // Laying a wall, one of three ways: concrete blocks in running bond (each course half a block
 // along from the one below, joints wandering a little, here and there a half block where it
-// breaks no joint above or below); bricks, which come away in stepped chunks of a few; or
-// medieval rubble, stones of every size in rough courses. Whichever, the wall is pieces (what
+// breaks no joint above or below); bricks, one by one; or medieval rubble, stones of every
+// size in rough courses. Whichever, the wall is pieces (what
 // comes away whole), and what touches what: what each rests on (its bed), what rests on it,
 // its neighbours in the course, and any insert sitting on it. Pieces are called blocks here
 // whatever they are made of.
@@ -12,9 +12,14 @@ import { stream, wander } from "./rand";
 import { ABUT, BASE, type Block, type Bond, type Contact, insertRef, type Spec } from "./types";
 
 /** A piece of a block smaller than this, px, or thinner than MIN_SIDE either way, is a scrap:
- *  it joins the neighbour it shares the most edge with. */
+ *  it joins the neighbour it shares the most edge with. Never more than a quarter of a whole
+ *  piece, or thinner than a course: a brick is a piece, not a scrap. */
 const MIN_PX = 12;
 const MIN_SIDE = 5;
+const scrapOf = (spec: Spec) => ({
+  px: Math.min(MIN_PX, (spec.unit * spec.course) / 4),
+  side: Math.min(MIN_SIDE, spec.course - 1),
+});
 /** A head joint lands up to this far off true, px, and never nearer a wall's end than END. */
 const JOG = 3;
 const END = 6;
@@ -129,16 +134,14 @@ const layBlocks = (spec: Spec, seed: number): Layout => {
 const BRICK = { w: 9, h: 3, joint: 1 };
 
 /**
- * Bricks in running bond, half a brick along each course. Mortared brickwork comes away in
- * chunks, not brick by brick: each piece is a few bricks long and a few courses tall, its
- * edges stepping along the joints, and the pieces of one row set off from the row below.
+ * Bricks in running bond, half a brick along each course, each brick laid on its bed joint
+ * with its head joint at its side: each brick, with its mortar, a piece of its own.
  */
-const layBricks = (spec: Spec, seed: number): Layout => {
+const layBricks = (spec: Spec): Layout => {
   const { w: W, h: H } = spec;
   const mw = BRICK.w + BRICK.joint;
   const mh = BRICK.h + BRICK.joint;
-  const per = Math.max(1, Math.round(spec.course / mh));
-  const edges = coursesOf(H, per * mh);
+  const edges = coursesOf(H, mh);
   const nc = edges.length - 1;
   const ids = new Map<number, number>();
   const courses: number[] = [];
@@ -158,17 +161,14 @@ const layBricks = (spec: Spec, seed: number): Layout => {
       const at = (x + off) % mw;
       const q = y * W + x;
       mortar[q] = row === 0 || at >= BRICK.w ? 1 : 0;
-      unit[q] = bc * 1000 + col;
-      // The piece: its row of courses (the top one folded into the one below if thin), and
-      // the brick's middle along that row, the row's pieces set off by a seeded amount.
-      const c = Math.max(0, nc - 1 - Math.floor(bc / per));
-      const mid = col * mw - off + BRICK.w / 2 + hash(seed, c, 61) * spec.unit;
-      const key = c * 10000 + Math.floor(mid / spec.unit) + 100;
+      const key = bc * 1000 + col;
+      unit[q] = key;
       let id = ids.get(key);
       if (id === undefined) {
         id = ids.size;
         ids.set(key, id);
-        courses.push(c);
+        // A sliver course left over at the top goes with the course under it.
+        courses.push(Math.max(0, nc - 1 - bc));
       }
       raw[q] = id;
     }
@@ -248,10 +248,14 @@ const layRubble = (spec: Spec, seed: number): Layout => {
 /** Lay `spec`'s wall for `seed`: blocks, bricks or rubble stone, as the spec says. */
 export const layBond = (spec: Spec, seed: number): Bond => {
   const { w: W, h: H } = spec;
-  const lay = spec.bond === "brick" ? layBricks : spec.bond === "rubble" ? layRubble : layBlocks;
-  const { raw, courseOfId, edges, mortar, unit } = lay(spec, seed);
+  const { raw, courseOfId, edges, mortar, unit } =
+    spec.bond === "brick"
+      ? layBricks(spec)
+      : spec.bond === "rubble"
+        ? layRubble(spec, seed)
+        : layBlocks(spec, seed);
   const parts = partsOf(raw, W, H, courseOfId);
-  foldScraps(parts, raw, W, H);
+  foldScraps(parts, raw, W, H, scrapOf(spec));
   let bond = withContacts(spec, edges, raw, parts);
   // A piece laid with nothing under it (a sliver wedged beside an opening) is part of the
   // piece it shares the most edge with.
@@ -337,13 +341,19 @@ const boxOf = (px: number[], W: number) => {
 /** Fold every scrap into the neighbour it shares the most edge with, a neighbour in its own
  *  course counting half again: a sliver over a window joins the block over it, a sliver at a
  *  window's side the block beside it. */
-const foldScraps = (parts: Part[], raw: Int32Array, W: number, H: number) => {
+const foldScraps = (
+  parts: Part[],
+  raw: Int32Array,
+  W: number,
+  H: number,
+  scrap: { px: number; side: number },
+) => {
   for (let pass = 0; pass < 4; pass++) {
     const small = parts
       .filter((p) => {
         if (!p.px.length) return false;
         const b = boxOf(p.px, W);
-        return p.px.length < MIN_PX || b.w < MIN_SIDE || b.h < MIN_SIDE;
+        return p.px.length < scrap.px || b.w < scrap.side || b.h < scrap.side;
       })
       .sort((a, b) => a.px.length - b.px.length || a.id - b.id);
     if (!small.length) return;

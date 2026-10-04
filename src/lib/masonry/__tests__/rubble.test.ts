@@ -73,6 +73,25 @@ describe("what comes off the wall", () => {
     }
   });
 
+  it("draws every body in flight, every frame", () => {
+    // Pieces of a broken block set off when it lands; read in order, none may be skipped.
+    for (const seed of SEEDS) {
+      const r = bake(SPEC, seed);
+      const ends = (b: (typeof r.bodies)[number]) => (b.out || b.broken ? b.lands : b.settled);
+      for (const rel of r.releases.slice(0, 40)) {
+        for (let k = 0; k < 30; k++) {
+          const t = rel.t + k / 15;
+          const flying = r.bodies.filter((b) => b.start <= t && t < ends(b)).map((b) => b.id);
+          expect(
+            moving(r, t)
+              .map((m) => m.body.id)
+              .sort((x, y) => x - y),
+          ).toEqual(flying.sort((x, y) => x - y));
+        }
+      }
+    }
+  });
+
   it("is all in motion or at rest at any moment, read either way", () => {
     const r = ruinOf(SPEC, 3);
     const ask = (t: number) => ({
