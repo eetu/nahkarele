@@ -10,6 +10,13 @@
  *  `phi` out of the wall's plane (top toward the viewer positive), `theta` in it. */
 export type Pose = { x: number; y: number; z: number; phi: number; theta: number };
 
+/** How the drawing shows a body, which motion near rest keeps to: it turns in steps (out of
+ *  the plane, in it), and a px of depth toward the viewer draws this far down the picture. A
+ *  settling body never turns back across a step within a moment of crossing it (seen as a
+ *  flicker), and comes to rest on whole pixels. */
+export const TURN_STEP = { phi: Math.PI / 8, theta: Math.PI / 16 };
+export const DEPTH_SLOPE = 0.25;
+
 export type Phase =
   /** From pose `a` to pose `b`, eased: `p` 2 speeds up, 0.5 slows down, 1 is even. */
   | { k: "ease"; t0: number; t1: number; a: Pose; b: Pose; p: number }
@@ -119,9 +126,69 @@ export const halfHeight = (w: number, h: number, T: number, phi: number, theta: 
 export const halfDepth = (h: number, T: number, phi: number) =>
   0.5 * (Math.abs(h * Math.sin(phi)) + Math.abs(T * Math.cos(phi)));
 
-/** How a pivot about the edge at `py`, `pz` runs for a block `h` tall and `T` thick whose
- *  centre is `ry`, `rz` from that edge: it leaves the edge at `leave` rad, turning so that it
- *  will have turned about `land` rad by the time it falls the `drop` px to the ground. */
+/** The eight corners of a box `w` by `h` by `T` at pose `p`. */
+export const cornersOf = (w: number, h: number, T: number, p: Pose) => {
+  const [cf, sf] = [Math.cos(p.phi), Math.sin(p.phi)];
+  const [ct, st] = [Math.cos(p.theta), Math.sin(p.theta)];
+  const out: { x: number; y: number; z: number }[] = [];
+  for (const x of [-w / 2, w / 2]) {
+    for (const y of [-h / 2, h / 2]) {
+      for (const z of [-T / 2, T / 2]) {
+        const y1 = y * cf + z * sf;
+        out.push({
+          x: p.x + x * ct - y1 * st,
+          y: p.y + x * st + y1 * ct,
+          z: p.z - y * sf + z * cf,
+        });
+      }
+    }
+  }
+  return out;
+};
+/** The box's twelve edges, as pairs of corners from `cornersOf`. */
+export const BOX_EDGES: [number, number][] = [
+  [0, 1],
+  [2, 3],
+  [4, 5],
+  [6, 7],
+  [0, 2],
+  [1, 3],
+  [4, 6],
+  [5, 7],
+  [0, 4],
+  [1, 5],
+  [2, 6],
+  [3, 7],
+];
+
+/** How far a box with corners `c` reaches into the wall standing below row `sill(x)` in each
+ *  column, `T` deep behind its face, for a body leaving toward `dir` (1 the room, -1
+ *  outside): negative, how far it is clear of it; -Infinity if none of it is level with any.
+ *  Its corners and points along its edges stand for the box. */
+export const intoWall = (
+  c: { x: number; y: number; z: number }[],
+  sill: (x: number) => number,
+  T: number,
+  dir: number,
+) => {
+  let worst = -Infinity;
+  const take = (x: number, y: number, z: number) => {
+    if (y > sill(x)) worst = Math.max(worst, dir > 0 ? -z : z + T);
+  };
+  for (const q of c) take(q.x, q.y, q.z);
+  for (const [i, j] of BOX_EDGES) {
+    const [a, b] = [c[i], c[j]];
+    for (const u of [0.25, 0.5, 0.75]) {
+      take(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u);
+    }
+  }
+  return worst;
+};
+
+/** How a pivot about the edge at `py`, `pz` runs for a block whose centre is `ry`, `rz` from
+ *  that edge: it leaves the edge a little after its centre has passed over it (at once, if it
+ *  already has), turning so that it will have turned about `land` rad by the time it falls the
+ *  `drop` px to the ground. */
 export const pivotOf = (
   t0: number,
   x: number,
@@ -130,14 +197,12 @@ export const pivotOf = (
   ry: number,
   rz: number,
   dir: 1 | -1,
-  h: number,
-  T: number,
   drop: number,
   land: number,
   g: number,
   kick = 1,
 ): Phase => {
-  const leave = Math.atan(T / h) + 0.15;
+  const leave = Math.max(0, Math.atan2(-rz * dir, -ry)) + 0.15;
   const fall = Math.sqrt((2 * Math.max(4, drop)) / g);
   const omega = Math.min(6, Math.max(1.5, ((land - leave) / fall) * kick));
   const alpha = (omega * omega) / (2 * leave);

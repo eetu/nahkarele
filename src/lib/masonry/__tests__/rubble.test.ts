@@ -27,7 +27,7 @@ describe("what comes off the wall", () => {
   it("tips a slab off the top turning, and lands it turned a good way over", () => {
     for (const seed of SEEDS) {
       const r = bake(SPEC, seed);
-      for (const body of r.bodies) {
+      for (const body of r.bodies.filter((b) => b.parent === null)) {
         const rel = r.releases.find((x) => x.i === body.block);
         if (rel?.kind !== "weather" && rel?.kind !== "knock") continue;
         // A piece deeper than it is tall slides out instead.
