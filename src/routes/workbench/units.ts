@@ -567,7 +567,11 @@ const charger: Unit = {
     ctx.fillStyle = "#8a6a4a";
     ctx.fillRect(BOX.x - 15, BOX.y + BOX.h, 44, 4);
     drawCharger(ctx, num(v, "open"), tilt, up, docked, t);
-    const frame = docked ? 0 : frameOf(droneSprite as Sprite, "hover", t * 16);
+    const frame = frameOf(
+      droneSprite as Sprite,
+      docked ? "charge" : "hover",
+      docked ? t * 2 : t * 16,
+    );
     const y = docked ? DOCK.y : DOCK.y - 14 + Math.sin(t * 3) * 1.5;
     drawSprite(ctx, droneSprite as Sprite, DOCK.x - 7, Math.round(y), { frame });
     ctx.restore();

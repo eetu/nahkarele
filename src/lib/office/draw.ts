@@ -466,7 +466,9 @@ const drawVisitors = (ctx: CanvasRenderingContext2D, mood: Mood) => {
   const fy = idle.y + (DESK.y - 50 - idle.y) * feed;
   const dx = fx + (PAD.x - fx) * dock;
   const dy = fy + (PAD.y - fy) * dock + Math.sin(since * 3) * 1.5 * (1 - dock);
-  const frame = dock > 0.98 ? 0 : frameOf(S.drone, "hover", since * 16);
+  // Asleep on its charger, rotors still, its light flashing as it charges.
+  const frame =
+    dock > 0.98 ? frameOf(S.drone, "charge", since * 2) : frameOf(S.drone, "hover", since * 16);
   drawSprite(ctx, S.drone, Math.round(dx) - 7, Math.round(dy), { frame });
   if (perched) {
     ctx.fillStyle = C.seed;

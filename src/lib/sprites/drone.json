@@ -6,10 +6,12 @@
     "R": "#c8ccd0",
     "K": "#2a2d31",
     "S": "#e8ecf0",
-    "E": "#57b6ff"
+    "E": "#57b6ff",
+    "G": "#58e070"
   },
   "animations": {
-    "hover": [0,1]
+    "hover": [0,1],
+    "charge": [2,0]
   },
   "frames": [
     [
@@ -27,6 +29,15 @@
       "..KKKKKKKKKK..",
       ".KSSSSSSSSSSK.",
       ".KSSSEESSSSSK.",
+      "..KKKKKKKKKK..",
+      "....K....K...."
+    ],
+    [
+      "RRRR......RRRR",
+      "..K........K..",
+      "..KKKKKKKKKK..",
+      ".KSSSSSSSSSSK.",
+      ".KSSSEESSSGSK.",
       "..KKKKKKKKKK..",
       "....K....K...."
     ]
