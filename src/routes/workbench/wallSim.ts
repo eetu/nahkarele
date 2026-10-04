@@ -25,7 +25,7 @@ import { bake, type Ruin } from "$lib/masonry/timeline";
 import type { Knock, Spec } from "$lib/masonry/types";
 import { WALL } from "$lib/office/draw";
 import { SCENE_H, SCENE_W } from "$lib/office/engine";
-import { K, paintStone } from "$lib/office/wood/stones";
+import { faceOf, K, paintStone } from "$lib/office/wood/stones";
 import { specOf } from "$lib/office/wood/wall";
 import { rect } from "$lib/scene/pixel";
 import { drawPixelText } from "$lib/scene/pixelfont";
@@ -35,6 +35,28 @@ import type { Unit, Values } from "./units";
 /** The office's back wall, as the room lays it: the window an insert, the clock, the pay
  *  readout, the calendar and the signs hung on it. */
 const SPEC: Spec = specOf(WALL);
+
+/** Ways of building it: course height, a piece's length and the wall's thickness, px. Bricks
+ *  come away in chunks a few bricks long; rubble stone by stone, from a wall 50 cm thick. */
+const BUILDS = {
+  block: { course: 14, unit: 26, thickness: 8, brittle: 1 },
+  brick: { course: 12, unit: 30, thickness: 9, brittle: 1.2 },
+  rubble: { course: 12, unit: 18, thickness: 20, brittle: 0.25 },
+} as const;
+type Build = keyof typeof BUILDS;
+
+const specs = new Map<string, Spec>();
+/** The wall as built and coated in the controls, the same object for the same choice. */
+const specFor = (v: Values): Spec => {
+  const bond = String(v.wall) as Build;
+  const key = `${bond}|${v.plaster}`;
+  let spec = specs.get(key);
+  if (!spec) {
+    spec = { ...SPEC, bond, plaster: v.plaster === "on", ...BUILDS[bond] };
+    specs.set(key, spec);
+  }
+  return spec;
+};
 
 const RATES: Record<string, number> = {
   paused: 0,
@@ -92,11 +114,11 @@ const ruinFor = (v: Values) => {
   const seed = Number(v.seed);
   const knocks = tapsOf(seed);
   const pace = paceOf(v);
-  const key = `${seed}|${JSON.stringify(pace)}|${JSON.stringify(knocks)}`;
+  const key = `${seed}|${v.wall}|${v.plaster}|${JSON.stringify(pace)}|${JSON.stringify(knocks)}`;
   const known = bakes.get(key);
   if (known) return known;
   const t0 = performance.now();
-  const ruin = bake({ ...SPEC, knocks: [...knocks] }, seed, pace);
+  const ruin = bake({ ...specFor(v), knocks: [...knocks] }, seed, pace);
   const made = { ruin, ms: performance.now() - t0 };
   bakes.set(key, made);
   if (bakes.size > 16) bakes.delete(bakes.keys().next().value as string);
@@ -139,6 +161,13 @@ let layer: HTMLCanvasElement | null = null;
 
 let room: { canvas: HTMLCanvasElement; image: ImageData; pixels: Uint32Array } | null = null;
 
+/** A stone's faces: inside as the wall's face was when it left (plaster or masonry), outside
+ *  bare masonry, but for blocks, rendered. */
+const facesOf = (r: Ruin, body: Body) => ({
+  face: faceOf(r.bond, r.skin, body.start),
+  back: r.spec.bond && r.spec.bond !== "block" ? faceOf(r.bond, null, 0) : undefined,
+});
+
 const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   const since = sinceOf(v, t);
   const { ruin: r, ms } = ruinFor(v);
@@ -161,9 +190,27 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   const put = (q: number, rgb: number[]) => img.data.set([...rgb.map(Math.round), 255], q * 4);
   const sky = hex("#9cc4e4");
   const nc = bond.edges.length - 1;
+  const look = faceOf(bond, r.skin, since);
+  const words = new Uint32Array(img.data.buffer);
   for (const b of bond.blocks) {
     const up = state.standing[b.i] === 1;
     let fill = hex(b.course % 2 ? "#c6ccd0" : "#b4bbc0");
+    if (show === "look") {
+      const cracked = warn.get(b.i);
+      for (const q of b.px) {
+        if (!up) continue;
+        const x = q % W;
+        const y = (q - x) / W;
+        const rim =
+          cracked !== undefined &&
+          (bond.owner[q - 1] !== b.i ||
+            bond.owner[q + 1] !== b.i ||
+            bond.owner[q - W] !== b.i ||
+            bond.owner[q + W] !== b.i);
+        words[q] = rim ? (cracked ? 0xff2030ff : 0xff2080d0) : look(x, y, false);
+      }
+      continue;
+    }
     if (show === "classes") fill = hex(CLASS[classes[b.i] ?? "bedded"]);
     else if (show === "hazard" && up) {
       const m = exposureOf(bond, b.i, state, classes, r.pace);
@@ -227,8 +274,15 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   const back = new ImageData(W, H);
   const backPx = new Uint32Array(back.data.buffer);
   for (const m of inFlight) {
-    if (behind(m))
-      paintStone(backPx, W, H, 0, m.body, m.pose, { sink: 0, moss: 0, since, ground: H });
+    if (behind(m)) {
+      paintStone(backPx, W, H, 0, m.body, m.pose, {
+        ...facesOf(r, m.body),
+        sink: 0,
+        moss: 0,
+        since,
+        ground: H,
+      });
+    }
   }
   layer ??= document.createElement("canvas");
   layer.width = W;
@@ -258,6 +312,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
     SPEC.ground + Math.round(K * Math.max(0, pose.z + halfDepth(body.h, body.T, pose.phi)));
   for (const l of down) {
     paintStone(room.pixels, SCENE_W, SCENE_H, 0, l.body, l.pose, {
+      ...facesOf(r, l.body),
       sink: l.sink,
       moss: 0,
       since,
@@ -267,6 +322,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   for (const m of inFlight) {
     if (behind(m)) continue;
     paintStone(room.pixels, SCENE_W, SCENE_H, 0, m.body, m.pose, {
+      ...facesOf(r, m.body),
       sink: 0,
       moss: 0,
       since,
@@ -305,7 +361,9 @@ export const wallSim: Unit = {
     seed: 1,
     since: 0,
     rate: "10×",
-    show: "blocks",
+    show: "look",
+    wall: "block",
+    plaster: "on",
     tap: "knock out",
     ...Object.fromEntries(TUNE.map((p) => [p.key, p.get(PACE)])),
   },
@@ -313,7 +371,9 @@ export const wallSim: Unit = {
     { kind: "seed", key: "seed" },
     { kind: "range", key: "since", min: 0, max: 43200, step: 0.1 },
     { kind: "select", key: "rate", options: Object.keys(RATES) },
-    { kind: "select", key: "show", options: ["blocks", "classes", "hazard", "order", "pile"] },
+    { kind: "select", key: "wall", options: Object.keys(BUILDS) },
+    { kind: "select", key: "plaster", options: ["on", "off"] },
+    { kind: "select", key: "show", options: ["look", "classes", "hazard", "order", "pile"] },
     { kind: "select", key: "tap", options: ["knock out", "roof", "forget taps"] },
     ...TUNE.map(({ key, min, max, step }) => ({ kind: "range" as const, key, min, max, step })),
   ],

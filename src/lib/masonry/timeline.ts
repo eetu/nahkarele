@@ -21,6 +21,7 @@ import {
 } from "./decay";
 import type { Pile } from "./pile";
 import { bakeRubble, type Body, type Cue, type Impact } from "./rubble";
+import { bakeSkin, type Skin } from "./skin";
 import { classify, settle } from "./stability";
 import { type Bond, insertOf, insertRef, type Spec } from "./types";
 
@@ -62,6 +63,8 @@ export type Ruin = {
   impacts: Impact[];
   cues: Cue[];
   pile: Pile;
+  /** The plaster over its face, if it has any. */
+  skin: Skin | null;
 };
 
 /** Which way a block goes when nothing pushes it: a little more often into the room. */
@@ -267,5 +270,6 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
     hangAt,
     ...rubble,
     settled,
+    skin: spec.plaster ? bakeSkin(bond, seed, releaseAt) : null,
   };
 };

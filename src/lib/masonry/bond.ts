@@ -1,11 +1,14 @@
-// Laying a wall: courses of blocks in running bond, each course half a block along from the one
-// below, joints wandering a little off straight, and here and there a half block (a bat) where
-// it breaks no joint above or below. Then what touches what: what each block rests on (its
-// bed), what rests on it, its neighbours in the course, and any insert sitting on it.
+// Laying a wall, one of three ways: concrete blocks in running bond (each course half a block
+// along from the one below, joints wandering a little, here and there a half block where it
+// breaks no joint above or below); bricks, which come away in stepped chunks of a few; or
+// medieval rubble, stones of every size in rough courses. Whichever, the wall is pieces (what
+// comes away whole), and what touches what: what each rests on (its bed), what rests on it,
+// its neighbours in the course, and any insert sitting on it. Pieces are called blocks here
+// whatever they are made of.
 
 import { hash } from "$lib/scene/pixel";
 
-import { wander } from "./rand";
+import { stream, wander } from "./rand";
 import { ABUT, BASE, type Block, type Bond, type Contact, insertRef, type Spec } from "./types";
 
 /** A piece of a block smaller than this, px, or thinner than MIN_SIDE either way, is a scrap:
@@ -68,8 +71,19 @@ const jointsOf = (spec: Spec, seed: number, nc: number) => {
   return joints;
 };
 
-/** Lay `spec`'s wall for `seed`. */
-export const layBond = (spec: Spec, seed: number): Bond => {
+/** A layout before tidying: each pixel's piece (-1 in an opening), each piece's course, the
+ *  courses' rows, and per pixel whether it is mortar and which unit (block, brick, stone) it
+ *  belongs to. */
+type Layout = {
+  raw: Int32Array;
+  courseOfId: Int16Array;
+  edges: number[];
+  mortar: Uint8Array | null;
+  unit: Int32Array | null;
+};
+
+/** Concrete blocks, each its own piece: courses up from the base, joints wandering a little. */
+const layBlocks = (spec: Spec, seed: number): Layout => {
   const { w: W, h: H, rough } = spec;
   const edges = coursesOf(H, spec.course);
   const nc = edges.length - 1;
@@ -108,9 +122,164 @@ export const layBond = (spec: Spec, seed: number): Bond => {
       raw[y * W + x] = first[c] + k;
     }
   }
+  return { raw, courseOfId, edges, mortar: null, unit: null };
+};
+
+/** A brick and its joint, px: 9 by 3 with 1 px of mortar, about 22 by 7 cm. */
+const BRICK = { w: 9, h: 3, joint: 1 };
+
+/**
+ * Bricks in running bond, half a brick along each course. Mortared brickwork comes away in
+ * chunks, not brick by brick: each piece is a few bricks long and a few courses tall, its
+ * edges stepping along the joints, and the pieces of one row set off from the row below.
+ */
+const layBricks = (spec: Spec, seed: number): Layout => {
+  const { w: W, h: H } = spec;
+  const mw = BRICK.w + BRICK.joint;
+  const mh = BRICK.h + BRICK.joint;
+  const per = Math.max(1, Math.round(spec.course / mh));
+  const edges = coursesOf(H, per * mh);
+  const nc = edges.length - 1;
+  const ids = new Map<number, number>();
+  const courses: number[] = [];
+  const raw = new Int32Array(W * H).fill(-1);
+  const mortar = new Uint8Array(W * H);
+  const unit = new Int32Array(W * H).fill(-1);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (spec.inserts.some(({ rect }) => inside(rect, x, y))) continue;
+      // Counted up from the base: the brick course, and the row in it (the top row mortar).
+      const up = H - 1 - y;
+      const bc = Math.floor(up / mh);
+      const row = up % mh;
+      const off = ((bc % 2) * mw) / 2;
+      const col = Math.floor((x + off) / mw);
+      const at = (x + off) % mw;
+      const q = y * W + x;
+      mortar[q] = row === mh - 1 || at >= BRICK.w ? 1 : 0;
+      unit[q] = bc * 1000 + col;
+      // The piece: its row of courses (the top one folded into the one below if thin), and
+      // the brick's middle along that row, the row's pieces set off by a seeded amount.
+      const c = Math.max(0, nc - 1 - Math.floor(bc / per));
+      const mid = col * mw - off + BRICK.w / 2 + hash(seed, c, 61) * spec.unit;
+      const key = c * 10000 + Math.floor(mid / spec.unit) + 100;
+      let id = ids.get(key);
+      if (id === undefined) {
+        id = ids.size;
+        ids.set(key, id);
+        courses.push(c);
+      }
+      raw[q] = id;
+    }
+  }
+  return { raw, courseOfId: Int16Array.from(courses), edges, mortar, unit };
+};
+
+/**
+ * Random rubble, roughly coursed, as a medieval wall is laid: courses of uneven height, each
+ * of stones of uneven length, rounded off and bedded in thick lime mortar. Each stone is its
+ * own piece, with the mortar nearest it.
+ */
+const layRubble = (spec: Spec, seed: number): Layout => {
+  const { w: W, h: H } = spec;
+  const rand = stream(seed ^ 0x5701e);
+  const edges = [H];
+  while (edges[0] > 0)
+    edges.unshift(Math.max(0, edges[0] - (spec.course - 3 + Math.floor(rand() * 7))));
+  if (edges[1] < 5 && edges.length > 2) edges.splice(1, 1);
+  const nc = edges.length - 1;
+  type Stone = { x: number; y: number; hx: number; hy: number; course: number };
+  const stones: Stone[] = [];
+  const byCourse: Stone[][] = [];
+  for (let c = 0; c < nc; c++) {
+    const [y0, y1] = [edges[c], edges[c + 1]];
+    const row: Stone[] = [];
+    let x = -rand() * 10;
+    while (x < W) {
+      const len = Math.max(6, spec.unit * (0.45 + rand() * 0.9));
+      const tall = (y1 - y0) * (0.8 + 0.25 * rand());
+      const s: Stone = {
+        x: x + len / 2 + (rand() - 0.5) * 2,
+        y: y1 - tall / 2 - 0.5 + (rand() - 0.5) * 2,
+        hx: len / 2,
+        hy: tall / 2,
+        course: c,
+      };
+      row.push(s);
+      stones.push(s);
+      x += len;
+    }
+    byCourse.push(row);
+  }
+  const raw = new Int32Array(W * H).fill(-1);
+  const mortar = new Uint8Array(W * H);
+  const unit = new Int32Array(W * H).fill(-1);
+  const index = new Map(stones.map((s, i) => [s, i]));
+  for (let y = 0; y < H; y++) {
+    let c = 0;
+    while (c + 1 < nc && y >= edges[c + 1]) c++;
+    for (let x = 0; x < W; x++) {
+      if (spec.inserts.some(({ rect }) => inside(rect, x, y))) continue;
+      // The nearest stone by a rounded-square measure, roughened; mortar where two are near
+      // alike, or where it is a way out from even the nearest.
+      let [best, d1, d2] = [-1, Infinity, Infinity];
+      for (let k = Math.max(0, c - 1); k <= Math.min(nc - 1, c + 1); k++) {
+        for (const s of byCourse[k]) {
+          if (Math.abs(s.x - x) > s.hx + 12) continue;
+          const u = Math.abs(x + 0.5 - s.x) / s.hx;
+          const v = Math.abs(y + 0.5 - s.y) / s.hy;
+          const d =
+            (u ** 3 + v ** 3) ** (1 / 3) *
+            (1 + 0.08 * wander(x / 3 + y, seed, 700 + (index.get(s) ?? 0)));
+          if (d < d1) [best, d1, d2] = [index.get(s) ?? -1, d, d1];
+          else if (d < d2) d2 = d;
+        }
+      }
+      const q = y * W + x;
+      raw[q] = best;
+      unit[q] = best;
+      mortar[q] = d2 - d1 < 0.14 || d1 > 1.05 ? 1 : 0;
+    }
+  }
+  return { raw, courseOfId: Int16Array.from(stones, (s) => s.course), edges, mortar, unit };
+};
+
+/** Lay `spec`'s wall for `seed`: blocks, bricks or rubble stone, as the spec says. */
+export const layBond = (spec: Spec, seed: number): Bond => {
+  const { w: W, h: H } = spec;
+  const lay = spec.bond === "brick" ? layBricks : spec.bond === "rubble" ? layRubble : layBlocks;
+  const { raw, courseOfId, edges, mortar, unit } = lay(spec, seed);
   const parts = partsOf(raw, W, H, courseOfId);
   foldScraps(parts, raw, W, H);
-  return withContacts(spec, edges, raw, parts);
+  let bond = withContacts(spec, edges, raw, parts);
+  // A piece laid with nothing under it (a sliver wedged beside an opening) is part of the
+  // piece it shares the most edge with.
+  for (let pass = 0; pass < 4; pass++) {
+    const loose = bond.blocks.filter((b) => !b.bed.length);
+    if (!loose.length) break;
+    const into = new Int32Array(bond.blocks.length).map((_, i) => i);
+    for (const b of loose) {
+      const best = b.heads.filter((c) => c.j >= 0).sort((x, y) => y.n - x.n || x.j - y.j)[0];
+      if (best) into[b.i] = best.j;
+    }
+    const again = Int32Array.from(bond.owner, (o) => (o < 0 ? -1 : into[o]));
+    const courses = Int16Array.from(bond.blocks, (b) => b.course);
+    bond = withContacts(spec, edges, again, partsOf(again, W, H, courses));
+  }
+  // Blocks show a joint along each edge they share (their left and upper sides); bricks and
+  // stones as laid.
+  bond.joint =
+    mortar ??
+    Uint8Array.from(bond.owner, (o, q) => {
+      if (o < 0) return 0;
+      const x = q % W;
+      return (x > 0 && bond.owner[q - 1] >= 0 && bond.owner[q - 1] !== o) ||
+        (q >= W && bond.owner[q - W] >= 0 && bond.owner[q - W] !== o)
+        ? 1
+        : 0;
+    });
+  bond.unit = unit ?? Int32Array.from(bond.owner);
+  return bond;
 };
 
 type Part = { id: number; course: number; px: number[] };
@@ -291,20 +460,23 @@ const withContacts = (spec: Spec, edges: number[], raw: Int32Array, parts: Part[
       }
     }
   }
-  // A block rests only on what is in a lower course (or the base, or an insert), so support
-  // always runs downward and never round in a loop; a scrap folded in above or below a
-  // neighbour in its own course only touches it, like a head joint.
+  // A block rests only on what is lower: in a lower course, or in its own course with its
+  // middle clearly lower (a scrap folded in beside a window, a stone set a little down); or on
+  // the base, or an insert. So support always runs downward and never round in a loop; what
+  // else it touches above or below it only touches, like a head joint.
+  const lower = (b: Block, o: Block) =>
+    o.course > b.course || (o.course === b.course && o.cy > b.cy + 1);
   for (const b of blocks) {
     const firm = [...beds[b.i].values()].filter((c) => c.n >= HOLD);
-    b.bed = firm.filter((c) => c.j < 0 || blocks[c.j].course > b.course);
+    b.bed = firm.filter((c) => c.j < 0 || lower(b, blocks[c.j]));
     b.heads = [
       ...[...sides[b.i].values()].filter((c) => c.n >= HOLD),
-      ...firm.filter((c) => c.j >= 0 && blocks[c.j].course <= b.course),
+      ...firm.filter((c) => c.j >= 0 && !lower(b, blocks[c.j])),
     ];
   }
   for (const b of blocks) {
     for (const c of b.bed) if (c.j >= 0) blocks[c.j].top.push({ ...c, j: b.i });
     b.caps = [...caps[b.i].values()].filter((c) => c.n >= HOLD);
   }
-  return { spec, owner, blocks, edges };
+  return { spec, owner, blocks, edges, joint: new Uint8Array(0), unit: new Int32Array(0) };
 };

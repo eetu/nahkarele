@@ -92,3 +92,31 @@ describe("the ruin over time", () => {
     expect(counts[0]).toBe(counts[5]);
   });
 });
+
+describe("other builds and the plaster", () => {
+  const brick = { ...SPEC, bond: "brick" as const, course: 12, unit: 30, thickness: 9 };
+  const rubble = { ...SPEC, bond: "rubble" as const, course: 12, unit: 18, thickness: 20 };
+
+  it("never leaves a brick chunk or a stone standing on nothing", () => {
+    for (const spec of [brick, rubble]) {
+      for (const seed of [1, 2, 3]) {
+        const r = bake(spec, seed);
+        for (let k = 0; k < 30; k++) expect(hanging(r, k * k * 40)).toBe(0);
+      }
+    }
+  });
+
+  it("lets the plaster go in patches, sooner up the wall, all of it in the end", () => {
+    const r = bake({ ...brick, plaster: true }, 4);
+    const skin = r.skin;
+    if (!skin) throw new Error("no plaster");
+    const share = (t: number) => {
+      const left = Array.from(skin.lost).filter((l) => l > t).length;
+      return left / skin.lost.length;
+    };
+    expect(share(0)).toBe(1);
+    expect(share(3 * HOUR)).toBeLessThan(share(HOUR));
+    expect(share(1e7)).toBe(0);
+    expect(bake(SPEC, 4).skin).toBeNull();
+  });
+});

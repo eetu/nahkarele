@@ -40,14 +40,94 @@ const BED = {
   fresh: word("#d6d2c8"),
 };
 
+/** What a face looks like at a pixel of the wall it came from, and whether that pixel is on
+ *  the stone's outline. */
+export type Face = (x: number, y: number, edge: boolean) => number;
+
 /** Where a stone is drawn and what is done to it: how far it has sunk, how far moss has
- *  climbed it (0 to 1), the floor at its depth, and what hides it (true: not drawn). */
+ *  climbed it (0 to 1), the floor at its depth, what hides it (true: not drawn), and its faces
+ *  inside and out (by default the room's plaster, and render). */
 export type Paint = {
   sink: number;
   moss: number;
   since: number;
   ground: number;
   hidden?: (x: number, y: number) => boolean;
+  face?: Face;
+  back?: Face;
+};
+
+/** A colour as a word, darker by `k` (0 to 1). */
+const darker = (w: number, k: number) => {
+  const f = 1 - k;
+  const r = Math.round((w & 0xff) * f);
+  const g = Math.round(((w >> 8) & 0xff) * f);
+  const b = Math.round(((w >> 16) & 0xff) * f);
+  return ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
+};
+const lighter = (w: number, k: number) => {
+  const up = (v: number) => Math.round(v + (255 - v) * k);
+  return (
+    ((255 << 24) | (up((w >> 16) & 0xff) << 16) | (up((w >> 8) & 0xff) << 8) | up(w & 0xff)) >>> 0
+  );
+};
+
+/** The units of each way of building, and their mortar. */
+const MASONRY = {
+  block: { units: ["#b4b2aa", "#aaa89f", "#bcbab2"], mortar: "#8f8c84" },
+  brick: {
+    units: ["#9c4a32", "#a8553a", "#8e422c", "#b0603f", "#94503a", "#7f3c28"],
+    mortar: "#c9c2b0",
+  },
+  rubble: {
+    units: ["#8f8a7e", "#9d9789", "#7f7a70", "#a49b86", "#8a8274", "#968f7f", "#aaa290"],
+    mortar: "#b8b1a0",
+  },
+};
+const PLASTER = { face: word("#b9c0c4"), grit: word("#a9b1b5"), rim: word("#8d969c") };
+
+/**
+ * A wall's face at `t`, pixel by pixel in wall px: plaster where its coat still is (a darker
+ * rim where the coat ends), else its masonry: each unit its own shade of its kind, lit along
+ * its top and shaded along its foot, in its mortar. `skin` null: no plaster.
+ */
+export const faceOf = (
+  bond: {
+    spec: { w: number; bond?: string };
+    owner: Int16Array;
+    joint: Uint8Array;
+    unit: Int32Array;
+  },
+  skin: { patch: Int32Array; lost: Float64Array } | null,
+  t: number,
+): Face => {
+  const W = bond.spec.w;
+  const kind = MASONRY[(bond.spec.bond ?? "block") as keyof typeof MASONRY];
+  const units = kind.units.map(word);
+  const mortar = word(kind.mortar);
+  const coated = (q: number) => {
+    if (!skin) return false;
+    const p = skin.patch[q];
+    return p >= 0 && skin.lost[p] > t;
+  };
+  return (x, y, edge) => {
+    const q = y * W + x;
+    if (coated(q)) {
+      const open =
+        (x > 0 && !coated(q - 1) && bond.owner[q - 1] >= 0) ||
+        (x < W - 1 && !coated(q + 1) && bond.owner[q + 1] >= 0) ||
+        (q >= W && !coated(q - W) && bond.owner[q - W] >= 0) ||
+        (q + W < bond.owner.length && !coated(q + W) && bond.owner[q + W] >= 0);
+      const w = open ? PLASTER.rim : hash(x, y, 13) < 0.08 ? PLASTER.grit : PLASTER.face;
+      return edge ? darker(w, 0.2) : w;
+    }
+    if (bond.joint[q]) return edge ? darker(mortar, 0.2) : mortar;
+    const u = bond.unit[q];
+    let w = units[Math.floor(hash(u, 5) * units.length)];
+    if (q >= W && bond.joint[q - W]) w = lighter(w, 0.12);
+    else if (q + W < bond.joint.length && bond.joint[q + W]) w = darker(w, 0.12);
+    return edge ? darker(w, 0.2) : w;
+  };
 };
 
 const scratch = { buf: new Uint32Array(64 * 64), w: 64, h: 64 };
@@ -98,6 +178,11 @@ export const paintStone = (
     !mask[(r + 1) * w + c];
   const faceWord = (c: number, r: number, outside: boolean) => {
     const edge = edgeAt(c, r);
+    const custom = outside ? paint.back : paint.face;
+    // A fresh break: the stone's own colour, paler; or plain new stone.
+    if (fresh?.[r * w + c])
+      return custom ? lighter(custom(body.ox + c, body.oy + r, false), 0.3) : BED.fresh;
+    if (custom) return custom(body.ox + c, body.oy + r, edge);
     if (outside)
       return edge ? OUTSIDE.edge : hash(body.block, c, r, 81) < 0.15 ? OUTSIDE.stain : OUTSIDE.face;
     if (fresh?.[r * w + c]) return BED.fresh;
@@ -126,15 +211,35 @@ export const paintStone = (
       const [ya, yb] = [r0 - h / 2, r1 - h / 2];
       const span = r1 - r0 - 1;
       const at = (u: number) => r0 + Math.min(span, Math.max(0, Math.round(u * span)));
+      // Its top and bottom: fresh where it broke; its own stone, a row in from the face, lit
+      // facing up and shaded facing down; or plain bed.
+      const own = (r: number) =>
+        paint.face
+          ? paint.face(body.ox + c, body.oy + Math.min(r1 - 1, Math.max(r0, r)), false)
+          : 0;
       if (upper) {
         const fr = fresh?.[r0 * w + c];
-        fill(c, project(ya, -T / 2), project(ya, T / 2), () =>
-          fr ? BED.fresh : sf > 0.5 ? BED.side : BED.up,
-        );
+        const word = fr
+          ? own(r0 + 1)
+            ? lighter(own(r0 + 1), 0.3)
+            : BED.fresh
+          : own(r0 + 1)
+            ? lighter(own(r0 + 1), 0.1)
+            : sf > 0.5
+              ? BED.side
+              : BED.up;
+        fill(c, project(ya, -T / 2), project(ya, T / 2), () => word);
       }
       if (lower) {
         const fr = fresh?.[(r1 - 1) * w + c];
-        fill(c, project(yb, -T / 2), project(yb, T / 2), () => (fr ? BED.fresh : BED.down));
+        const word = fr
+          ? own(r1 - 2)
+            ? lighter(own(r1 - 2), 0.3)
+            : BED.fresh
+          : own(r1 - 2)
+            ? darker(own(r1 - 2), 0.25)
+            : BED.down;
+        fill(c, project(yb, -T / 2), project(yb, T / 2), () => word);
       }
       if (front) fill(c, project(ya, T / 2), project(yb, T / 2), (u) => faceWord(c, at(u), false));
       if (back) fill(c, project(ya, -T / 2), project(yb, -T / 2), (u) => faceWord(c, at(u), true));

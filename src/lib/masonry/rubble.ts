@@ -160,16 +160,22 @@ export const bakeRubble = (
     const vx = v.x * pace.bounce[1];
     const vz = v.z * pace.bounce[1];
     const lands = hops ? { x: from.x + vx * th, z: from.z + vz * th } : from;
-    const rest = restingPlace(pile, lands.x, lands.z + out, body.w, body.h, t);
-    const phi = (Math.abs(from.phi) < 0.05 ? dir : Math.sign(from.phi)) * (Math.PI / 2);
+    // It comes to lie on its broadest face: a slab on its face, a stone deeper than it is tall
+    // on its bed, as it lay in the wall (or turned right over), whichever it is nearer.
+    const onBed = body.T > body.h;
+    const phi = onBed
+      ? Math.round(from.phi / Math.PI) * Math.PI
+      : (Math.abs(from.phi) < 0.05 ? dir : Math.sign(from.phi)) * (Math.PI / 2);
+    const [deep, rise] = onBed ? [body.T, body.h] : [body.h, body.T];
+    const rest = restingPlace(pile, lands.x, lands.z + out, body.w, deep, t);
     const half = (x0: number, x1: number) =>
-      heightOver(pile, x0, x1, rest.z - body.h / 2, rest.z + body.h / 2 - 1, t);
+      heightOver(pile, x0, x1, rest.z - deep / 2, rest.z + deep / 2 - 1, t);
     const tilt =
       (half(rest.x, rest.x + body.w / 2 - 1) - half(rest.x - body.w / 2, rest.x - 1)) /
       (body.w / 2);
     const theta =
       Math.max(-0.35, Math.min(0.35, -Math.atan(tilt))) + (hash(seed, body.id, 46) - 0.5) * 0.08;
-    const still: Pose = { x: rest.x, y: ground - rest.base - body.T / 2, z: rest.z, phi, theta };
+    const still: Pose = { x: rest.x, y: ground - rest.base - rise / 2, z: rest.z, phi, theta };
     let at = from;
     let when = t;
     if (hops) {
@@ -189,17 +195,7 @@ export const bakeRubble = (
     }
     body.phases.push({ k: "ease", t0: when, t1: when + 0.25, a: at, b: still, p: 0.5 });
     body.settled = when + 0.25;
-    body.lying = lay(
-      pile,
-      body.id,
-      rest.x,
-      rest.z,
-      body.w,
-      body.h,
-      rest.base,
-      body.T,
-      body.settled,
-    );
+    body.lying = lay(pile, body.id, rest.x, rest.z, body.w, deep, rest.base, rise, body.settled);
   };
 
   /** Fly from the end of `phases` until the body touches the ground; returns the flight. */
@@ -351,7 +347,8 @@ export const bakeRubble = (
         hit.z + 4,
         flight.t1,
       ) > 0;
-    if (blk.n >= 60 && hash(seed, i, 47) < breakOdds(fell, edgeOn, onRubble)) {
+    const brittle = spec.brittle ?? 1;
+    if (blk.n >= 60 && hash(seed, i, 47) < breakOdds(fell, edgeOn, onRubble) * brittle) {
       body.broken = true;
       for (const [k, pc] of fracture(
         body.mask,

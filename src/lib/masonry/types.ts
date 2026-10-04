@@ -28,6 +28,13 @@ export type Spec = {
   hangs: Named[];
   /** Blows given from outside, in time order: a block knocked out, or roof brought down. */
   knocks?: Knock[];
+  /** How it is built: concrete blocks (the default), bricks, or rubble stone; and whether
+   *  its face is plastered over. */
+  bond?: "block" | "brick" | "rubble";
+  plaster?: boolean;
+  /** How readily its pieces break landing, against concrete block's 1: natural stone is
+   *  tougher, mortared brick chunks part along their joints. */
+  brittle?: number;
 };
 
 /** A blow at `t`: the block at `x`, `y` knocked out, or the roof brought down at `x`. */
@@ -73,4 +80,7 @@ export type Bond = {
   owner: Int16Array;
   blocks: Block[];
   edges: number[];
+  /** Per pixel: 1 in a mortar joint, and which unit (block, brick, stone) it is part of. */
+  joint: Uint8Array;
+  unit: Int32Array;
 };

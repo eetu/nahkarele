@@ -1,16 +1,25 @@
 import { describe, expect, it } from "vitest";
 
 import { HOLD, layBond } from "../bond";
-import { BASE } from "../types";
+import { BASE, type Spec } from "../types";
 import { SPEC } from "./spec";
+
+/** The same wall built three ways, with how many pieces each should come to. */
+const BUILDS: [Spec, number, number][] = [
+  [SPEC, 75, 110],
+  [{ ...SPEC, bond: "brick", course: 12, unit: 30, thickness: 9 }, 60, 130],
+  [{ ...SPEC, bond: "rubble", course: 12, unit: 18, thickness: 20 }, 120, 230],
+];
 
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const inWindow = (x: number, y: number) => x >= 122 && x < 198 && y >= 14 && y < 64;
 
 describe("laying the bond", () => {
-  it("covers the wall exactly, the opening left open", () => {
+  it.each(BUILDS)("covers the wall exactly, the opening left open (%#)", (spec) => {
     for (const seed of SEEDS) {
-      const { owner, blocks } = layBond(SPEC, seed);
+      const { owner, blocks, joint, unit } = layBond(spec, seed);
+      expect(joint.length).toBe(SPEC.w * SPEC.h);
+      expect(unit.length).toBe(SPEC.w * SPEC.h);
       for (let y = 0; y < SPEC.h; y++) {
         for (let x = 0; x < SPEC.w; x++) {
           expect(owner[y * SPEC.w + x] < 0).toBe(inWindow(x, y));
@@ -22,11 +31,11 @@ describe("laying the bond", () => {
     }
   });
 
-  it("lays some ninety whole blocks, no scraps", () => {
+  it.each(BUILDS)("lays whole pieces, no scraps (%#)", (spec, lo, hi) => {
     for (const seed of SEEDS) {
-      const { blocks } = layBond(SPEC, seed);
-      expect(blocks.length).toBeGreaterThanOrEqual(75);
-      expect(blocks.length).toBeLessThanOrEqual(110);
+      const { blocks } = layBond(spec, seed);
+      expect(blocks.length).toBeGreaterThanOrEqual(lo);
+      expect(blocks.length).toBeLessThanOrEqual(hi);
       for (const b of blocks) {
         expect(b.n).toBeGreaterThanOrEqual(12);
         expect(Math.min(b.w, b.h)).toBeGreaterThanOrEqual(5);
@@ -34,9 +43,9 @@ describe("laying the bond", () => {
     }
   });
 
-  it("keeps each block in one piece", () => {
+  it.each(BUILDS)("keeps each piece in one piece (%#)", (spec) => {
     for (const seed of SEEDS.slice(0, 4)) {
-      const { owner, blocks } = layBond(SPEC, seed);
+      const { owner, blocks } = layBond(spec, seed);
       for (const b of blocks) {
         const seen = new Set([b.px[0]]);
         const queue = [b.px[0]];
@@ -56,15 +65,17 @@ describe("laying the bond", () => {
     }
   });
 
-  it("knows what rests on what, both ways, always on something lower", () => {
+  it.each(BUILDS)("knows what rests on what, both ways, always on something lower (%#)", (spec) => {
     for (const seed of SEEDS) {
-      const { blocks } = layBond(SPEC, seed);
+      const { blocks } = layBond(spec, seed);
       for (const b of blocks) {
         for (const c of b.bed) {
           expect(c.n).toBeGreaterThanOrEqual(HOLD);
           if (c.j < 0) continue;
           const under = blocks[c.j];
-          expect(under.course).toBeGreaterThan(b.course);
+          expect(under.course > b.course || (under.course === b.course && under.cy > b.cy)).toBe(
+            true,
+          );
           expect(under.top.find((t) => t.j === b.i)?.n).toBe(c.n);
         }
       }
