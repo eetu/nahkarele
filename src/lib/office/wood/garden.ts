@@ -11,7 +11,15 @@ import { drawSticks } from "./shedding";
 import { drawApples, drawTrees, type Knocks } from "./stand";
 import { drawSwallows } from "./swallows";
 import { drawBackShrubs, drawFrontShrubs } from "./undergrowth";
-import { climbTo, drawOnWall, drawRubble, fixtureAt, type Setting } from "./wall";
+import {
+  climbTo,
+  drawOnWall,
+  drawRubble,
+  drawRubbleBehind,
+  fixtureAt,
+  type Setting,
+  type Shade,
+} from "./wall";
 import { drawFalling, drawGround, drawSillSnow, drawSnowCaps } from "./weather";
 
 export type Friday = { since: number; seed: number; knocks: Knocks };
@@ -22,10 +30,12 @@ const takenBy = (since: number, seed: number, fallen: Fallen, knocks: Knocks) =>
   return (key: string) => took.get(key);
 };
 
-/** The back wall's room, and how to draw what has fallen off it. */
+/** The back wall's room, how to draw what has fallen off it, and the room's light, which
+ *  its stones keep once they are off it. */
 export type Fallen = {
   wall: Setting;
   draw: (ctx: CanvasRenderingContext2D, name: string, x: number, y: number) => void;
+  room: Shade;
 };
 
 /**
@@ -45,13 +55,14 @@ export const drawGarden = (
     drawSillSnow(wall, since, sill);
     drawVines(wall, since, seed);
   });
+  drawRubbleBehind(ctx, since, seed, fallen.wall, fallen.room);
   drawSticks(ctx, since, seed, false);
   drawTrees(ctx, since, seed, knocks, false);
   drawGround(ctx, since);
   drawBackShrubs(ctx, since, seed);
   drawGrass(ctx, since, seed);
   // Fallen stones lie on the grass; moss, not grass, takes them over.
-  drawRubble(ctx, since, seed, fallen.wall, fallen.draw);
+  drawRubble(ctx, since, seed, fallen.wall, fallen.room, fallen.draw);
   drawApples(ctx, since, seed, knocks, false, takenBy(since, seed, fallen, knocks));
 };
 

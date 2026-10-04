@@ -21,6 +21,12 @@ export const healAt = (since: number) => smooth((since - 60) / 1700);
 
 const NIGHT = "#141a26";
 
+/** The light the land is lit by under `sky`, 0 to 1, in the steps it is redrawn in. */
+const lightOf = (sky: SkyInput) => 0.15 + 0.85 * (Math.round(daylight(sky.progress) * 8) / 8);
+
+/** The night out there, as a shade for whatever else is seen in it: `k` of `colour`. */
+export const nightOutside = (sky: SkyInput) => ({ colour: NIGHT, k: 1 - lightOf(sky) });
+
 type Stump = { x: number; w: number; h: number; keep: number };
 type Far = { x: number; base: number; h: number; conifer: boolean; from: number; salt: number };
 type World = { seed: number; ridge: number[]; stumps: Stump[]; trees: Far[] };
@@ -69,11 +75,11 @@ const GROUND = ["#5a8a3a", "#8a8a4a", "#e4eaee", "#6aa040"];
 const ASH = "#4a4440";
 const BROADLEAF = [["#4a7a32"], ["#c8a040", "#d86a2a", "#b83a2a"], ["#6a5e52"], ["#7ab84a"]];
 
-const paintLand = (ctx: CanvasRenderingContext2D, w: World, since: number, day: number) => {
+const paintLand = (ctx: CanvasRenderingContext2D, w: World, since: number, light: number) => {
   const heal = healAt(since);
   const { k, p } = seasonAt(since);
   const snow = k === 2 ? ramp(p, 0.05, 0.3) : k === 3 ? 1 - ramp(p, 0, 0.3) : 0;
-  const lit = (c: string) => mix(NIGHT, c, 0.15 + 0.85 * day);
+  const lit = (c: string) => mix(NIGHT, c, light);
   const px = (c: string, x: number, y: number, pw = 1, ph = 1) => {
     ctx.fillStyle = c;
     ctx.fillRect(x, y, pw, ph);
@@ -225,7 +231,7 @@ export const outsideOf = (sky: SkyInput, since: number, seed: number): HTMLCanva
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
     ctx.clearRect(0, 0, SCENE_W, DEPTH);
-    paintLand(ctx, w, since, Math.round(day * 8) / 8);
+    paintLand(ctx, w, since, lightOf(sky));
     land = { key, canvas };
   }
   if (!view) {

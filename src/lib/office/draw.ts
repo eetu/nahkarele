@@ -40,7 +40,7 @@ import {
 } from "./engine";
 import { crowAtJar, crowCue, drawCrow } from "./wood/crow";
 import { drawAir, drawFloor, drawForeground, drawGarden, drawGlow } from "./wood/garden";
-import { outsideOf } from "./wood/outside";
+import { nightOutside, outsideOf } from "./wood/outside";
 import { drawCreeperOver, overgrown } from "./wood/overgrowth";
 import type { Knocks } from "./wood/stand";
 import {
@@ -185,7 +185,7 @@ const drawRoom = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => 
     // After the blast the wall comes down piece by piece, and the world outside shows through
     // the gaps and the window alike.
     const outside = outsideOf(sky, mood.since, mood.seed);
-    drawWall(ctx, outside, mood.since, mood.seed, WALL);
+    drawWall(ctx, outside, mood.since, mood.seed, WALL, nightOutside(sky));
     if (fixtureOf("window", mood).on) {
       const scenery = outside
         ? (c: CanvasRenderingContext2D) => c.drawImage(outside, 0, 0)
@@ -556,7 +556,7 @@ export const drawOffice = (
   };
   // Everything that stands in the room, back to front, in two parts: the room and its floor,
   // then what walks and flies over the exit sign lying there.
-  const fallen = { wall: WALL, draw: drawFallen(mood.since) };
+  const fallen = { wall: WALL, draw: drawFallen(mood.since), room: { colour: NIGHT, k: dark } };
   const drawStanding = (ctx: CanvasRenderingContext2D) => {
     if (mood.after) drawGarden(ctx, mood, fallen);
     drawSigns(ctx, false);

@@ -9,7 +9,6 @@
 // seed, like everything else here. This file is the room's side of it: the wall's numbers, its
 // fixtures, and the drawing.
 
-import { halfDepth } from "$lib/masonry/fall";
 import {
   climb,
   cuesBetween,
@@ -26,7 +25,8 @@ import type { Spec } from "$lib/masonry/types";
 import { hash, smooth } from "$lib/scene/pixel";
 
 import { FLOOR_Y, G, SCENE_H, SCENE_W } from "../engine";
-import { drawSheet, grow, sheetOf } from "./posed";
+import { drawSheet, grow, type Sheet, sheetOf } from "./posed";
+import { ROOT_Y } from "./stand";
 import { K, nearOf, paintStone } from "./stones";
 
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -56,7 +56,7 @@ const NEAR_FLOOR = FLOOR_Y + 14;
 const BUMP_S = 0.3;
 /** Moss starts up a stone this long after it comes to rest, s, and has it covered this much
  *  later. */
-const MOSS_FROM = 120;
+export const MOSS_FROM = 120;
 const MOSS_S = 3600;
 
 const specs = new WeakMap<Setting, Spec>();
@@ -155,12 +155,14 @@ export const fixtureAt = (
 const RIM = "#5d5a55";
 const CRACK = "#6d6a64";
 
-let holes: {
+type Holes = {
   key: string;
   mask: HTMLCanvasElement;
   rim: HTMLCanvasElement;
   view: HTMLCanvasElement;
-} | null = null;
+};
+
+let holes: Holes | null = null;
 
 const canvasOf = (w: number, h: number) => {
   const c = document.createElement("canvas");
@@ -169,24 +171,38 @@ const canvasOf = (w: number, h: number) => {
   return c;
 };
 
+/** The buffers and canvases the gaps are baked into, made once. */
+let kit: (Holes & { gone: Uint8Array; maskPx: ImageData; rimPx: ImageData }) | null = null;
+
 /** The gaps as whole pixels, and their rim of broken plaster. */
-const bakeHoles = (r: Ruin, broken: number, open: Rect[]) => {
+const bakeHoles = (r: Ruin, broken: number, open: Rect[], key: string): Holes => {
   const W = SCENE_W;
-  const gone = new Uint8Array(W * WALL_H);
+  kit ??= {
+    key,
+    gone: new Uint8Array(W * WALL_H),
+    maskPx: new ImageData(W, WALL_H),
+    rimPx: new ImageData(W, WALL_H),
+    mask: canvasOf(W, WALL_H),
+    rim: canvasOf(W, WALL_H),
+    view: canvasOf(W, WALL_H),
+  };
+  const { gone, maskPx, rimPx } = kit;
+  gone.fill(0);
   for (let n = 0; n < broken; n++) for (const q of r.bond.blocks[r.releases[n].i].px) gone[q] = 1;
   for (const o of open) {
     for (let y = Math.max(0, o.y); y < Math.min(WALL_H, o.y + o.h); y++) {
       for (let x = Math.max(0, o.x); x < Math.min(W, o.x + o.w); x++) gone[y * W + x] = 1;
     }
   }
-  const mask = new ImageData(W, WALL_H);
-  const rim = new ImageData(W, WALL_H);
+  const mask = new Uint32Array(maskPx.data.buffer).fill(0);
+  const rim = new Uint32Array(rimPx.data.buffer).fill(0);
   const [rr, rg, rb] = [1, 3, 5].map((i) => parseInt(RIM.slice(i, i + 2), 16));
+  const rimWord = ((255 << 24) | (rb << 16) | (rg << 8) | rr) >>> 0;
   for (let y = 0; y < WALL_H; y++) {
     for (let x = 0; x < W; x++) {
       const q = y * W + x;
       if (gone[q]) {
-        mask.data.set([255, 255, 255, 255], q * 4);
+        mask[q] = 0xffffffff;
         continue;
       }
       const edge =
@@ -194,14 +210,13 @@ const bakeHoles = (r: Ruin, broken: number, open: Rect[]) => {
         (x < W - 1 && gone[q + 1]) ||
         (y > 0 && gone[q - W]) ||
         (y < WALL_H - 1 && gone[q + W]);
-      if (edge) rim.data.set([rr, rg, rb, 255], q * 4);
+      if (edge) rim[q] = rimWord;
     }
   }
-  const m = canvasOf(W, WALL_H);
-  const rc = canvasOf(W, WALL_H);
-  m.getContext("2d")?.putImageData(mask, 0, 0);
-  rc.getContext("2d")?.putImageData(rim, 0, 0);
-  return { mask: m, rim: rc, view: canvasOf(W, WALL_H) };
+  kit.mask.getContext("2d")?.putImageData(maskPx, 0, 0);
+  kit.rim.getContext("2d")?.putImageData(rimPx, 0, 0);
+  kit.key = key;
+  return kit;
 };
 
 const edgesCache = new WeakMap<Ruin, Int32Array[]>();
@@ -249,16 +264,15 @@ const drawWarnings = (ctx: CanvasRenderingContext2D, r: Ruin, since: number) => 
 const behindFront = (fronts: Rect[]) => (x: number, y: number) =>
   fronts.some((f) => x >= f.x && x < f.x + f.w && y >= f.y + f.h);
 
-/** Stones in flight, farthest first: overlapping, the nearer is drawn over, frame after
- *  frame. */
-const byDepth = <T extends { body: { id: number }; pose: { z: number } }>(list: T[]) =>
-  list.sort((a, b) => a.pose.z - b.pose.z || a.body.id - b.body.id);
+/** A shade over what is drawn: `k` (0 to 1) of `colour`. */
+export type Shade = { colour: string; k: number };
 
 /**
  * The wall's gaps `since` seconds into friday, `outside` showing through them (a canvas the
- * size of the wall, or null for none), what falls behind the wall with it, and the gaps' rims;
- * then the cracks of what is about to go. Drawn with the room, under what still hangs on the
- * wall. It leaves the gaps for `drawShade` and `drawOnWall` later in the same frame.
+ * size of the wall, or null for none), what falls behind the wall with it in the outside's own
+ * `night`, and the gaps' rims; then the cracks of what is about to go. Drawn with the room,
+ * under what still hangs on the wall. It leaves the gaps for `drawShade` and `drawOnWall`
+ * later in the same frame.
  */
 export const drawWall = (
   ctx: CanvasRenderingContext2D,
@@ -266,6 +280,7 @@ export const drawWall = (
   since: number,
   seed: number,
   setting: Setting,
+  night?: Shade,
 ) => {
   const r = ruinFor(seed, setting);
   const broken = releasedBy(r, since);
@@ -277,14 +292,12 @@ export const drawWall = (
   }
   const key = `${seed}|${broken}|${open.join()}`;
   if (!holes || holes.key !== key) {
-    holes = {
+    holes = bakeHoles(
+      r,
+      broken,
+      open.map((n) => setting.fixtures[n]),
       key,
-      ...bakeHoles(
-        r,
-        broken,
-        open.map((n) => setting.fixtures[n]),
-      ),
-    };
+    );
   }
   ctx.drawImage(holes.rim, 0, 0);
   drawWarnings(ctx, r, since);
@@ -298,7 +311,7 @@ export const drawWall = (
   // What falls behind the wall, seen through the gaps.
   const sheet = sheetOf("stones-behind", SCENE_W, WALL_H);
   const near = nearOf("stones-behind", SCENE_W * WALL_H);
-  for (const { body, pose } of byDepth(moving(r, since))) {
+  for (const { body, pose } of moving(r, since)) {
     const box = paintStone(sheet.pixels, SCENE_W, WALL_H, 0, body, pose, {
       sink: 0,
       moss: 0,
@@ -306,6 +319,7 @@ export const drawWall = (
       ground: WALL_H,
       depth: "back",
       near,
+      shade: night,
     });
     if (box) grow(sheet, box);
   }
@@ -316,31 +330,125 @@ export const drawWall = (
 
 // --- What has come down ----------------------------------------------------------------
 
-let rubble: { key: string; canvas: HTMLCanvasElement } | null = null;
-/** The band the heap at the wall's foot is drawn in: from well up the dado to the floor
- *  in front of it. */
-const RUBBLE_TOP = FLOOR_Y - 48;
-const RUBBLE_H = 60;
+/** The band the heap at the wall's foot is drawn in: from well up the dado to the bottom of
+ *  the scene, as far out as a stone runs. */
+export const RUBBLE_TOP = FLOOR_Y - 48;
+export const RUBBLE_H = SCENE_H - RUBBLE_TOP;
+/** How far out from the wall the back trees stand, px of depth. */
+const TREES_Z = (ROOT_Y - FLOOR_Y) / K;
 
-/** The stones lying at rest, mossed and sunk as far as their time on the heap says. */
-const paintRubble = (r: Ruin, since: number, fronts: Rect[]) => {
-  const canvas = rubble?.canvas ?? canvasOf(SCENE_W, RUBBLE_H);
-  const image = new ImageData(SCENE_W, RUBBLE_H);
-  const near = nearOf("stones-lying", SCENE_W * RUBBLE_H);
-  const pixels = new Uint32Array(image.data.buffer);
+/** Whether a stone's pixel at scene row `y`, depth `z`, is behind the back trees: nearer the
+ *  wall than they stand, and up off the floor. What is on the floor stays over the grass and
+ *  the litter drawn after the trees. */
+export const behindTrees = (_x: number, y: number, z: number) => z < TREES_Z && y < FLOOR_Y;
+
+/** Stone pixels in front of the back trees and behind them, and how near each is. */
+export type Stones = { front: Uint32Array; behind: Uint32Array; near: Float32Array };
+
+/** The stones lying at rest `since` seconds into friday, mossed and sunk as far as their time
+ *  on the heap says, in `shade`, into `into` (the band at the wall's foot). */
+export const paintLying = (r: Ruin, since: number, fronts: Rect[], shade: Shade, into: Stones) => {
+  into.front.fill(0);
+  into.behind.fill(0);
+  into.near.fill(-Infinity);
   const hidden = behindFront(fronts);
   for (const { body, pose, sink, age } of lying(r, since)) {
-    paintStone(pixels, SCENE_W, RUBBLE_H, RUBBLE_TOP, body, pose, {
+    paintStone(into.front, SCENE_W, RUBBLE_H, RUBBLE_TOP, body, pose, {
       sink,
       moss: smooth((age - MOSS_FROM) / MOSS_S),
       since,
-      ground: FLOOR_Y + Math.round(K * (pose.z + halfDepth(body.h, body.T, pose.phi))),
+      ground: SCENE_H,
+      floor: FLOOR_Y,
       hidden,
-      near,
+      near: into.near,
+      shade,
+      split: { out: into.behind, test: behindTrees },
     });
   }
-  canvas.getContext("2d")?.putImageData(image, 0, 0);
-  return canvas;
+};
+
+/** The stones falling `since` seconds into friday, in `shade`, into `into` (the whole scene):
+ *  in front of the wall's face, and behind what lies at rest (`lain`, the band's depths)
+ *  wherever that is nearer. The boxes they cover go to `cover`. */
+export const paintFalling = (
+  r: Ruin,
+  since: number,
+  fronts: Rect[],
+  shade: Shade,
+  lain: Float32Array,
+  into: Stones,
+  cover: (box: Rect) => void,
+) => {
+  into.near.fill(-Infinity);
+  into.near.set(lain, RUBBLE_TOP * SCENE_W);
+  const hidden = behindFront(fronts);
+  for (const { body, pose } of moving(r, since)) {
+    const box = paintStone(into.front, SCENE_W, SCENE_H, 0, body, pose, {
+      sink: 0,
+      moss: 0,
+      since,
+      ground: SCENE_H,
+      floor: FLOOR_Y,
+      hidden,
+      depth: "front",
+      near: into.near,
+      shade,
+      split: { out: into.behind, test: behindTrees },
+    });
+    if (box) cover(box);
+  }
+};
+
+/** What lies at rest as last painted: its pixels, as canvases the band's size, and depths. */
+let lain: {
+  key: string;
+  stones: Stones;
+  front: { image: ImageData; canvas: HTMLCanvasElement };
+  behind: { image: ImageData; canvas: HTMLCanvasElement };
+} | null = null;
+/** The falling stones as last painted, and the frame they were painted for. */
+let falling: { frame: string; front: Sheet; behind: Sheet } | null = null;
+
+const layerOf = () => {
+  const image = new ImageData(SCENE_W, RUBBLE_H);
+  return { image, pixels: new Uint32Array(image.data.buffer), canvas: canvasOf(SCENE_W, RUBBLE_H) };
+};
+
+/** The stones `since` seconds into friday in the room's light: lying (repainted only when what
+ *  lies changes, or the light by a step) and falling (each frame), each split about the back
+ *  trees. */
+const stonesAt = (since: number, seed: number, setting: Setting, room: Shade) => {
+  const r = ruinFor(seed, setting);
+  // In steps of a hundredth, so the light changing does not repaint the heap every frame.
+  const shade = { colour: room.colour, k: Math.round(room.k * 100) / 100 };
+  if (!lain) {
+    const [front, behind] = [layerOf(), layerOf()];
+    const near = new Float32Array(SCENE_W * RUBBLE_H);
+    lain = { key: "", stones: { front: front.pixels, behind: behind.pixels, near }, front, behind };
+  }
+  const key = `${seed}|${lyingKey(r, since)}|${shade.k}|${shade.colour}`;
+  if (lain.key !== key) {
+    paintLying(r, since, setting.fronts, shade, lain.stones);
+    lain.front.canvas.getContext("2d")?.putImageData(lain.front.image, 0, 0);
+    lain.behind.canvas.getContext("2d")?.putImageData(lain.behind.image, 0, 0);
+    lain.key = key;
+  }
+  const frame = `${key}|${since}`;
+  if (!falling || falling.frame !== frame) {
+    const front = sheetOf("stones", SCENE_W, SCENE_H);
+    const behind = sheetOf("stones-behind-trees", SCENE_W, SCENE_H);
+    const into = {
+      front: front.pixels,
+      behind: behind.pixels,
+      near: nearOf("stones", SCENE_W * SCENE_H),
+    };
+    paintFalling(r, since, setting.fronts, shade, lain.stones.near, into, (box) => {
+      grow(front, box);
+      grow(behind, box);
+    });
+    falling = { frame, front, behind };
+  }
+  return { lain, falling };
 };
 
 /** Dust where something has just landed: three frames, a puff, a ring, a few motes. */
@@ -363,39 +471,40 @@ const drawDust = (ctx: CanvasRenderingContext2D, r: Ruin, since: number) => {
 };
 
 /**
- * What has come off the wall `since` seconds into friday: stones lying on the heap, stones
- * falling in the room, the dust of landings, and the fixtures that went, drawn by `fixture` at
- * their place (by name, top-left corner). Drawn behind the trees: it all comes down at the
- * wall's foot.
+ * What of the stones off the wall is behind the back trees `since` seconds into friday: up
+ * off the floor, nearer the wall than the trees stand. In the room's light, `room`, as the
+ * wall they came from. Drawn before the back trees.
+ */
+export const drawRubbleBehind = (
+  ctx: CanvasRenderingContext2D,
+  since: number,
+  seed: number,
+  setting: Setting,
+  room: Shade,
+) => {
+  const { lain, falling } = stonesAt(since, seed, setting, room);
+  ctx.drawImage(lain.behind.canvas, 0, RUBBLE_TOP);
+  drawSheet(ctx, falling.behind);
+};
+
+/**
+ * What has come off the wall `since` seconds into friday, in front of the back trees: stones
+ * lying on the heap and falling in the room, in the room's light, `room`, the dust of
+ * landings, and the fixtures that went, drawn by `fixture` at their place (by name, top-left
+ * corner).
  */
 export const drawRubble = (
   ctx: CanvasRenderingContext2D,
   since: number,
   seed: number,
   setting: Setting,
+  room: Shade,
   fixture: (ctx: CanvasRenderingContext2D, name: string, x: number, y: number) => void,
 ) => {
   const r = ruinFor(seed, setting);
-  const key = `${seed}|${lyingKey(r, since)}`;
-  if (!rubble || rubble.key !== key)
-    rubble = { key, canvas: paintRubble(r, since, setting.fronts) };
-  ctx.drawImage(rubble.canvas, 0, RUBBLE_TOP);
-  const sheet = sheetOf("stones", SCENE_W, SCENE_H);
-  const near = nearOf("stones", SCENE_W * SCENE_H);
-  const hidden = behindFront(setting.fronts);
-  for (const { body, pose } of byDepth(moving(r, since))) {
-    const box = paintStone(sheet.pixels, SCENE_W, SCENE_H, 0, body, pose, {
-      sink: 0,
-      moss: 0,
-      since,
-      ground: FLOOR_Y + Math.round(K * Math.max(0, pose.z + halfDepth(body.h, body.T, pose.phi))),
-      hidden,
-      depth: "front",
-      near,
-    });
-    if (box) grow(sheet, box);
-  }
-  drawSheet(ctx, sheet);
+  const { lain, falling } = stonesAt(since, seed, setting, room);
+  ctx.drawImage(lain.front.canvas, 0, RUBBLE_TOP);
+  drawSheet(ctx, falling.front);
   drawDust(ctx, r, since);
   for (const [name, b] of Object.entries(fixturesOf(r, setting))) {
     const at = placeOf(b, since);
