@@ -116,13 +116,15 @@ export const heightOver = (p: Pile, x0: number, x1: number, z0: number, z1: numb
 };
 
 /** Where a piece `w` by `d` landing centred at `x`, `z` comes to rest at `t`: rolled downhill
- *  while the heap is steeper than repose, never in toward the wall or past the heap's edges. */
+ *  while the heap is steeper than repose, never in toward the wall or past the heap's edges;
+ *  and the places it rolls through on the way, each with the heap's height there. */
 export const restingPlace = (p: Pile, x: number, z: number, w: number, d: number, t: number) => {
   const clampX = (v: number) => Math.min(p.w - w / 2, Math.max(w / 2, v));
   const clampZ = (v: number) => Math.min(p.depth - d / 2, Math.max(d / 2, v));
   let [cx, cz] = [clampX(x), clampZ(z)];
   const at = (px: number, pz: number) =>
     heightOver(p, px - w / 2, px + w / 2 - 1, pz - d / 2, pz + d / 2 - 1, t);
+  const path: { x: number; z: number; base: number }[] = [];
   for (let step = 0; step < 40; step++) {
     const here = at(cx, cz);
     let best: [number, number] | null = null;
@@ -137,8 +139,9 @@ export const restingPlace = (p: Pile, x: number, z: number, w: number, d: number
     }
     if (!best) break;
     [cx, cz] = best;
+    path.push({ x: cx, z: cz, base: at(cx, cz) });
   }
-  return { x: cx, z: cz, base: at(cx, cz) };
+  return { x: cx, z: cz, base: at(cx, cz), path };
 };
 
 /** Lay piece `id` at rest at `t`, `w` by `d` centred at `x`, `z`, on `base`, `T` thick. */
