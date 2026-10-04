@@ -48,6 +48,9 @@ docker/              optional Liwan tracker entrypoint (same as logo)
 - **Sprites are dab files** (github.com/eetu/dab): edit them there, `sprite.ts` only reads.
   They are written as dab writes them and kept out of Prettier. Every sprite is drawn at its
   own size, one sprite pixel to a scene pixel: a bigger animal is a bigger drawing.
+  A sprite may carry parts (the deer's four legs): `drawSprite` draws them where dab places
+  them, in dab's order, each at the sprite's frame — a part lifted out of a drawing in dab
+  has the drawing's frames, so it walks with it. A part can then be redrawn on its own.
   Defects are frames or variants of their model's sprite (`MODEL_DEFECTS` in `days.ts`);
   `xray` is a palette variant. Thursday adds phones; Friday is phones only and a boot is
   `foreign`, always defective.
