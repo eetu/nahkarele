@@ -115,8 +115,9 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   spring (`springOf`), and both are painted once into pixel lists and re-posed each frame
   (`wood/posed.ts`). Leaves and snow ride the wind's integral (`driftOf`); grass, the
   window's rain and a sound bed follow it. The back wall is masonry (`$lib/masonry`, the room's
-  side in `wood/wall.ts` and `wood/stones.ts`): blocks laid in courses, baked once per seed
-  into a timeline. A block stands while its centre of mass is over its bed (or mortar holds it
+  side in `wood/wall.ts` and `wood/stones.ts`): cement blocks laid in courses under plaster,
+  baked once per seed into a timeline; the plaster comes off in patches over the years
+  (soonest beside a gap) and shows the blocks. A block stands while its centre of mass is over its bed (or mortar holds it
   a little past, or the arch over a gap leans on it); the roof comes down at the blast and in
   its first years, blocks wear loose from the top and the gaps' edges (Weibull wear times
   exposure), and what loses its support comes down with them; part of the foot stands for
