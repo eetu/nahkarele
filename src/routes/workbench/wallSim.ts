@@ -19,7 +19,7 @@ import {
   stateAt,
   warningAt,
 } from "$lib/masonry/query";
-import { type Body, maskOf } from "$lib/masonry/rubble";
+import { type Body, pieceOf } from "$lib/masonry/rubble";
 import { gapsOf } from "$lib/masonry/stability";
 import { bake, type Ruin } from "$lib/masonry/timeline";
 import type { Knock, Spec } from "$lib/masonry/types";
@@ -408,16 +408,17 @@ const stoneOf = (v: Values): Body => {
   const seed = Number(v.seed);
   const bond = layBond(SPEC, seed);
   const block = bond.blocks[Math.min(bond.blocks.length - 1, Number(v.block))];
+  const piece = pieceOf(bond, block);
   const whole: Body = {
     id: block.i,
     block: block.i,
-    mask: maskOf(bond, block),
-    w: block.w,
-    h: block.h,
+    mask: piece.mask,
+    w: piece.w,
+    h: piece.h,
     T: SPEC.thickness,
-    n: block.n,
-    ox: block.x,
-    oy: block.y,
+    n: piece.n,
+    ox: piece.x,
+    oy: piece.y,
     start: 0,
     phases: [],
     lands: 0,

@@ -18,7 +18,7 @@ import { mossColour } from "./moss";
 export const K = 0.25;
 /** The steps a stone is drawn turned in, rad. */
 const PHI_STEP = Math.PI / 8;
-const THETA_STEP = Math.PI / 16;
+export const THETA_STEP = Math.PI / 16;
 
 const word = (hex: string) => {
   const v = parseInt(hex.slice(1, 7), 16);
@@ -227,7 +227,9 @@ export const paintStone = (
     return edge ? INSIDE.edge : hash(body.block, c, r, 13) < 0.08 ? INSIDE.grit : INSIDE.face;
   };
   // A face's span down column `c`, from projected row `s0` to `s1`, its depth going from `z0`
-  // to `z1`.
+  // to `z1`: the rows whose middles it covers (row `s` spans `s` to `s + 1` from the centre),
+  // each taking its colour and depth at its middle. Upright, a stone 3 px tall covers 3 rows,
+  // as it did in the wall, and its top's front row is behind the wall's face, not on it.
   const fill = (
     c: number,
     s0: number,
@@ -236,15 +238,23 @@ export const paintStone = (
     z1: number,
     colour: (u: number) => number,
   ) => {
-    const a = Math.round(Math.min(s0, s1));
-    const b = Math.round(Math.max(s0, s1));
+    const lo = Math.min(s0, s1);
+    const span = Math.abs(s1 - s0);
+    // Rounding half down, against the half up that puts the centre on a row: on a tie
+    // both rounding up would paint the column a row low.
+    const a = Math.ceil(lo - 0.5);
+    const b = Math.max(a, Math.ceil(lo + span - 0.5) - 1);
     for (let s = a; s <= b; s++) {
       const row = oy + s;
       if (row < 0 || row >= bh) continue;
-      const u = b > a ? (s - a) / (b - a) : 0.5;
+      const u = span > 0 ? Math.min(1, Math.max(0, (s + 0.5 - lo) / span)) : 0.5;
       const along = s0 <= s1 ? u : 1 - u;
+      const z = z0 + (z1 - z0) * along;
+      // Nearest wins: in a notched stone, the top of the part below the notch is behind
+      // the face of the part above it.
+      if (buf[row * w + c] && depth[row * w + c] > z) continue;
       buf[row * w + c] = colour(along);
-      depth[row * w + c] = z0 + (z1 - z0) * along;
+      depth[row * w + c] = z;
     }
   };
   for (let c = 0; c < w; c++) {
@@ -259,7 +269,7 @@ export const paintStone = (
       const r1 = r;
       const [ya, yb] = [r0 - h / 2, r1 - h / 2];
       const span = r1 - r0 - 1;
-      const at = (u: number) => r0 + Math.min(span, Math.max(0, Math.round(u * span)));
+      const at = (u: number) => r0 + Math.min(span, Math.floor(u * (span + 1)));
       // Its top and bottom: fresh where it broke; its own stone (taken from the middle of the
       // column, clear of the mortar round it), lit facing up and shaded facing down; or plain
       // bed.
@@ -318,21 +328,19 @@ export const paintStone = (
     }
   }
   // Into the scene, turned in the plane about the stone's centre, sunk, mossed and clipped.
-  // Its centre on a whole pixel. Turned about a centre between pixels, a stone moving a
-  // fraction of a pixel a frame is sampled afresh every frame: its outline and grain shimmer.
-  // About a whole pixel, its turned image only moves, a whole pixel at a time.
-  const sx = Math.round(pose.x);
+  // Its left column and centre row on whole pixels. Turned about a centre that moves between
+  // pixels, a stone moving a fraction of a pixel a frame is sampled afresh every frame: its
+  // outline and grain shimmer. Pinned to the pixels, its turned image only moves, a whole
+  // pixel at a time, and turned or not it samples the same pixels of itself where they meet.
+  const left = Math.round(pose.x - w / 2);
+  const sx = left + w / 2;
   const sy = Math.round(pose.y + K * pose.z + paint.sink);
   const ct = Math.cos(theta);
   const st = Math.sin(theta);
   const turned = theta !== 0;
   const half = Math.ceil(Math.hypot(w, bh) / 2) + 1;
-  const [x0, x1] = turned
-    ? [Math.floor(sx - half), Math.ceil(sx + half)]
-    : [Math.round(sx - w / 2), Math.round(sx - w / 2) + w - 1];
-  const [y0, y1] = turned
-    ? [Math.floor(sy - half), Math.ceil(sy + half)]
-    : [Math.round(sy) - oy, Math.round(sy) - oy + bh - 1];
+  const [x0, x1] = turned ? [Math.floor(sx - half), Math.ceil(sx + half)] : [left, left + w - 1];
+  const [y0, y1] = turned ? [sy - half, sy + half] : [sy - oy, sy - oy + bh - 1];
   // Moss climbs from the lowest drawn row.
   let bottom = -Infinity;
   let highest = Infinity;
@@ -341,13 +349,15 @@ export const paintStone = (
     let u: number;
     let v: number;
     if (turned) {
+      // From the centre: across the middle of the stone's columns, down the middle of row
+      // `sy` (its buffer's row `oy`).
       const dx = X + 0.5 - sx;
-      const dy = Y + 0.5 - sy;
+      const dy = Y - sy;
       u = Math.floor(dx * ct + dy * st + w / 2);
       v = Math.floor(-dx * st + dy * ct + oy + 0.5);
     } else {
-      u = X - Math.round(sx - w / 2);
-      v = Y - (Math.round(sy) - oy);
+      u = X - left;
+      v = Y - (sy - oy);
     }
     return u < 0 || v < 0 || u >= w || v >= bh ? -1 : v * w + u;
   };

@@ -70,16 +70,27 @@ const TOGETHER: [number, number] = [0.06, 32];
 const STEP = 1 / 120;
 const LONGEST = 6;
 
-/** A block's own pixels as a mask over its box. */
-export const maskOf = (bond: Bond, b: Block) => {
+/** What of a block comes away: its own pixels less its mortar, which crumbles where it lay
+ *  (all of them, if it is all mortar), as a mask over a box of its own. A brick carrying its
+ *  joint falls with a strip of mortar down one side, which shows against the wall's bricks
+ *  and is lost against its joints, by turns: the brick flickers all the way down. */
+export const pieceOf = (bond: Bond, b: Block) => {
   const W = bond.spec.w;
-  const mask = new Uint8Array(b.w * b.h);
-  for (const q of b.px) {
+  const solid = b.px.some((q) => !bond.joint[q]) ? b.px.filter((q) => !bond.joint[q]) : b.px;
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const q of solid) {
     const x = q % W;
     const y = (q - x) / W;
-    mask[(y - b.y) * b.w + (x - b.x)] = 1;
+    [x0, x1, y0, y1] = [Math.min(x0, x), Math.max(x1, x), Math.min(y0, y), Math.max(y1, y)];
   }
-  return mask;
+  const w = x1 - x0 + 1;
+  const h = y1 - y0 + 1;
+  const mask = new Uint8Array(w * h);
+  for (const q of solid) {
+    const x = q % W;
+    mask[((q - x) / W - y0) * w + (x - x0)] = 1;
+  }
+  return { x: x0, y: y0, w, h, n: solid.length, mask };
 };
 
 /** Bake every release into a body. */
@@ -251,7 +262,7 @@ export const bakeRubble = (
   };
 
   for (const rel of releases) {
-    const blk = blocks[rel.i];
+    const blk = pieceOf(bond, blocks[rel.i]);
     const { i } = rel;
     const dir = rel.dir;
     const cx = blk.x + blk.w / 2;
@@ -353,7 +364,7 @@ export const bakeRubble = (
     const body: Body = {
       id: bodies.length,
       block: i,
-      mask: maskOf(bond, blk),
+      mask: blk.mask,
       w: blk.w,
       h: blk.h,
       T,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { layBond } from "../bond";
 import { breakOdds, fracture } from "../fracture";
-import { maskOf } from "../rubble";
+import { pieceOf } from "../rubble";
 import { bake } from "../timeline";
 import { SPEC } from "./spec";
 
@@ -12,11 +12,11 @@ describe("breaking", () => {
     for (let seed = 1; seed <= 6; seed++) {
       const bond = layBond(SPEC, seed);
       for (const b of bond.blocks.filter((x) => x.n >= 60)) {
-        const mask = maskOf(bond, b);
-        const pieces = fracture(mask, b.w, b.h, seed * 1000 + b.i, 40 + (b.i % 5) * 30);
+        const { mask, w, h } = pieceOf(bond, b);
+        const pieces = fracture(mask, w, h, seed * 1000 + b.i, 40 + (b.i % 5) * 30);
         tried++;
         expect(pieces.length).toBeGreaterThanOrEqual(2);
-        const cover = new Uint8Array(b.w * b.h);
+        const cover = new Uint8Array(w * h);
         for (const p of pieces) {
           expect(p.n).toBeGreaterThan(0);
           let count = 0;
@@ -25,7 +25,7 @@ describe("breaking", () => {
             for (let x = 0; x < p.w; x++) {
               if (!p.mask[y * p.w + x]) continue;
               count++;
-              const q = (y + p.dy) * b.w + (x + p.dx);
+              const q = (y + p.dy) * w + (x + p.dx);
               expect(cover[q]).toBe(0);
               cover[q] = 1;
               cells.push(y * p.w + x);
