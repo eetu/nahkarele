@@ -11,8 +11,17 @@ import {
   paintClimberParts,
   planClimber,
 } from "$lib/office/wood/climbers";
+import {
+  annual,
+  conkKey,
+  type ConkKind,
+  CONKS,
+  conksOn,
+  drawConk,
+  tallOf,
+} from "$lib/office/wood/conks";
 import { type GrassPlan, paintGrassParts, planGrass } from "$lib/office/wood/grass";
-import { archOf, fruitAt, planAt } from "$lib/office/wood/growth";
+import { archOf, fruitAt, lifespanOf, planAt } from "$lib/office/wood/growth";
 import { drawPosed, sheetScope } from "$lib/office/wood/posed";
 import { rustleOf } from "$lib/office/wood/rustle";
 import { lookAt, SEASON_S, SEASONS_FROM } from "$lib/office/wood/seasons";
@@ -152,17 +161,83 @@ const tree: Unit = {
     const seed = num(v, "seed");
     const species = str(v, "species") as Species;
     const age = num(v, "age");
-    const plan = planFor(seed, species, age, tall);
-    const pose = poseOf(plan, 1, look, t, (_, ago) => blowing(v, t - ago));
-    const key = `${seed}|${species}|${age}|${tall}|${look.k}|${look.p}`;
+    // It dies at its kind's middling age: older than that, it stands dead, conks and all.
+    const died = Math.round(lifespanOf(species, 0.5));
+    const dead = age > died ? Math.min(1, (age - died) / 1.5) : 0;
+    const plan = planFor(seed, species, Math.min(age, died), tall);
+    const seen = dead ? { ...look, dead } : look;
+    const arch = archOf(seed, { x: 130, y: h - 27 }, species, 41);
+    const through = (k + num(v, "through")) / 4;
+    const conks = conksOn(arch, plan, {
+      age: Math.floor(age) + through,
+      died,
+      year: Math.floor(age),
+      phase: through,
+      snow: look.snow,
+    });
+    const pose = poseOf(plan, 1, seen, t, (_, ago) => blowing(v, t - ago));
+    const key = `${seed}|${species}|${age}|${tall}|${look.k}|${look.p}|${conkKey(conks)}`;
     drawPosed(
       ctx,
       `tree${seed}`,
       key,
-      (rec, part) => paintTreeParts(rec, plan, 1, look, part),
+      (rec, part) => paintTreeParts(rec, plan, 1, seen, part, conks),
       pose,
     );
-    paintFruit(ctx, plan, 1, look, pose.fruit);
+    if (!dead) paintFruit(ctx, plan, 1, look, pose.fruit);
+  },
+};
+
+/** One conk on a strip of trunk, at any size, age and season. */
+const conk: Unit = {
+  name: "conk",
+  defaults: {
+    kind: "tinder",
+    seed: 1,
+    reach: 5,
+    years: 3,
+    side: "right",
+    season: "summer",
+    through: 0.5,
+    withered: 0,
+    snow: 0,
+  },
+  params: () => [
+    { kind: "select", key: "kind", options: CONKS },
+    { kind: "seed", key: "seed" },
+    { kind: "range", key: "reach", min: 1, max: 9, step: 1 },
+    { kind: "range", key: "years", min: 0, max: 10, step: 1 },
+    { kind: "select", key: "side", options: ["right", "left"] },
+    { kind: "select", key: "season", options: SEASONS },
+    { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01 },
+    { kind: "range", key: "withered", min: 0, max: 1, step: 0.05 },
+    { kind: "toggle", key: "snow" },
+  ],
+  size: () => ({ w: 40, h: 36 }),
+  draw: (ctx, v) => {
+    office(ctx, 40, 36, 32);
+    // A trunk 8 px across, its bark plain.
+    ctx.fillStyle = "#6a5848";
+    ctx.fillRect(16, 0, 8, 32);
+    ctx.fillStyle = "#857060";
+    ctx.fillRect(16, 0, 1, 32);
+    const kind = str(v, "kind") as ConkKind;
+    const side = str(v, "side") === "left" ? -1 : 1;
+    const reach = num(v, "reach");
+    const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
+    const phase = (k + num(v, "through")) / 4;
+    const withered = annual(kind) ? num(v, "withered") : 0;
+    drawConk(ctx, side > 0 ? 24 : 15, 12, {
+      kind,
+      side,
+      reach,
+      tall: tallOf(kind, reach),
+      bands: 1 + num(v, "years"),
+      fresh: annual(kind) ? withered === 0 : phase < 0.3 || phase > 0.85,
+      withered,
+      snow: num(v, "snow") > 0 && kind !== "chaga",
+      seed: num(v, "seed"),
+    });
   },
 };
 
@@ -464,6 +539,7 @@ const text: Unit = {
 
 export const UNITS: Unit[] = [
   tree,
+  conk,
   shrub,
   climber,
   grass,
