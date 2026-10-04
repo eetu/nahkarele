@@ -228,6 +228,18 @@ const barkColour = (plan: Plan, x: number, y: number, col: number, w: number, up
   }
 };
 
+/** How far along piece `i` (drawn `w` wide, grown `g`) a birch's stem goes from white to its
+ *  shoot's brown: where it narrows to a twig's width going on up its stem, over its first few
+ *  px, as a birch's young shoot whitens from below. Elsewhere, none. */
+const BROWN_SHOOT = 5;
+const whiteningOf = (plan: Plan, i: number, w: number, g: number) => {
+  if (plan.species !== "birch" || w !== 1) return 0;
+  const on = plan.parents?.[i];
+  if (!on || on.piece < 0 || on.t < 1) return 0;
+  const below = plan.limbs[on.piece];
+  return below && Math.round(below.w * (0.4 + 0.6 * g)) >= 2 ? BROWN_SHOOT : 0;
+};
+
 /** What bark turns to, dead and weathered. */
 const DEADWOOD = "#8c877e";
 /** Dead needles: rust, gone once the tree is this far dead. */
@@ -256,6 +268,7 @@ const wood = (
   w: number,
   look: Look,
   died = 0,
+  whiteFor = 0,
 ) => {
   const dead = Math.max(look.dead ?? 0, died);
   const dx = b.x - a.x;
@@ -265,9 +278,11 @@ const wood = (
   const steep = Math.abs(dy) >= Math.abs(dx);
   // Snow lies along the top edge of bare, shallow wood, and nowhere inside it.
   const snowy = !steep && look.snow > 0.5 && deciduous(plan.species) && look.leaves < 0.3;
-  const paint = (x: number, y: number, col: number) => {
+  const paint = (x: number, y: number, col: number, k: number) => {
     const up = (plan.root.y - y) / Math.max(1, plan.height);
-    const bark = barkColour(plan, x, y, col, w, up);
+    let bark = barkColour(plan, x, y, col, w, up);
+    // Out of whiter wood below, the first of it still going from that to its own.
+    if (k < whiteFor) bark = mix(BIRCH_BARK.white, bark, (k + 1) / (whiteFor + 1));
     rect(ctx, dead ? mix(bark, DEADWOOD, dead * 0.6) : bark, x, y);
   };
   for (let k = 0; k <= n; k++) {
@@ -276,11 +291,11 @@ const wood = (
     if (steep) {
       const x0 = Math.round(cx - w / 2);
       const y = Math.round(cy);
-      for (let col = 0; col < w; col++) paint(x0 + col, y, col);
+      for (let col = 0; col < w; col++) paint(x0 + col, y, col, k);
     } else {
       const x = Math.round(cx);
       const y0 = Math.round(cy - w / 2);
-      for (let row = 0; row < w; row++) paint(x, y0 + row, row);
+      for (let row = 0; row < w; row++) paint(x, y0 + row, row, k);
       if (snowy && hash(x, y0, 5) < look.snow) rect(ctx, SNOW, x, y0 - 1);
     }
   }
@@ -448,7 +463,8 @@ export const paintTreeParts = (
     const a = at(l.a);
     const b = at(l.b);
     part({ kind: "wood", i, a, b });
-    wood(ctx, plan, a, b, Math.max(1, Math.round(l.w * (0.4 + 0.6 * g))), look, l.dead);
+    const w = Math.max(1, Math.round(l.w * (0.4 + 0.6 * g)));
+    wood(ctx, plan, a, b, w, look, l.dead, whiteningOf(plan, i, w, g));
   });
   // Conks out from the edge of the wood they grow on, moving with that piece as its bark does.
   for (const c of conks) {
