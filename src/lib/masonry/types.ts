@@ -20,6 +20,8 @@ export type Spec = {
   rough: number;
   /** The floor, in wall y: below the base, where what falls comes down. */
   ground: number;
+  /** Gravity, px/s² (392 is the real thing at 40 px to the metre). */
+  g?: number;
   /** Openings filled by something that carries what is above it while it is in (a window). */
   inserts: Named[];
   /** What hangs on the face (a clock, a sign): it goes with what holds it up. */

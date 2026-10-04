@@ -43,6 +43,13 @@ export type Pace = {
   blast: number;
   /** How far past its bed mortar holds a block, px. */
   glue: number;
+  /** The heap: how far into the room it reaches, px; the steepest it stands (rise over run);
+   *  how much of a landing's speed is kept, up and along; when and how long a piece takes to
+   *  sink into the ground, s. */
+  runout: number;
+  repose: number;
+  bounce: [number, number];
+  sink: [number, number];
 };
 
 export const PACE: Pace = {
@@ -66,6 +73,10 @@ export const PACE: Pace = {
   reach: 40,
   blast: 0.15,
   glue: 3,
+  runout: 28,
+  repose: 0.84,
+  bounce: [0.3, 0.85],
+  sink: [600, 3000],
 };
 
 /** More roof coming down: when, where along the wall, how wide and deep a bite it takes, and

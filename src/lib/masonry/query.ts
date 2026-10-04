@@ -3,6 +3,9 @@
 // seed asked for.
 
 import { PACE, type Pace } from "./decay";
+import { type Pose, poseAt } from "./fall";
+import { type Lying, sinkOf } from "./pile";
+import type { Body } from "./rubble";
 import { classify, type State } from "./stability";
 import { bake, type Ruin } from "./timeline";
 import { BASE, insertOf, type Spec } from "./types";
@@ -71,6 +74,44 @@ export const hanging = (r: Ruin, t: number) =>
       return k >= 0 ? r.insertAt[k] > t : r.releaseAt[c.j] > t;
     });
   }).length;
+
+/** Bodies in motion at `t`, with their poses: off the wall and not yet at rest (or, outside,
+ *  not yet on the ground). */
+export const moving = (r: Ruin, t: number) => {
+  const out: { body: Body; pose: Pose }[] = [];
+  for (const body of r.bodies) {
+    if (body.start > t) break;
+    const end = body.out ? body.lands : body.settled;
+    if (t < end) out.push({ body, pose: poseAt(body.phases, t) });
+  }
+  return out;
+};
+
+/** Bodies lying at rest at `t`, in the order they came to rest, with their poses and how far
+ *  each has sunk and how long it has lain. */
+export const lying = (r: Ruin, t: number) => {
+  const out: { body: Body; pose: Pose; sink: number; age: number }[] = [];
+  for (const body of r.settled) {
+    if (body.settled > t) break;
+    const l = body.lying as Lying;
+    const sink = sinkOf(r.pile, l, t);
+    if (sink >= l.top - 1e-6) continue;
+    out.push({ body, pose: poseAt(body.phases, t), sink, age: t - body.settled });
+  }
+  return out;
+};
+
+/** Changes whenever what lies at rest changes: a piece comes to rest, or a step of time on
+ *  which sinking and moss are redrawn passes. */
+export const lyingKey = (r: Ruin, t: number, step = 15) => {
+  let n = 0;
+  while (n < r.settled.length && r.settled[n].settled <= t) n++;
+  return `${n}|${n ? Math.floor(t / step) : 0}`;
+};
+
+/** What is heard between two moments: `(from, to]`. */
+export const cuesBetween = (r: Ruin, from: number, to: number) =>
+  to <= from ? [] : r.cues.filter((c) => c.t > from && c.t <= to);
 
 /** How long before working loose a block shows a crack, and for how long it shakes, s. */
 export const CRACK_S = 3;

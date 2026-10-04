@@ -5,11 +5,23 @@
 // stands, how exposed it is, when it goes.
 
 import { exposureOf, PACE, type Pace } from "$lib/masonry/decay";
-import { classesAt, CRACK_S, releasedBy, stateAt, warningAt } from "$lib/masonry/query";
+import { halfDepth, type Pose } from "$lib/masonry/fall";
+import { heightOver } from "$lib/masonry/pile";
+import {
+  classesAt,
+  CRACK_S,
+  lying,
+  moving,
+  releasedBy,
+  stateAt,
+  warningAt,
+} from "$lib/masonry/query";
+import type { Body } from "$lib/masonry/rubble";
 import { gapsOf } from "$lib/masonry/stability";
 import { bake, type Ruin } from "$lib/masonry/timeline";
 import type { Knock, Spec } from "$lib/masonry/types";
 import { SCENE_H, SCENE_W } from "$lib/office/engine";
+import { rect } from "$lib/scene/pixel";
 import { drawPixelText } from "$lib/scene/pixelfont";
 
 import type { Unit, Values } from "./units";
@@ -46,6 +58,9 @@ const TUNE: { key: string; min: number; max: number; step: number; get: (p: Pace
   { key: "shock", min: 0, max: 0.1, step: 0.005, get: (p) => p.after[0] },
   { key: "collapses", min: 0, max: 30, step: 1, get: (p) => p.collapses },
   { key: "bite", min: 1, max: 7, step: 1, get: (p) => p.bite },
+  { key: "sinks", min: 60, max: 14400, step: 60, get: (p) => p.sink[1] },
+  { key: "bounce", min: 0, max: 0.8, step: 0.05, get: (p) => p.bounce[0] },
+  { key: "repose", min: 0.3, max: 1.5, step: 0.05, get: (p) => p.repose },
   { key: "glue", min: 0, max: 6, step: 0.5, get: (p) => p.glue },
 ];
 
@@ -60,6 +75,9 @@ const paceOf = (v: Values): Pace => ({
   after: [Number(v.shock), PACE.after[1]],
   collapses: Number(v.collapses),
   bite: Number(v.bite),
+  sink: [PACE.sink[0], Number(v.sinks)],
+  bounce: [Number(v.bounce), PACE.bounce[1]],
+  repose: Number(v.repose),
   glue: Number(v.glue),
 });
 
@@ -122,6 +140,113 @@ const CLASS: Record<string, string> = {
 
 let layer: HTMLCanvasElement | null = null;
 
+/** How far down the screen a px of depth shows (the floor seen from a little above). */
+const K = 0.25;
+
+/** A body as a plain box, its faces shaded by which way they look: a stand-in for the room's
+ *  own drawing of stones. Clipped at the ground line in front of it, so a sunk piece shows
+ *  only what is above ground. */
+const drawBody = (
+  ctx: CanvasRenderingContext2D,
+  body: Body,
+  pose: Pose,
+  sink: number,
+  ground: number,
+) => {
+  const { w, h, T } = body;
+  const [cf, sf] = [Math.cos(pose.phi), Math.sin(pose.phi)];
+  const [ct, st] = [Math.cos(pose.theta), Math.sin(pose.theta)];
+  const turn = (x: number, y: number, z: number) => {
+    const y1 = y * cf + z * sf;
+    const z1 = -y * sf + z * cf;
+    return { x: x * ct - y1 * st, y: x * st + y1 * ct, z: z1 };
+  };
+  const at = (x: number, y: number, z: number) => {
+    const p = turn(x, y, z);
+    return [pose.x + p.x, pose.y + sink + p.y + K * (pose.z + p.z)];
+  };
+  const faces: [number[], string, number[][]][] = [
+    [
+      [0, 0, 1],
+      "#d4d9dc",
+      [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ].map(([a, b]) => [a, b, 1]),
+    ],
+    [
+      [0, 0, -1],
+      "#9a8f80",
+      [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ].map(([a, b]) => [a, b, -1]),
+    ],
+    [
+      [0, -1, 0],
+      "#aab0b4",
+      [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ].map(([a, b]) => [a, -1, b]),
+    ],
+    [
+      [0, 1, 0],
+      "#7d8489",
+      [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ].map(([a, b]) => [a, 1, b]),
+    ],
+    [
+      [-1, 0, 0],
+      "#8f969b",
+      [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ].map(([a, b]) => [-1, a, b]),
+    ],
+    [
+      [1, 0, 0],
+      "#8f969b",
+      [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ].map(([a, b]) => [1, a, b]),
+    ],
+  ];
+  ctx.save();
+  const front = pose.z + halfDepth(h, T, pose.phi);
+  ctx.beginPath();
+  ctx.rect(0, 0, SCENE_W, ground + K * Math.max(0, front) + 0.5);
+  ctx.clip();
+  for (const [n, colour, corners] of faces) {
+    const m = turn(n[0], n[1], n[2]);
+    if (m.z - K * m.y <= 0.01) continue;
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    corners.forEach(([a, b, c], k) => {
+      const [x, y] = at((a * w) / 2, (b * h) / 2, (c * T) / 2);
+      if (k) ctx.lineTo(x, y);
+      else ctx.moveTo(x, y);
+    });
+    ctx.fill();
+  }
+  ctx.restore();
+};
+
 const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   const since = sinceOf(v, t);
   const { ruin: r, ms } = ruinFor(v);
@@ -129,7 +254,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   const { w: W, h: H } = SPEC;
   const show = String(v.show);
   // The room around the wall: sky behind it, the dado, the floor.
-  ctx.fillStyle = "#4f5b66";
+  ctx.fillStyle = "#9cc4e4";
   ctx.fillRect(0, 0, SCENE_W, SCENE_H);
   ctx.fillStyle = "#8d969c";
   ctx.fillRect(0, H, SCENE_W, SPEC.ground - H);
@@ -161,9 +286,11 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
       const y = (q - x) / W;
       if (!up) {
         // Gone: the sky, tinted by whether the wall arches over the gap here.
-        const g = gapOf[Math.min(nc - 1, b.course) * W + x];
-        const tint = g >= 0 ? (gaps[g].arched ? hex("#7fd88f") : hex("#f0a0a0")) : sky;
-        put(q, show === "classes" ? mix(sky, tint, 0.6) : sky);
+        if (show === "classes") {
+          const g = gapOf[Math.min(nc - 1, b.course) * W + x];
+          const tint = g >= 0 ? (gaps[g].arched ? hex("#7fd88f") : hex("#f0a0a0")) : sky;
+          img.data.set([...mix(sky, tint, 0.6).map(Math.round), 110], q * 4);
+        }
         continue;
       }
       const edge =
@@ -198,15 +325,33 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
               ? hex("#3a3f45")
               : hex("#5d7f9c"),
           );
-        else put(q, sky);
       }
     }
   });
+  const inFlight = moving(r, since);
+  const behind = ({ body, pose }: { body: Body; pose: Pose }) =>
+    pose.z + halfDepth(body.h, body.T, pose.phi) <= 0.5;
+  for (const m of inFlight) if (behind(m)) drawBody(ctx, m.body, m.pose, 0, SPEC.h);
   layer ??= document.createElement("canvas");
   layer.width = W;
   layer.height = H;
   layer.getContext("2d")?.putImageData(img, 0, 0);
   ctx.drawImage(layer, 0, 0);
+  const down = lying(r, since);
+  for (const l of down) drawBody(ctx, l.body, l.pose, l.sink, SPEC.ground);
+  for (const m of inFlight) if (!behind(m)) drawBody(ctx, m.body, m.pose, 0, SPEC.ground);
+  if (show === "pile") {
+    // The heap's height along the wall, nearest the wall and at its toe.
+    for (const [z0, z1, c] of [
+      [0, 6, "#ffe040"],
+      [14, 28, "#ff8040"],
+    ] as const) {
+      for (let x = 0; x < W; x += 2) {
+        const h = heightOver(r.pile, x, x + 1, z0, z1, since);
+        if (h > 0) rect(ctx, c, x, SPEC.ground - h + K * z0, 2, 1);
+      }
+    }
+  }
 
   // The readout, on the dado.
   const standing = state.standing.reduce((s, x) => s + x, 0);
@@ -214,6 +359,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
     `${hms(since)}  ${String(v.rate)}  seed ${v.seed}`,
     `standing ${standing}/${bond.blocks.length}  released ${releasedBy(r, since)}  window ${state.inserts[0] ? "in" : "out"}`,
     `bake ${ms.toFixed(0)}ms  taps ${tapsOf(Number(v.seed)).length}  cracked ${warn.size} (${CRACK_S}s ahead)`,
+    `falling ${inFlight.length}  lying ${down.length}  thuds ${r.cues.filter((c) => c.t <= since).length}`,
   ];
   lines.forEach((line, i) => drawPixelText(ctx, line, 4, H + 6 + i * 10, "#20262c"));
 };
@@ -230,9 +376,9 @@ export const wallSim: Unit = {
   },
   params: () => [
     { kind: "seed", key: "seed" },
-    { kind: "range", key: "since", min: 0, max: 43200, step: 10 },
+    { kind: "range", key: "since", min: 0, max: 43200, step: 0.1 },
     { kind: "select", key: "rate", options: Object.keys(RATES) },
-    { kind: "select", key: "show", options: ["blocks", "classes", "hazard", "order"] },
+    { kind: "select", key: "show", options: ["blocks", "classes", "hazard", "order", "pile"] },
     { kind: "select", key: "tap", options: ["knock out", "roof", "forget taps"] },
     ...TUNE.map(({ key, min, max, step }) => ({ kind: "range" as const, key, min, max, step })),
   ],

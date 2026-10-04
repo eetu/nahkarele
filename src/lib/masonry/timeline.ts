@@ -19,6 +19,8 @@ import {
   soundOf,
   wearOf,
 } from "./decay";
+import type { Pile } from "./pile";
+import { bakeRubble, type Body, type Cue, type Impact } from "./rubble";
 import { classify, settle } from "./stability";
 import { type Bond, insertOf, insertRef, type Spec } from "./types";
 
@@ -53,6 +55,13 @@ export type Ruin = {
   releaseAt: Float64Array;
   insertAt: Float64Array;
   hangAt: Record<string, number>;
+  /** What came off, falling and fallen, in the order it left the wall; and in the order it
+   *  came to rest. */
+  bodies: Body[];
+  settled: Body[];
+  impacts: Impact[];
+  cues: Cue[];
+  pile: Pile;
 };
 
 /** Which way a block goes when nothing pushes it: a little more often into the room. */
@@ -241,5 +250,22 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
     const half = behind.length ? behind[Math.ceil(behind.length / 2) - 1] : Infinity;
     hangAt[name] = Math.min(above >= 0 ? releaseAt[above] : Infinity, half) + LETGO;
   }
-  return { spec, seed, pace, bond, sound, collapses, releases, releaseAt, insertAt, hangAt };
+  const rubble = bakeRubble(bond, seed, pace, releases, releaseAt, insertAt);
+  const settled = rubble.bodies
+    .filter((b) => Number.isFinite(b.settled))
+    .sort((a, b) => a.settled - b.settled || a.id - b.id);
+  return {
+    spec,
+    seed,
+    pace,
+    bond,
+    sound,
+    collapses,
+    releases,
+    releaseAt,
+    insertAt,
+    hangAt,
+    ...rubble,
+    settled,
+  };
 };
