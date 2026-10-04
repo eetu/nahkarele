@@ -5,6 +5,7 @@
 import { hash, ramp, rect } from "$lib/scene/pixel";
 import { mix } from "$lib/scene/sky";
 
+import { type Conk, drawConk } from "./conks";
 import type { Part } from "./posed";
 
 export type Species =
@@ -49,6 +50,9 @@ export type Plan = {
    *  spring and flutter from one age to the next. */
   ids?: number[];
   clumpIds?: number[];
+  /** Each axis of the arch as drawn, by axis: where its pieces start along it, px, which
+   *  pieces they are, and how long it is; absent where the axis isn't drawn. */
+  onAxes?: ({ s: number[]; k: number[]; len: number } | undefined)[];
 };
 
 /** What the year is doing to the trees: the season (0 summer … 3 spring), how far through it,
@@ -415,13 +419,15 @@ const berried = ({ k, p }: Look) => (k === 0 && p > 0.6) || k === 1 || (k === 2 
 export const paintTree = (ctx: CanvasRenderingContext2D, plan: Plan, g: number, look: Look) =>
   paintTreeParts(ctx, plan, g, look, () => {});
 
-/** `paintTree`, telling `part` before each part is painted, so a caller can keep them apart. */
+/** `paintTree`, telling `part` before each part is painted, so a caller can keep them apart;
+ *  with the bracket fungi `conks` on its wood. */
 export const paintTreeParts = (
   ctx: CanvasRenderingContext2D,
   plan: Plan,
   g: number,
   look: Look,
   part: (p: Part) => void,
+  conks: Conk[] = [],
 ) => {
   const at = grownAt(plan, g);
   if (g < 0.15) {
@@ -444,6 +450,19 @@ export const paintTreeParts = (
     part({ kind: "wood", i, a, b });
     wood(ctx, plan, a, b, Math.max(1, Math.round(l.w * (0.4 + 0.6 * g))), look, l.dead);
   });
+  // Conks out from the edge of the wood they grow on, moving with that piece as its bark does.
+  for (const c of conks) {
+    const l = plan.limbs[c.piece];
+    if (!l || l.at > g) continue;
+    const a = at(l.a);
+    const b = at(l.b);
+    part({ kind: "wood", i: c.piece, a, b });
+    const w = Math.max(1, Math.round(l.w * (0.4 + 0.6 * g)));
+    const cx = a.x + (b.x - a.x) * c.t;
+    const cy = a.y + (b.y - a.y) * c.t;
+    const left = Math.round(cx - w / 2);
+    drawConk(ctx, c.side > 0 ? left + w : left - 1, Math.round(cy - c.tall * 0.4), c);
+  }
   // A dead broadleaf stays bare; a dead conifer rusts, then drops its needles.
   const dead = look.dead ?? 0;
   if (dead && (deciduous(plan.species) || dead >= NEEDLES_DROP)) return;

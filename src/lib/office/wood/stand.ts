@@ -9,6 +9,7 @@ import { prefersReducedMotion } from "$lib/keys";
 import { hash, smooth } from "$lib/scene/pixel";
 
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
+import { type Conk, conkKey, conksOn } from "./conks";
 import { type Arch, archOf, fruitAt, lifespanOf, planAt } from "./growth";
 import { mossesAt } from "./moss";
 import {
@@ -132,6 +133,25 @@ export const ageAt = (life: Life, since: number) => {
     ? (GROWIN_Y * (t - life.born)) / (SEASONS_FROM - life.born)
     : GROWIN_Y + (t - SEASONS_FROM) / YEAR_S;
 };
+/** How old `life`'s wood is `since` seconds into friday, years: its age, going on once it has
+ *  died, for what grows on it. */
+const woodAt = (life: Life, since: number) =>
+  since <= life.dies ? ageAt(life, since) : ageAt(life, life.dies) + (since - life.dies) / YEAR_S;
+
+/** The conks on `plan`, `life` as drawn `since` seconds into friday, with `snow` lying. */
+export const conksAt = (life: Life, plan: Plan, since: number, snow: number): Conk[] => {
+  if (since < SEASONS_FROM) return [];
+  const years = (since - SEASONS_FROM) / YEAR_S;
+  const year = Math.floor(years);
+  return conksOn(life.arch, plan, {
+    age: woodAt(life, since),
+    died: ageAt(life, life.dies),
+    year,
+    phase: years - year,
+    snow,
+  });
+};
+
 /** Age as drawn: in steps, so a tree is painted afresh only now and then. */
 export const ageStep = (life: Life, since: number) =>
   Math.floor(ageAt(life, since) * AGE_STEPS) / AGE_STEPS;
@@ -375,12 +395,14 @@ const drawDown = (ctx: CanvasRenderingContext2D, life: Life, since: number, seed
   const t = since - life.falls;
   const plan = downOf(life);
   const about = pivotOf(plan, life.side);
+  // Its conks go down with it and grow on while it lies.
+  const conks = conksAt(life, plan, since, 0);
   const paint: Painter = (rec, part) => {
-    paintTreeParts(rec, plan, 1, DOWN, part);
+    paintTreeParts(rec, plan, 1, DOWN, part, conks);
     part({ kind: "still" });
     paintRootPlate(rec, plan);
   };
-  const key = `${seed}|${life.n}|down`;
+  const key = `${seed}|${life.n}|down|${conkKey(conks)}`;
   const room = roomOf(plan, life.side, about);
   const over = { about, sunk: 0, moss: 0, gone: 0, mosses: mossesAt(since) };
   if (t < FALL_S) {
@@ -436,9 +458,10 @@ export const drawTrees = (
     const plan = planOf(life, since);
     const look = lookOf(life, since);
     const dead = look.dead ? Math.ceil(look.dead * 12) : 0;
+    const conks = conksAt(life, plan, since, look.snow);
     const when = `${ageStep(life, since)}|${yearOf(since)}`;
-    const key = `${seed}|${life.n}|${when}|${look.k}|${Math.round(look.p * 24)}|${dead}`;
-    const paint: Painter = (rec, part) => paintTreeParts(rec, plan, 1, look, part);
+    const key = `${seed}|${life.n}|${when}|${look.k}|${Math.round(look.p * 24)}|${dead}|${conkKey(conks)}`;
+    const paint: Painter = (rec, part) => paintTreeParts(rec, plan, 1, look, part, conks);
     drawPosed(
       ctx,
       `tree${life.slot}`,
