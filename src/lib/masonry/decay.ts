@@ -32,6 +32,8 @@ export type Pace = {
   first: [number, number];
   collapses: number;
   gap: number;
+  /** How many courses down from the top a collapse can knock blocks off. */
+  bite: number;
   /** A collapse's shock, after (strength, s to fade) and before it (strength, s, lead time),
    *  and how far it reaches, px. */
   after: [number, number];
@@ -44,13 +46,13 @@ export type Pace = {
 };
 
 export const PACE: Pace = {
-  eta: 36000,
+  eta: 48000,
   beta: 1.6,
   resist: [1, 0.55, 0.35, 0.22, 0.14, 0.09, 0.06],
-  free: 4,
-  open: 2.5,
+  free: 3,
+  open: 2,
   undercut: 2,
-  glued: 8,
+  glued: 4,
   pinned: 3,
   confined: 0.05,
   cap: 12,
@@ -58,6 +60,7 @@ export const PACE: Pace = {
   first: [2, 3],
   collapses: 10,
   gap: 600,
+  bite: 3,
   after: [0.01, 20],
   before: [0.05, 5, 120],
   reach: 40,

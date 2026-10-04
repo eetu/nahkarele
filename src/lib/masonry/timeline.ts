@@ -184,6 +184,8 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
         // A bite from the top stops at an opening.
         if (o < 0) break;
         if (o === last || !standing[o]) continue;
+        // The roof bears on the wall's top: below its reach there is nothing to bite.
+        if (blocks[o].course >= pace.bite) break;
         last = o;
         found++;
         if (!sound[o] && !hit.has(o)) hit.set(o, Math.min(1, Math.abs(x - c.x) / (c.w / 2)));
