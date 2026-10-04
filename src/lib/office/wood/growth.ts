@@ -710,6 +710,7 @@ export const planAt = (arch: Arch, age: number, cull = true): Plan => {
     clumpOn,
     ids,
     clumpIds,
+    onAxes: drawn,
   };
   plans.set(arch, [{ age, cull, plan }, ...kept].slice(0, 4));
   return plan;

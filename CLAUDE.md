@@ -17,6 +17,7 @@ src/lib/masonry/     a wall coming down, for any game: bond (blocks, bricks, rub
 src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, week store
   wood/              friday's wood: garden (draw order) · seasons · wind · growth + trees + sway
                      (how trees grow, look and move) · shedding (dead branches coming down) ·
+                     conks (bracket fungi on old and dead wood) ·
                      shrubs, climbers, grass + sprawl + rustle (the soft plants and how they
                      move) · posed (draws both) · stand (the six trees' lives, apples) ·
                      undergrowth (the shrubs) · overgrowth (cracks, grass, climbers) · moss ·
@@ -87,7 +88,12 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   the room. Each slot (`wood/stand.ts`) keeps a tree for good: one lives its kind's years (a
   few friday hours), dies in a spring and stands dead, goes over (its root plate with it) and
   rots into the floor while a sapling of another kind comes up; an apple tree's slot regrows
-  an apple tree. In dev a shuttle under the room runs friday's clock
+  an apple tree. Old wood grows bracket fungi by its kind (`wood/conks.ts`): perennial conks
+  (tinder fungus and chaga on birch, red-belted on conifers, false tinder, the plum's cushion)
+  come in the last third of a tree's life, grow a band a year and stay on it dead and down;
+  the sulphur shelf on old oak and the birch polypore on dead birch come in their season and
+  wither. Each is painted with the piece of wood it grows on, so it sways, falls and rots
+  with it. In dev a shuttle under the room runs friday's clock
   ahead or back while held, faster the further it is pulled. Apples ripen, fall
   through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
   early (`mood.knocks`), the one thing on friday that answers the player. The birds keep the
