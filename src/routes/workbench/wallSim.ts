@@ -158,7 +158,22 @@ const CLASS: Record<string, string> = {
   topple: "#e04040",
 };
 
-let layer: HTMLCanvasElement | null = null;
+/** What falls behind the wall, and the wall: a canvas each. One canvas drawn, refilled and
+ *  drawn again in a frame leaves the browser to keep the first contents for the first draw;
+ *  one that draws lazily shows the wall twice, and what falls behind it blinks out. */
+const layers: { back: HTMLCanvasElement | null; wall: HTMLCanvasElement | null } = {
+  back: null,
+  wall: null,
+};
+const layerOf = (which: "back" | "wall", image: ImageData) => {
+  const canvas = (layers[which] ??= document.createElement("canvas"));
+  if (canvas.width !== image.width || canvas.height !== image.height) {
+    canvas.width = image.width;
+    canvas.height = image.height;
+  }
+  canvas.getContext("2d")?.putImageData(image, 0, 0);
+  return canvas;
+};
 
 let room: { canvas: HTMLCanvasElement; image: ImageData; pixels: Uint32Array } | null = null;
 
@@ -300,14 +315,8 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
       near: backNear,
     });
   }
-  layer ??= document.createElement("canvas");
-  layer.width = W;
-  layer.height = H;
-  const lctx = layer.getContext("2d");
-  lctx?.putImageData(back, 0, 0);
-  ctx.drawImage(layer, 0, 0);
-  lctx?.putImageData(img, 0, 0);
-  ctx.drawImage(layer, 0, 0);
+  ctx.drawImage(layerOf("back", back), 0, 0);
+  ctx.drawImage(layerOf("wall", img), 0, 0);
   // The hung things, outlined, while they hang.
   for (const { name, rect: f } of SPEC.hangs) {
     if (!hangOn(r, name, since)) continue;
