@@ -271,20 +271,17 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   // What falls behind the wall shows in its gaps; then the wall over it; then the room.
   // Farthest first, so what overlaps stays put from frame to frame.
   const inFlight = moving(r, since).sort((a, b) => a.pose.z - b.pose.z || a.body.id - b.body.id);
-  const behind = ({ body, pose }: { body: Body; pose: Pose }) =>
-    pose.z + halfDepth(body.h, body.T, pose.phi) <= 0.5;
   const back = new ImageData(W, H);
   const backPx = new Uint32Array(back.data.buffer);
   for (const m of inFlight) {
-    if (behind(m)) {
-      paintStone(backPx, W, H, 0, m.body, m.pose, {
-        ...facesOf(r, m.body),
-        sink: 0,
-        moss: 0,
-        since,
-        ground: H,
-      });
-    }
+    paintStone(backPx, W, H, 0, m.body, m.pose, {
+      ...facesOf(r, m.body),
+      sink: 0,
+      moss: 0,
+      since,
+      ground: H,
+      depth: "back",
+    });
   }
   layer ??= document.createElement("canvas");
   layer.width = W;
@@ -322,13 +319,13 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
     });
   }
   for (const m of inFlight) {
-    if (behind(m)) continue;
     paintStone(room.pixels, SCENE_W, SCENE_H, 0, m.body, m.pose, {
       ...facesOf(r, m.body),
       sink: 0,
       moss: 0,
       since,
       ground: floorAt(m.body, m.pose),
+      depth: "front",
     });
   }
   room.canvas.getContext("2d")?.putImageData(room.image, 0, 0);

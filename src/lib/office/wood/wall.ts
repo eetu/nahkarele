@@ -254,10 +254,6 @@ const behindFront = (fronts: Rect[]) => (x: number, y: number) =>
 const byDepth = <T extends { body: { id: number }; pose: { z: number } }>(list: T[]) =>
   list.sort((a, b) => a.pose.z - b.pose.z || a.body.id - b.body.id);
 
-/** Stones still in or behind the wall's plane: seen only through the gaps. */
-const isBehind = (body: { h: number; T: number }, pose: { z: number; phi: number }) =>
-  pose.z + halfDepth(body.h, body.T, pose.phi) <= 0.5;
-
 /**
  * The wall's gaps `since` seconds into friday, `outside` showing through them (a canvas the
  * size of the wall, or null for none), what falls behind the wall with it, and the gaps' rims;
@@ -302,12 +298,12 @@ export const drawWall = (
   // What falls behind the wall, seen through the gaps.
   const sheet = sheetOf("stones-behind", SCENE_W, WALL_H);
   for (const { body, pose } of byDepth(moving(r, since))) {
-    if (!isBehind(body, pose)) continue;
     const box = paintStone(sheet.pixels, SCENE_W, WALL_H, 0, body, pose, {
       sink: 0,
       moss: 0,
       since,
       ground: WALL_H,
+      depth: "back",
     });
     if (box) grow(sheet, box);
   }
@@ -383,13 +379,13 @@ export const drawRubble = (
   const sheet = sheetOf("stones", SCENE_W, SCENE_H);
   const hidden = behindFront(setting.fronts);
   for (const { body, pose } of byDepth(moving(r, since))) {
-    if (isBehind(body, pose)) continue;
     const box = paintStone(sheet.pixels, SCENE_W, SCENE_H, 0, body, pose, {
       sink: 0,
       moss: 0,
       since,
       ground: FLOOR_Y + Math.round(K * Math.max(0, pose.z + halfDepth(body.h, body.T, pose.phi))),
       hidden,
+      depth: "front",
     });
     if (box) grow(sheet, box);
   }

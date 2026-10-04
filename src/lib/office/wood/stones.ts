@@ -58,6 +58,9 @@ export type Paint = {
   hidden?: (x: number, y: number) => boolean;
   face?: Face;
   back?: Face;
+  /** Only what is in front of the wall's face, or only what is behind it: a stone leaving
+   *  the wall is drawn twice, its parts still in the wall seen only through the gaps. */
+  depth?: "front" | "back";
 };
 
 /** A colour as a word, darker by `k` (0 to 1). */
@@ -140,13 +143,16 @@ export const faceOf = (
   };
 };
 
-const scratch = { buf: new Uint32Array(64 * 64), w: 64, h: 64 };
+/** A stone's own pixels before they go into the scene, and the depth of each from the
+ *  stone's centre. */
+const scratch = { buf: new Uint32Array(64 * 64), depth: new Float32Array(64 * 64) };
 const scratchOf = (w: number, h: number) => {
-  if (scratch.buf.length < w * h) scratch.buf = new Uint32Array(w * h * 2);
-  scratch.w = w;
-  scratch.h = h;
+  if (scratch.buf.length < w * h) {
+    scratch.buf = new Uint32Array(w * h * 2);
+    scratch.depth = new Float32Array(w * h * 2);
+  }
   scratch.buf.fill(0, 0, w * h);
-  return scratch.buf;
+  return scratch;
 };
 
 /**
@@ -180,8 +186,10 @@ export const paintStone = (
   const reach =
     Math.ceil((Math.abs(h * cf) + Math.abs(T * sf)) / 2 + (K * (Math.abs(h * sf) + T)) / 2) + 2;
   const bh = reach * 2 + 1;
-  const buf = scratchOf(w, bh);
+  const { buf, depth } = scratchOf(w, bh);
   const oy = reach;
+  // Depth from the stone's centre of a point of it, turned: toward the viewer positive.
+  const deep = (y: number, z: number) => -y * sf + z * cf;
   const edgeAt = (c: number, r: number) =>
     c === 0 ||
     r === 0 ||
@@ -203,14 +211,25 @@ export const paintStone = (
     if (fresh?.[r * w + c]) return BED.fresh;
     return edge ? INSIDE.edge : hash(body.block, c, r, 13) < 0.08 ? INSIDE.grit : INSIDE.face;
   };
-  const fill = (c: number, s0: number, s1: number, colour: (u: number) => number) => {
+  // A face's span down column `c`, from projected row `s0` to `s1`, its depth going from `z0`
+  // to `z1`.
+  const fill = (
+    c: number,
+    s0: number,
+    s1: number,
+    z0: number,
+    z1: number,
+    colour: (u: number) => number,
+  ) => {
     const a = Math.round(Math.min(s0, s1));
     const b = Math.round(Math.max(s0, s1));
     for (let s = a; s <= b; s++) {
       const row = oy + s;
       if (row < 0 || row >= bh) continue;
       const u = b > a ? (s - a) / (b - a) : 0.5;
-      buf[row * w + c] = colour(s0 <= s1 ? u : 1 - u);
+      const along = s0 <= s1 ? u : 1 - u;
+      buf[row * w + c] = colour(along);
+      depth[row * w + c] = z0 + (z1 - z0) * along;
     }
   };
   for (let c = 0; c < w; c++) {
@@ -244,7 +263,14 @@ export const paintStone = (
             : sf > 0.5
               ? BED.side
               : BED.up;
-        fill(c, project(ya, -T / 2), project(ya, T / 2), () => word);
+        fill(
+          c,
+          project(ya, -T / 2),
+          project(ya, T / 2),
+          deep(ya, -T / 2),
+          deep(ya, T / 2),
+          () => word,
+        );
       }
       if (lower) {
         const fr = fresh?.[(r1 - 1) * w + c];
@@ -255,10 +281,25 @@ export const paintStone = (
           : own((r0 + r1) >> 1)
             ? darker(own((r0 + r1) >> 1), 0.25)
             : BED.down;
-        fill(c, project(yb, -T / 2), project(yb, T / 2), () => word);
+        fill(
+          c,
+          project(yb, -T / 2),
+          project(yb, T / 2),
+          deep(yb, -T / 2),
+          deep(yb, T / 2),
+          () => word,
+        );
       }
-      if (front) fill(c, project(ya, T / 2), project(yb, T / 2), (u) => faceWord(c, at(u), false));
-      if (back) fill(c, project(ya, -T / 2), project(yb, -T / 2), (u) => faceWord(c, at(u), true));
+      if (front) {
+        fill(c, project(ya, T / 2), project(yb, T / 2), deep(ya, T / 2), deep(yb, T / 2), (u) =>
+          faceWord(c, at(u), false),
+        );
+      }
+      if (back) {
+        fill(c, project(ya, -T / 2), project(yb, -T / 2), deep(ya, -T / 2), deep(yb, -T / 2), (u) =>
+          faceWord(c, at(u), true),
+        );
+      }
     }
   }
   // Into the scene, turned in the plane about the stone's centre, sunk, mossed and clipped.
@@ -277,7 +318,8 @@ export const paintStone = (
   // Moss climbs from the lowest drawn row.
   let bottom = -Infinity;
   let highest = Infinity;
-  const src = (X: number, Y: number) => {
+  // The stone's own pixel under scene pixel `X`, `Y`, as an index into its buffer (-1: none).
+  const at2 = (X: number, Y: number) => {
     let u: number;
     let v: number;
     if (turned) {
@@ -289,7 +331,17 @@ export const paintStone = (
       u = X - Math.round(sx - w / 2);
       v = Y - (Math.round(sy) - oy);
     }
-    return u < 0 || v < 0 || u >= w || v >= bh ? 0 : buf[v * w + u];
+    return u < 0 || v < 0 || u >= w || v >= bh ? -1 : v * w + u;
+  };
+  const src = (X: number, Y: number) => {
+    const q = at2(X, Y);
+    return q < 0 ? 0 : buf[q];
+  };
+  // In front of the wall's face, or behind it, as asked.
+  const kept = (q: number) => {
+    if (!paint.depth) return true;
+    const z = pose.z + depth[q];
+    return paint.depth === "front" ? z >= 0 : z < 0;
   };
   for (let Y = y0; Y <= y1; Y++) {
     for (let X = x0; X <= x1; X++) {
@@ -305,8 +357,10 @@ export const paintStone = (
   for (let Y = y0; Y <= y1; Y++) {
     if (Y > paint.ground || Y < top || Y >= top + H) continue;
     for (let X = Math.max(0, x0); X <= Math.min(W - 1, x1); X++) {
-      let px = src(X, Y);
-      if (!px || paint.hidden?.(X, Y)) continue;
+      const q = at2(X, Y);
+      if (q < 0) continue;
+      let px = buf[q];
+      if (!px || !kept(q) || paint.hidden?.(X, Y)) continue;
       if (paint.moss > 0) {
         const climb = (bottom - Y) / tall;
         if (paint.moss > climb * 0.8 + hash(X, Y, body.id, 77) * 0.25) {

@@ -20,14 +20,16 @@ describe("laying the bond", () => {
       const { owner, blocks, joint, unit } = layBond(spec, seed);
       expect(joint.length).toBe(SPEC.w * SPEC.h);
       expect(unit.length).toBe(SPEC.w * SPEC.h);
+      let wrong = 0;
       for (let y = 0; y < SPEC.h; y++) {
         for (let x = 0; x < SPEC.w; x++) {
-          expect(owner[y * SPEC.w + x] < 0).toBe(inWindow(x, y));
+          if (owner[y * SPEC.w + x] < 0 !== inWindow(x, y)) wrong++;
         }
       }
+      expect(wrong).toBe(0);
       const total = blocks.reduce((s, b) => s + b.n, 0);
       expect(total).toBe(SPEC.w * SPEC.h - 76 * 50);
-      for (const b of blocks) for (const q of b.px) expect(owner[q]).toBe(b.i);
+      expect(blocks.every((b) => Array.from(b.px).every((q) => owner[q] === b.i))).toBe(true);
     }
   });
 
