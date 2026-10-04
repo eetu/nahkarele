@@ -805,6 +805,55 @@ export const bakeRubble = (
         last.t0 + Math.max(Math.sqrt((2 * Math.max(0, down)) / g), across / ROLL),
       );
       body.settled = last.t1;
+      // Over what is under it, not through the air: along at its height while there is
+      // something under it, then down off the edge into its place.
+      const from = last.a.y + pl.rise / 2;
+      const surface = (u: number) => {
+        const [x, z] = [last.a.x + (b.x - last.a.x) * u, last.a.z + (b.z - last.a.z) * u];
+        return (
+          ground -
+          heightOver(
+            pile,
+            x - body.w / 2,
+            x + body.w / 2 - 1,
+            z - pl.deep / 2,
+            z + pl.deep / 2 - 1,
+            S,
+          )
+        );
+      };
+      const steps = Math.ceil(across);
+      let edge = -1;
+      for (let k = 1; k <= steps && down > 1.5; k++) {
+        if (surface(k / steps) > from + 1.5) {
+          edge = (k - 1) / steps;
+          break;
+        }
+      }
+      if (edge > 0) {
+        const at = (u: number, y: number): Pose => ({
+          x: last.a.x + (b.x - last.a.x) * u,
+          y,
+          z: last.a.z + (b.z - last.a.z) * u,
+          phi: last.a.phi + (pl.phi - last.a.phi) * u,
+          theta: last.a.theta + (pl.theta - last.a.theta) * u,
+        });
+        const brink = at(edge, last.a.y);
+        last.b = brink;
+        last.p = 1;
+        last.t1 = last.t0 + (across * edge) / ROLL;
+        const fall = Math.sqrt((2 * Math.max(0, b.y - brink.y)) / g);
+        const off: Ease = {
+          k: "ease",
+          t0: last.t1,
+          t1: last.t1 + Math.max(fall, (across * (1 - edge)) / ROLL),
+          a: brink,
+          b: { ...b, phi: pl.phi, theta: pl.theta },
+          p: 2,
+        };
+        body.phases.push(off);
+        body.settled = off.t1;
+      }
     }
     const l = lay(pile, body.id, fin.x, fin.z, body.w, pl.deep, fin.base, pl.rise, S);
     // Its top where it is drawn: put on a whole pixel, and lying tilted (propped on something
