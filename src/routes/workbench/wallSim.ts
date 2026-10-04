@@ -39,7 +39,7 @@ const SPEC: Spec = specOf(WALL);
 /** Ways of building it: course height, a piece's length and the wall's thickness, px. Bricks
  *  come away brick by brick, rubble stone by stone, from a wall 50 cm thick. */
 const BUILDS = {
-  block: { course: 14, unit: 26, thickness: 8, brittle: 1 },
+  block: { course: 8, unit: 16, thickness: 8, brittle: 1 },
   brick: { course: 4, unit: 10, thickness: 9, brittle: 0.4 },
   rubble: { course: 12, unit: 18, thickness: 20, brittle: 0.25 },
 } as const;

@@ -14,7 +14,7 @@ import {
 import { sinkOf } from "../pile";
 import type { Body } from "../rubble";
 import { bake, type Ruin } from "../timeline";
-import type { Knock, Spec } from "../types";
+import { insertOf, type Knock, type Spec } from "../types";
 import { SPEC } from "./spec";
 
 const BUILDS: [string, Spec][] = [
@@ -134,7 +134,10 @@ describe.each(BUILDS)("what comes off a %s wall", (name, spec) => {
         const laid = r.bond.blocks[rel.i];
         let [L, R] = [Infinity, -Infinity];
         for (const c of laid.bed) {
-          if (c.j >= 0 && r.releaseAt[c.j] <= rel.t) continue;
+          // What it rested on: a block, an insert (the window, gone when it falls out), the base.
+          const k = insertOf(c.j);
+          const at = c.j >= 0 ? r.releaseAt[c.j] : k >= 0 ? r.insertAt[k] : Infinity;
+          if (at <= rel.t) continue;
           [L, R] = [Math.min(L, c.a), Math.max(R, c.b)];
         }
         const side = Math.sign(laid.cx - (L + R) / 2);

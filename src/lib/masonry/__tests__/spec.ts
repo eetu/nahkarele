@@ -7,7 +7,6 @@ export const SPEC: Spec = {
   course: 14,
   unit: 26,
   thickness: 8,
-  rough: 1.5,
   ground: 150,
   inserts: [{ name: "window", rect: { x: 122, y: 14, w: 76, h: 50 } }],
   hangs: [],

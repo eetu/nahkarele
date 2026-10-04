@@ -61,7 +61,7 @@ const MOSS_S = 3600;
 
 const specs = new WeakMap<Setting, Spec>();
 
-/** The masonry the room's wall is: blocks 26 by 14 px (65 by 35 cm), 8 px thick, over the
+/** The masonry the room's wall is: cement blocks 16 by 8 px (40 by 20 cm), 8 px thick, over the
  *  dado; the window an insert, the rest hung on it. */
 export const specOf = (setting: Setting): Spec => {
   const known = specs.get(setting);
@@ -69,10 +69,9 @@ export const specOf = (setting: Setting): Spec => {
   const spec: Spec = {
     w: SCENE_W,
     h: WALL_H,
-    course: 14,
-    unit: 26,
+    course: 8,
+    unit: 16,
     thickness: 8,
-    rough: 1.5,
     ground: FLOOR_Y,
     g: G,
     inserts: setting.openings.map((name) => ({ name, rect: setting.fixtures[name] })),

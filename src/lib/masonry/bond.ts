@@ -1,12 +1,9 @@
-// Laying a wall, one of three ways: concrete blocks in running bond (each course half a block
-// along from the one below, joints wandering a little, here and there a half block where it
-// breaks no joint above or below); bricks, one by one; or medieval rubble, stones of every
-// size in rough courses. Whichever, the wall is pieces (what
+// Laying a wall, one of two ways: cement blocks or bricks in running bond (each course half a
+// unit along from the one below, joints straight), each unit with its mortar a piece of its
+// own; or medieval rubble, stones of every size in rough courses. Whichever, the wall is pieces (what
 // comes away whole), and what touches what: what each rests on (its bed), what rests on it,
 // its neighbours in the course, and any insert sitting on it. Pieces are called blocks here
 // whatever they are made of.
-
-import { hash } from "$lib/scene/pixel";
 
 import { stream, wander } from "./rand";
 import { ABUT, BASE, type Block, type Bond, type Contact, insertRef, type Spec } from "./types";
@@ -20,13 +17,6 @@ const scrapOf = (spec: Spec) => ({
   px: Math.min(MIN_PX, (spec.unit * spec.course) / 4),
   side: Math.min(MIN_SIDE, spec.course - 1),
 });
-/** A head joint lands up to this far off true, px, and never nearer a wall's end than END. */
-const JOG = 3;
-const END = 6;
-/** About this share of blocks are laid as two halves, where no joint above or below is within
- *  CLEAR px of the split. */
-const BATS = 0.07;
-const CLEAR = 4;
 /** Blocks hold each other where they share at least this much edge, px; less is a crack. */
 export const HOLD = 3;
 
@@ -46,36 +36,6 @@ const coursesOf = (h: number, course: number) => {
   return edges;
 };
 
-/** Where each course's head joints fall, left to right. */
-const jointsOf = (spec: Spec, seed: number, nc: number) => {
-  const { w: W, unit } = spec;
-  const joints: number[][] = [];
-  for (let c = 0; c < nc; c++) {
-    // Counted from the base, every other course starts half a block along.
-    const off = (((nc - 1 - c) % 2) * unit) / 2;
-    const xs: number[] = [];
-    for (let j = 0; j * unit - off < W; j++) {
-      const x = j * unit - off + (hash(seed, c, j, 1) - 0.5) * 2 * JOG;
-      if (x > END && x < W - END) xs.push(x);
-    }
-    joints.push(xs);
-  }
-  // Bats, where the split lines up with no joint in the courses either side.
-  for (let c = 0; c < nc; c++) {
-    const all = [0, ...joints[c], W];
-    const bats: number[] = [];
-    for (let k = 0; k + 1 < all.length; k++) {
-      const [l, r] = [all[k], all[k + 1]];
-      if (r - l < unit * 0.8 || hash(seed, c, k, 2) >= BATS) continue;
-      const m = (l + r) / 2 + (hash(seed, c, k, 3) - 0.5) * 4;
-      const near = (row?: number[]) => row?.some((x) => Math.abs(x - m) < CLEAR) ?? false;
-      if (!near(joints[c - 1]) && !near(joints[c + 1])) bats.push(m);
-    }
-    joints[c] = [...joints[c], ...bats].sort((a, b) => a - b);
-  }
-  return joints;
-};
-
 /** A layout before tidying: each pixel's piece (-1 in an opening), each piece's course, the
  *  courses' rows, and per pixel whether it is mortar and which unit (block, brick, stone) it
  *  belongs to. */
@@ -87,60 +47,19 @@ type Layout = {
   unit: Int32Array | null;
 };
 
-/** Concrete blocks, each its own piece: courses up from the base, joints wandering a little. */
-const layBlocks = (spec: Spec, seed: number): Layout => {
-  const { w: W, h: H, rough } = spec;
-  const edges = coursesOf(H, spec.course);
-  const nc = edges.length - 1;
-  const joints = jointsOf(spec, seed, nc);
-  // The joints as laid: each bed joint's row along x, each head joint's column down y.
-  const beds = edges.map((e, k) =>
-    Float32Array.from({ length: W }, (_, x) =>
-      k === 0 ? -Infinity : k === nc ? Infinity : e + rough * wander(x / 5, seed, 100 + k),
-    ),
-  );
-  const heads = joints.map((xs, c) =>
-    xs.map((x0, k) =>
-      Float32Array.from(
-        { length: H },
-        (_, y) => x0 + rough * wander(y / 4, seed, 200 + c * 64 + k),
-      ),
-    ),
-  );
-  const first: number[] = [];
-  let ids = 0;
-  for (let c = 0; c < nc; c++) {
-    first.push(ids);
-    ids += joints[c].length + 1;
-  }
-  const courseOfId = new Int16Array(ids);
-  for (let c = 0; c < nc; c++) courseOfId.fill(c, first[c], first[c] + joints[c].length + 1);
-  // Each pixel to its course, then to its block in the course; openings to nobody.
-  const raw = new Int32Array(W * H).fill(-1);
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      if (spec.inserts.some(({ rect }) => inside(rect, x, y))) continue;
-      let c = 0;
-      while (c + 1 < nc && y + 0.5 >= beds[c + 1][x]) c++;
-      let k = 0;
-      while (k < heads[c].length && x + 0.5 >= heads[c][k][y]) k++;
-      raw[y * W + x] = first[c] + k;
-    }
-  }
-  return { raw, courseOfId, edges, mortar: null, unit: null };
-};
-
-/** A brick and its joint, px: 9 by 3 with 1 px of mortar, about 22 by 7 cm. */
-const BRICK = { w: 9, h: 3, joint: 1 };
+/** The mortar between units, px: a centimetre or so, at 40 px to the metre. */
+const JOINT = 1;
 
 /**
- * Bricks in running bond, half a brick along each course, each brick laid on its bed joint
- * with its head joint at its side: each brick, with its mortar, a piece of its own.
+ * Units (cement blocks, bricks) in running bond, half a unit along each course, each laid on
+ * its bed joint with its head joint at its side: each, with its mortar, a piece of its own.
+ * A unit and its joints are `spec.unit` by `spec.course` px: a brick 10 by 4 (9 by 3 and its
+ * mortar, about 22 by 7 cm), a cement block 16 by 8 (40 by 20 cm).
  */
-const layBricks = (spec: Spec): Layout => {
+const layCoursed = (spec: Spec): Layout => {
   const { w: W, h: H } = spec;
-  const mw = BRICK.w + BRICK.joint;
-  const mh = BRICK.h + BRICK.joint;
+  const mw = spec.unit;
+  const mh = spec.course;
   const edges = coursesOf(H, mh);
   const nc = edges.length - 1;
   const ids = new Map<number, number>();
@@ -151,8 +70,8 @@ const layBricks = (spec: Spec): Layout => {
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       if (spec.inserts.some(({ rect }) => inside(rect, x, y))) continue;
-      // Counted up from the base: the brick course, and the row in it (the bottom row is the
-      // bed joint the brick is laid on, so a broken top shows brick, not mortar).
+      // Counted up from the base: the course, and the row in it (the bottom row is the bed
+      // joint the unit is laid on, so a broken top shows the unit, not mortar).
       const up = H - 1 - y;
       const bc = Math.floor(up / mh);
       const row = up % mh;
@@ -160,7 +79,7 @@ const layBricks = (spec: Spec): Layout => {
       const col = Math.floor((x + off) / mw);
       const at = (x + off) % mw;
       const q = y * W + x;
-      mortar[q] = row === 0 || at >= BRICK.w ? 1 : 0;
+      mortar[q] = row < JOINT || at >= mw - JOINT ? 1 : 0;
       const key = bc * 1000 + col;
       unit[q] = key;
       let id = ids.get(key);
@@ -249,11 +168,7 @@ const layRubble = (spec: Spec, seed: number): Layout => {
 export const layBond = (spec: Spec, seed: number): Bond => {
   const { w: W, h: H } = spec;
   const { raw, courseOfId, edges, mortar, unit } =
-    spec.bond === "brick"
-      ? layBricks(spec)
-      : spec.bond === "rubble"
-        ? layRubble(spec, seed)
-        : layBlocks(spec, seed);
+    spec.bond === "rubble" ? layRubble(spec, seed) : layCoursed(spec);
   const parts = partsOf(raw, W, H, courseOfId);
   foldScraps(parts, raw, W, H, scrapOf(spec));
   let bond = withContacts(spec, edges, raw, parts);

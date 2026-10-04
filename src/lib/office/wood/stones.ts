@@ -112,7 +112,7 @@ const toward = (w: number, to: number, k: number) => {
 
 /** The units of each way of building, and their mortar. */
 const MASONRY = {
-  block: { units: ["#b4b2aa", "#aaa89f", "#bcbab2"], mortar: "#8f8c84" },
+  block: { units: ["#a8a7a0", "#a2a19a", "#aeada6", "#9e9d96"], mortar: "#8b8982" },
   brick: {
     units: ["#8c4a36", "#96543c", "#7f4232", "#9b5a42", "#874836", "#a0604a", "#7a3e2e"],
     mortar: "#a49c8e",
@@ -127,8 +127,8 @@ const PLASTER = { face: word("#b9c0c4"), grit: word("#a9b1b5"), rim: word("#8d96
 /**
  * A wall's face at `t`, pixel by pixel in wall px: plaster where its coat still is (a darker
  * rim where the coat ends), else its masonry in its mortar: each unit its own shade of its
- * kind, a stone or block lit along its top and shaded along its foot, a brick flat and
- * speckled. `skin` null: no plaster.
+ * kind, a stone lit along its top and shaded along its foot, a brick or a cement block flat
+ * and speckled. `skin` null: no plaster.
  */
 export const faceOf = (
   bond: {
@@ -144,6 +144,7 @@ export const faceOf = (
   const kind = MASONRY[(bond.spec.bond ?? "block") as keyof typeof MASONRY];
   const units = kind.units.map(word);
   const mortar = word(kind.mortar);
+  const stones = bond.spec.bond === "rubble";
   const bricks = bond.spec.bond === "brick";
   const coated = (q: number) => {
     if (!skin) return false;
@@ -165,11 +166,13 @@ export const faceOf = (
     if (bond.joint[q]) return mortar;
     const u = bond.unit[q];
     let w = units[Math.floor(hash(u, 5) * units.length)];
-    if (bricks) {
-      // Fired clay is flat and matte: no bevel, a speckle of darker and paler grains.
+    if (!stones) {
+      // Fired clay and cast concrete are flat and matte: no bevel, a speckle of darker and
+      // paler grains, the concrete's aggregate finer and denser.
       const grain = hash(x, y, 31);
-      if (grain < 0.1) w = darker(w, 0.12);
-      else if (grain > 0.95) w = lighter(w, 0.1);
+      const [dark, pale] = bricks ? [0.1, 0.95] : [0.16, 0.92];
+      if (grain < dark) w = darker(w, bricks ? 0.12 : 0.08);
+      else if (grain > pale) w = lighter(w, bricks ? 0.1 : 0.07);
     } else if (q >= W && bond.joint[q - W]) w = lighter(w, 0.12);
     else if (q + W < bond.joint.length && bond.joint[q + W]) w = darker(w, 0.12);
     return w;

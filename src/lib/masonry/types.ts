@@ -16,8 +16,6 @@ export type Spec = {
   course: number;
   unit: number;
   thickness: number;
-  /** How far a joint wanders off straight, px. */
-  rough: number;
   /** The floor, in wall y: below the base, where what falls comes down. */
   ground: number;
   /** Gravity, px/s² (392 is the real thing at 40 px to the metre). */
