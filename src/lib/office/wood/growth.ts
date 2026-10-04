@@ -673,8 +673,10 @@ export const planAt = (arch: Arch, age: number, cull = true): Plan => {
       }
     }
     if (dead || !habit.leaf) return;
-    // Leaves along the outer part of a branch and at its tip; a stem has them at its top.
+    // Leaves along the outer part of a branch and at its tip; a stem has them at its top while
+    // it grows there. A trunk that has forked into stems ends in the crotch they part from.
     if (a.stem) {
+      if (len >= a.stop) return;
       const top = pointAt(a.path, len);
       leaf(top.x, top.y, habit.leaf * 1.2, mine.k[mine.k.length - 1], i * 512 + 500);
       return;
