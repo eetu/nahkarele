@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { lying } from "$lib/masonry/query";
 import { bake } from "$lib/masonry/timeline";
 import { WALL } from "$lib/office/draw";
 
-import { faceOf, paintStone, THETA_STEP } from "../stones";
+import { faceOf, K, paintStone, THETA_STEP } from "../stones";
 import { specOf } from "../wall";
 
 const W = 120;
@@ -134,5 +135,78 @@ describe("a stone in flight", () => {
       }
     }
     expect(kinds.size).toBe(4);
+  });
+});
+
+describe("a stone at rest", () => {
+  const SW = 320;
+  const SH = 180;
+  const count = (px: Uint32Array) => px.reduce((n, p) => n + (p ? 1 : 0), 0);
+
+  it("lying on the floor shows whole; sinking, it goes under pixel by pixel, top last", () => {
+    let tried = 0;
+    for (const build of Object.values(BUILDS)) {
+      const spec = { ...specOf(WALL), ...build };
+      const r = bake(spec, 1);
+      for (const l of lying(r, 1800)) {
+        const rest = l.body.lying;
+        if (!rest || rest.base > 0) continue;
+        const shot = (sink: number, floor?: number) => {
+          const px = new Uint32Array(SW * SH);
+          paintStone(px, SW, SH, 0, l.body, l.pose, {
+            sink,
+            moss: 0,
+            since: 0,
+            ground: SH,
+            floor,
+          });
+          return count(px);
+        };
+        tried++;
+        expect(shot(0, spec.ground)).toBe(shot(0));
+        let last = Infinity;
+        for (let sink = 0; sink < rest.top; sink++) {
+          const n = shot(sink, spec.ground);
+          expect(n).toBeLessThanOrEqual(last);
+          last = n;
+        }
+        // As far down as it is still kept, and no further: gone.
+        expect(shot(rest.top, spec.ground)).toBe(0);
+      }
+    }
+    expect(tried).toBeGreaterThan(30);
+  });
+
+  it("shades toward a colour, and splits between two layers without losing a pixel", () => {
+    const r = bake({ ...specOf(WALL), ...BUILDS.brick }, 1);
+    for (const l of lying(r, 1800).slice(0, 20)) {
+      const paint = { sink: 0, moss: 0, since: 0, ground: SH };
+      const whole = new Uint32Array(SW * SH);
+      paintStone(whole, SW, SH, 0, l.body, l.pose, paint);
+      const dark = new Uint32Array(SW * SH);
+      paintStone(dark, SW, SH, 0, l.body, l.pose, {
+        ...paint,
+        shade: { colour: "#000000", k: 0.5 },
+      });
+      const [a, b] = [new Uint32Array(SW * SH), new Uint32Array(SW * SH)];
+      const y = Math.round(l.pose.y + K * l.pose.z);
+      paintStone(a, SW, SH, 0, l.body, l.pose, {
+        ...paint,
+        split: { out: b, test: (_x, Y) => Y < y },
+      });
+      let wrong = 0;
+      let split = 0;
+      for (let o = 0; o < SW * SH; o++) {
+        if ((a[o] && b[o]) || (a[o] || b[o]) !== whole[o]) wrong++;
+        if (b[o]) split++;
+        if (!whole[o]) continue;
+        // Half way to black, each channel.
+        for (const s of [0, 8, 16]) {
+          if (Math.abs(((dark[o] >> s) & 0xff) - ((whole[o] >> s) & 0xff) / 2) >= 1) wrong++;
+        }
+      }
+      expect(wrong).toBe(0);
+      expect(split).toBeGreaterThan(0);
+    }
   });
 });
