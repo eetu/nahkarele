@@ -157,16 +157,49 @@ export const crownOf = (plan: Plan, g: number): Pt => {
 
 // --- Painting ---------------------------------------------------------------------------
 
-const BIRCH_BARK = { white: "#e6e2d8", shade: "#b8b2a6", mark: "#2a2622", twig: "#5e5550" };
+const BIRCH_BARK = {
+  white: "#e6e2d8",
+  shade: "#b8b2a6",
+  mark: "#2a2622",
+  rough: "#5e5850",
+  twig: "#5e5550",
+};
+
+/** How high an old birch's black, fissured foot reaches, px above its root: solid up to the
+ *  first, breaking up into ever fewer fissures up to the second. It comes with age, so with
+ *  girth: none on a trunk up to 5 px (13 cm) across, about 0.4 m solid and 0.85 m in all at
+ *  25 cm, 0.75 m and 1.6 m at 38 cm. */
+const birchFoot = new WeakMap<Plan, [number, number]>();
+const footOf = (plan: Plan) => {
+  let foot = birchFoot.get(plan);
+  if (!foot) {
+    const girth = Math.max(1, ...plan.limbs.map((l) => l.w));
+    const solid = Math.max(0, 3 * (girth - 5));
+    foot = [solid, solid > 0 ? solid * 2 + 4 : 0];
+    birchFoot.set(plan, foot);
+  }
+  return foot;
+};
 
 /** The colour of one pixel of wood, `up` of the way up the tree, `col` columns into `w`. */
 const barkColour = (plan: Plan, x: number, y: number, col: number, w: number, up: number) => {
   switch (plan.species) {
-    case "birch":
+    case "birch": {
       if (w === 1) return BIRCH_BARK.twig;
-      if (up < 0.1) return hash(x, y, 79) < 0.55 ? BIRCH_BARK.mark : "#5e5850";
+      const [solid, broken] = footOf(plan);
+      const above = plan.root.y - y;
+      // Black and rough at the foot, each ridge (2 px) solid to its own height; above it
+      // upright fissures, each reaching its own height, most of them not far, broken here and
+      // there by white, until the white has it all.
+      const ridge = x >> 1;
+      const rough = hash(x, y, 79) < 0.55 ? BIRCH_BARK.mark : BIRCH_BARK.rough;
+      const base = solid * (0.7 + 0.3 * hash(ridge, 82));
+      if (above < base) return rough;
+      const reach = base + (broken - solid) * hash(ridge, 81) ** 2;
+      if (above < reach && hash(x, Math.floor(above / 4), 80) < 0.85) return rough;
       if (hash(x, y, 77) < 0.16) return BIRCH_BARK.mark;
       return col === w - 1 ? BIRCH_BARK.shade : BIRCH_BARK.white;
+    }
     case "rowan":
       return col === 0 && w > 1 ? "#8a7a68" : "#6e5e50";
     case "apple":
