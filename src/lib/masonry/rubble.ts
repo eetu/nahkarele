@@ -186,7 +186,7 @@ export const bakeRubble = (
         c: from,
         v: { x: vx, y: -up, z: vz },
         omega: (phi - from.phi) / th,
-        spin: (theta - from.theta) / th + (body.chip ? (hash(seed, body.id, 53) - 0.5) * 12 : 0),
+        spin: (theta - from.theta) / th + (body.chip ? (hash(seed, body.id, 53) - 0.5) * 6 : 0),
         g,
       };
       body.phases.push(hop);
@@ -258,14 +258,20 @@ export const bakeRubble = (
     // edge: it would have to turn most of a right angle first. It is pushed or slides out of
     // the wall instead, then falls tumbling a little. A slab tips.
     const deep = T >= blk.h * 0.9;
-    const slideOut = (t0: number, from: Pose, pushed: boolean): Phase => ({
-      k: "ease",
-      t0,
-      t1: t0 + (pushed ? 0.12 + 0.08 * hash(seed, i, 47) : 0.3 + 0.3 * hash(seed, i, 44)),
-      a: from,
-      b: { ...from, z: dir > 0 ? T / 2 + 0.5 : -T - T / 2 - 0.5 },
-      p: 1,
-    });
+    // Out until its middle is past the face, then it falls: pushed at 1 to 1.75 m/s, slid
+    // at a quarter to half a metre a second (at 40 px to the metre).
+    const slideOut = (t0: number, from: Pose, pushed: boolean): Phase => {
+      const to = dir > 0 ? 1 : -T - 1;
+      const speed = pushed ? 40 + 30 * hash(seed, i, 47) : 10 + 10 * hash(seed, i, 44);
+      return {
+        k: "ease",
+        t0,
+        t1: t0 + Math.abs(to - from.z) / speed,
+        a: from,
+        b: { ...from, z: to },
+        p: 1,
+      };
+    };
     const pivotFrom = (t0: number, from: Pose, bottom: number, kick: number) =>
       pivotOf(
         t0,

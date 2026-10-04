@@ -16,6 +16,9 @@ import { mossColour } from "./moss";
 
 /** How far down the screen a px of depth shows. */
 export const K = 0.25;
+/** The steps a stone is drawn turned in, rad. */
+const PHI_STEP = Math.PI / 8;
+const THETA_STEP = Math.PI / 16;
 
 const word = (hex: string) => {
   const v = parseInt(hex.slice(1, 7), 16);
@@ -161,8 +164,13 @@ export const paintStone = (
   paint: Paint,
 ) => {
   const { w, h, T, mask, fresh } = body;
-  const cf = Math.cos(pose.phi);
-  const sf = Math.sin(pose.phi);
+  // Turned in steps, as pixel art turns: a sixteenth of a turn out of the plane, a
+  // thirty-second in it. Turned smoothly, a stone's pixels are sampled afresh every frame and
+  // its grain crawls; in steps, it shows a new pose every few frames, like drawn frames.
+  const phi = Math.round(pose.phi / PHI_STEP) * PHI_STEP;
+  const theta = Math.round(pose.theta / THETA_STEP) * THETA_STEP;
+  const cf = Math.cos(phi);
+  const sf = Math.sin(phi);
   const project = (y: number, z: number) => y * cf + z * sf + K * (-y * sf + z * cf);
   const front = cf - K * sf > 0;
   const back = -cf + K * sf > 0;
@@ -256,9 +264,9 @@ export const paintStone = (
   // Into the scene, turned in the plane about the stone's centre, sunk, mossed and clipped.
   const sx = pose.x;
   const sy = pose.y + K * pose.z + paint.sink;
-  const ct = Math.cos(pose.theta);
-  const st = Math.sin(pose.theta);
-  const turned = Math.abs(pose.theta) > 0.03;
+  const ct = Math.cos(theta);
+  const st = Math.sin(theta);
+  const turned = theta !== 0;
   const half = Math.ceil(Math.hypot(w, bh) / 2) + 1;
   const [x0, x1] = turned
     ? [Math.floor(sx - half), Math.ceil(sx + half)]

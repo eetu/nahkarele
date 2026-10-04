@@ -75,7 +75,7 @@ export const PACE: Pace = {
   reach: 40,
   blast: 0.15,
   glue: 3,
-  runout: 28,
+  runout: 60,
   repose: 0.84,
   bounce: [0.3, 0.4],
   sink: [600, 3000],
