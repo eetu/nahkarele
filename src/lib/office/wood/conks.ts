@@ -135,7 +135,9 @@ const sitesOf = (arch: Arch, died: number): Site[] => {
   const known = byDeath.get(died);
   if (known) return known;
   const out: Site[] = [];
-  const h = (...salt: number[]) => hash(arch.seed, ...salt);
+  // Salted by kind too: two kinds with the same fungus on the same seed get their own.
+  const kind = [...arch.species].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 65521, 7);
+  const h = (...salt: number[]) => hash(arch.seed, kind, ...salt);
   const rootY = arch.root.y;
   const stems = arch.axes.flatMap((a, i) => (a.stem ? [i] : []));
   // Where a branch was shed from a stem by the time the tree died: the stub rots, and a conk
