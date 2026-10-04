@@ -76,8 +76,8 @@ const lighter = (w: number, k: number) => {
 const MASONRY = {
   block: { units: ["#b4b2aa", "#aaa89f", "#bcbab2"], mortar: "#8f8c84" },
   brick: {
-    units: ["#9c4a32", "#a8553a", "#8e422c", "#b0603f", "#94503a", "#7f3c28"],
-    mortar: "#c9c2b0",
+    units: ["#8c4a36", "#96543c", "#7f4232", "#9b5a42", "#874836", "#a0604a", "#7a3e2e"],
+    mortar: "#a49c8e",
   },
   rubble: {
     units: ["#8f8a7e", "#9d9789", "#7f7a70", "#a49b86", "#8a8274", "#968f7f", "#aaa290"],
@@ -88,8 +88,9 @@ const PLASTER = { face: word("#b9c0c4"), grit: word("#a9b1b5"), rim: word("#8d96
 
 /**
  * A wall's face at `t`, pixel by pixel in wall px: plaster where its coat still is (a darker
- * rim where the coat ends), else its masonry: each unit its own shade of its kind, lit along
- * its top and shaded along its foot, in its mortar. `skin` null: no plaster.
+ * rim where the coat ends), else its masonry in its mortar: each unit its own shade of its
+ * kind, a stone or block lit along its top and shaded along its foot, a brick flat and
+ * speckled. `skin` null: no plaster.
  */
 export const faceOf = (
   bond: {
@@ -105,6 +106,7 @@ export const faceOf = (
   const kind = MASONRY[(bond.spec.bond ?? "block") as keyof typeof MASONRY];
   const units = kind.units.map(word);
   const mortar = word(kind.mortar);
+  const bricks = bond.spec.bond === "brick";
   const coated = (q: number) => {
     if (!skin) return false;
     const p = skin.patch[q];
@@ -124,7 +126,12 @@ export const faceOf = (
     if (bond.joint[q]) return edge ? darker(mortar, 0.2) : mortar;
     const u = bond.unit[q];
     let w = units[Math.floor(hash(u, 5) * units.length)];
-    if (q >= W && bond.joint[q - W]) w = lighter(w, 0.12);
+    if (bricks) {
+      // Fired clay is flat and matte: no bevel, a speckle of darker and paler grains.
+      const grain = hash(x, y, 31);
+      if (grain < 0.1) w = darker(w, 0.12);
+      else if (grain > 0.95) w = lighter(w, 0.1);
+    } else if (q >= W && bond.joint[q - W]) w = lighter(w, 0.12);
     else if (q + W < bond.joint.length && bond.joint[q + W]) w = darker(w, 0.12);
     return edge ? darker(w, 0.2) : w;
   };

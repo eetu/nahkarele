@@ -148,7 +148,8 @@ const layBricks = (spec: Spec, seed: number): Layout => {
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       if (spec.inserts.some(({ rect }) => inside(rect, x, y))) continue;
-      // Counted up from the base: the brick course, and the row in it (the top row mortar).
+      // Counted up from the base: the brick course, and the row in it (the bottom row is the
+      // bed joint the brick is laid on, so a broken top shows brick, not mortar).
       const up = H - 1 - y;
       const bc = Math.floor(up / mh);
       const row = up % mh;
@@ -156,7 +157,7 @@ const layBricks = (spec: Spec, seed: number): Layout => {
       const col = Math.floor((x + off) / mw);
       const at = (x + off) % mw;
       const q = y * W + x;
-      mortar[q] = row === mh - 1 || at >= BRICK.w ? 1 : 0;
+      mortar[q] = row === 0 || at >= BRICK.w ? 1 : 0;
       unit[q] = bc * 1000 + col;
       // The piece: its row of courses (the top one folded into the one below if thin), and
       // the brick's middle along that row, the row's pieces set off by a seeded amount.
