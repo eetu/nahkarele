@@ -35,6 +35,9 @@ import {
 } from "./trees";
 import { windAt } from "./wind";
 
+/** Where every tree is rooted, scene y: a little out from the wall. */
+export const ROOT_Y = FLOOR_Y + 3;
+
 /**
  * Where the trees come up, at the cracks, and when; their kind and shape come from the seed.
  * Those clear of the desk stand in `front` of the furniture (their feet are nearer than the
@@ -149,7 +152,7 @@ const lifeOf = (
   const dies = springAfter(timeAt(n, born, years));
   const arch = archOf(
     Math.floor(h(9) * 2 ** 31),
-    { x, y: FLOOR_Y + 3 },
+    { x, y: ROOT_Y },
     species,
     Math.ceil(years) + LAID_PAST,
     0.85 + 0.3 * h(5),

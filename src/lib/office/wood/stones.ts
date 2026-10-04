@@ -64,6 +64,16 @@ export type Paint = {
   /** The nearest depth drawn so far at each pixel of `out` (from `nearOf`): stones passing
    *  through each other show whichever is nearer pixel by pixel, whatever order they come in. */
   near?: Float32Array;
+  /** The floor, scene y: whatever of the stone is below it at its own depth is not drawn, so
+   *  sinking, a stone goes down behind the floor pixel by pixel and its top goes last. */
+  floor?: number;
+  /** The light it lies in: `k` (0 to 1) of `colour` over it. */
+  shade?: { colour: string; k: number };
+  /** Pixels for which `test` (scene x, y, depth toward the viewer) holds go into `out` here
+   *  instead: a stone split between a layer drawn before something and one drawn after. With
+   *  `near`, `test` must never put a nearer pixel in the earlier layer than a farther one at
+   *  the same place. */
+  split?: { out: Uint32Array; test: (x: number, y: number, z: number) => boolean };
 };
 
 const nears = new Map<string, Float32Array>();
@@ -90,6 +100,14 @@ const lighter = (w: number, k: number) => {
   return (
     ((255 << 24) | (up((w >> 16) & 0xff) << 16) | (up((w >> 8) & 0xff) << 8) | up(w & 0xff)) >>> 0
   );
+};
+/** A colour as a word, `k` (0 to 1) of the way to `to`. */
+const toward = (w: number, to: number, k: number) => {
+  const at = (s: number) => {
+    const v = (w >> s) & 0xff;
+    return Math.round(v + (((to >> s) & 0xff) - v) * k);
+  };
+  return ((255 << 24) | (at(16) << 16) | (at(8) << 8) | at(0)) >>> 0;
 };
 
 /** The units of each way of building, and their mortar. */
@@ -223,7 +241,6 @@ export const paintStone = (
     if (custom) return custom(body.ox + c, body.oy + r, edge);
     if (outside)
       return edge ? OUTSIDE.edge : hash(body.block, c, r, 81) < 0.15 ? OUTSIDE.stain : OUTSIDE.face;
-    if (fresh?.[r * w + c]) return BED.fresh;
     return edge ? INSIDE.edge : hash(body.block, c, r, 13) < 0.08 ? INSIDE.grit : INSIDE.face;
   };
   // A face's span down column `c`, from projected row `s0` to `s1`, its depth going from `z0`
@@ -334,14 +351,14 @@ export const paintStone = (
   // pixel at a time, and turned or not it samples the same pixels of itself where they meet.
   const left = Math.round(pose.x - w / 2);
   const sx = left + w / 2;
-  const sy = Math.round(pose.y + K * pose.z + paint.sink);
+  const centre = pose.y + K * pose.z + paint.sink;
+  const sy = Math.round(centre);
   const ct = Math.cos(theta);
   const st = Math.sin(theta);
   const turned = theta !== 0;
   const half = Math.ceil(Math.hypot(w, bh) / 2) + 1;
   const [x0, x1] = turned ? [Math.floor(sx - half), Math.ceil(sx + half)] : [left, left + w - 1];
   const [y0, y1] = turned ? [sy - half, sy + half] : [sy - oy, sy - oy + bh - 1];
-  // Moss climbs from the lowest drawn row.
   let bottom = -Infinity;
   let highest = Infinity;
   // The stone's own pixel under scene pixel `X`, `Y`, as an index into its buffer (-1: none).
@@ -365,22 +382,21 @@ export const paintStone = (
     const q = at2(X, Y);
     return q < 0 ? 0 : buf[q];
   };
-  // In front of the wall's face, or behind it, as asked.
-  const kept = (q: number) => {
-    if (!paint.depth) return true;
-    const z = pose.z + depth[q];
-    return paint.depth === "front" ? z >= 0 : z < 0;
-  };
-  for (let Y = y0; Y <= y1; Y++) {
-    for (let X = x0; X <= x1; X++) {
-      if (src(X, Y)) {
-        bottom = Math.max(bottom, Y);
-        highest = Math.min(highest, Y);
+  // Moss climbs from the stone's lowest row, sunk or not.
+  if (paint.moss > 0) {
+    for (let Y = y0; Y <= y1; Y++) {
+      for (let X = x0; X <= x1; X++) {
+        if (src(X, Y)) {
+          bottom = Math.max(bottom, Y);
+          highest = Math.min(highest, Y);
+        }
       }
     }
   }
-  if (bottom < highest) return null;
   const tall = bottom - highest + 1;
+  const { floor, split, near } = paint;
+  const shade = paint.shade && paint.shade.k > 0 ? paint.shade : null;
+  const dusk = shade ? wordOf(shade.colour) : 0;
   let touched = false;
   for (let Y = y0; Y <= y1; Y++) {
     if (Y > paint.ground || Y < top || Y >= top + H) continue;
@@ -388,12 +404,19 @@ export const paintStone = (
       const q = at2(X, Y);
       if (q < 0) continue;
       let px = buf[q];
-      if (!px || !kept(q) || paint.hidden?.(X, Y)) continue;
+      if (!px) continue;
+      const z = pose.z + depth[q];
+      // In front of the wall's face, or behind it, as asked.
+      if (paint.depth && (paint.depth === "front" ? z < 0 : z >= 0)) continue;
+      // The height of the point of the stone it shows: the middle of its row, where the
+      // stone would be unrounded, less what its depth puts on it. A top sunk level with the
+      // floor is under it (depths are single floats: a thousandth to spare).
+      if (floor !== undefined && Y + 0.5 + centre - sy - K * z > floor - 1e-3) continue;
+      if (paint.hidden?.(X, Y)) continue;
       const o = (Y - top) * W + X;
-      if (paint.near) {
-        const z = pose.z + depth[q];
-        if (z <= paint.near[o]) continue;
-        paint.near[o] = z;
+      if (near) {
+        if (z <= near[o]) continue;
+        near[o] = z;
       }
       if (paint.moss > 0) {
         const climb = (bottom - Y) / tall;
@@ -401,7 +424,9 @@ export const paintStone = (
           px = wordOf(mossColour(X, Y, !src(X, Y - 1), paint.since));
         }
       }
-      out[o] = px;
+      if (shade) px = toward(px, dusk, shade.k);
+      if (split?.test(X, Y, z)) split.out[o] = px;
+      else out[o] = px;
       touched = true;
     }
   }

@@ -6,7 +6,7 @@
 
 import { layBond } from "$lib/masonry/bond";
 import { exposureOf, PACE, type Pace } from "$lib/masonry/decay";
-import { halfDepth, halfHeight, type Pose } from "$lib/masonry/fall";
+import { halfDepth, halfHeight } from "$lib/masonry/fall";
 import { fracture } from "$lib/masonry/fracture";
 import { heightOver } from "$lib/masonry/pile";
 import {
@@ -25,7 +25,7 @@ import { bake, type Ruin } from "$lib/masonry/timeline";
 import type { Knock, Spec } from "$lib/masonry/types";
 import { WALL } from "$lib/office/draw";
 import { SCENE_H, SCENE_W } from "$lib/office/engine";
-import { faceOf, K, nearOf, paintStone } from "$lib/office/wood/stones";
+import { type Face, faceOf, K, nearOf, paintStone } from "$lib/office/wood/stones";
 import { specOf } from "$lib/office/wood/wall";
 import { rect } from "$lib/scene/pixel";
 import { drawPixelText } from "$lib/scene/pixelfont";
@@ -162,12 +162,27 @@ let layer: HTMLCanvasElement | null = null;
 
 let room: { canvas: HTMLCanvasElement; image: ImageData; pixels: Uint32Array } | null = null;
 
+const faces = new WeakMap<Ruin, Map<number, { face: Face; back?: Face }>>();
 /** A stone's faces: inside as the wall's face was when it left (plaster or masonry), outside
- *  bare masonry, but for blocks, rendered. */
-const facesOf = (r: Ruin, body: Body) => ({
-  face: faceOf(r.bond, r.skin, body.start),
-  back: r.spec.bond && r.spec.bond !== "block" ? faceOf(r.bond, null, 0) : undefined,
-});
+ *  bare masonry, but for blocks, rendered. Kept by ruin and by when it left, which matters
+ *  only under plaster. */
+const facesOf = (r: Ruin, body: Body) => {
+  let known = faces.get(r);
+  if (!known) {
+    known = new Map();
+    faces.set(r, known);
+  }
+  const at = r.skin ? body.start : 0;
+  let made = known.get(at);
+  if (!made) {
+    made = {
+      face: faceOf(r.bond, r.skin, at),
+      back: r.spec.bond && r.spec.bond !== "block" ? faceOf(r.bond, null, 0) : undefined,
+    };
+    known.set(at, made);
+  }
+  return made;
+};
 
 const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   const since = sinceOf(v, t);
@@ -310,15 +325,14 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   room.pixels.fill(0);
   const near = nearOf("sim-room", SCENE_W * SCENE_H);
   const down = lying(r, since);
-  const floorAt = (body: Body, pose: Pose) =>
-    SPEC.ground + Math.round(K * Math.max(0, pose.z + halfDepth(body.h, body.T, pose.phi)));
   for (const l of down) {
     paintStone(room.pixels, SCENE_W, SCENE_H, 0, l.body, l.pose, {
       ...facesOf(r, l.body),
       sink: l.sink,
       moss: 0,
       since,
-      ground: floorAt(l.body, l.pose),
+      ground: SCENE_H,
+      floor: SPEC.ground,
       near,
     });
   }
@@ -328,7 +342,8 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
       sink: 0,
       moss: 0,
       since,
-      ground: floorAt(m.body, m.pose),
+      ground: SCENE_H,
+      floor: SPEC.ground,
       depth: "front",
       near,
     });
