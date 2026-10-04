@@ -45,8 +45,17 @@ const LETGO = 0.15;
 export type Kind = "knock" | "weather" | "slip" | "drop" | "topple";
 
 /** A block leaving the wall: when, how, which way (1 toward the viewer, -1 away), and
- *  whether it wore loose (it cracks and shakes first) rather than being brought down. */
-export type Release = { i: number; t: number; kind: Kind; dir: 1 | -1; worn?: boolean };
+ *  whether it wore loose (it cracks and shakes first) rather than being brought down; if it
+ *  did, since when it wore at the pace that took it (the last fall next to it), which its
+ *  crack never shows before. */
+export type Release = {
+  i: number;
+  t: number;
+  kind: Kind;
+  dir: 1 | -1;
+  worn?: boolean;
+  exposed?: number;
+};
 
 export type Ruin = {
   spec: Spec;
@@ -147,6 +156,15 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
       .filter((b) => [...b.bed, ...b.heads, ...b.caps].some((c) => c.j === insertRef(k)))
       .map((b) => b.i),
   );
+  const insertsBy = blocks.map((b) => byInsert.flatMap((on, k) => (on.includes(b.i) ? [k] : [])));
+  // When block i's exposure changed, as of event `t`: when the last of what went next to it
+  // went, which in this event's fall is a moment after the event.
+  const changedAt = (i: number, t: number) => {
+    let at = t;
+    for (const j of near[i]) if (Number.isFinite(releaseAt[j])) at = Math.max(at, releaseAt[j]);
+    for (const k of insertsBy[i]) if (Number.isFinite(insertAt[k])) at = Math.max(at, insertAt[k]);
+    return at;
+  };
   const dirty = new Set<number>(blocks.map((b) => b.i));
   const refresh = (t: number, settled?: typeof classes) => {
     const next = settled ?? classify(bond, { standing, inserts }, pace.glue);
@@ -156,10 +174,11 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
       if (!standing[i] || sound[i]) continue;
       const exposed = exposureOf(bond, i, { standing, inserts }, classes, pace);
       if (exposed === m[i] && due[i] !== Infinity) continue;
-      H[i] += gathered(i, since[i], t);
-      since[i] = t;
+      const from = Math.max(since[i], changedAt(i, t));
+      H[i] += gathered(i, since[i], from);
+      since[i] = from;
       m[i] = exposed;
-      due[i] = Math.max(t + 1e-3, solve(i));
+      due[i] = Math.max(from + 1e-3, solve(i));
     }
     dirty.clear();
   };
@@ -169,7 +188,7 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
     standing[i] = 0;
     releaseAt[i] = t;
     due[i] = Infinity;
-    releases.push(worn ? { i, t, kind, dir, worn } : { i, t, kind, dir });
+    releases.push(worn ? { i, t, kind, dir, worn, exposed: since[i] } : { i, t, kind, dir });
   };
   // What holds an insert: the block over its middle, the blocks at its sides, and (all of
   // them together) what it sits on.

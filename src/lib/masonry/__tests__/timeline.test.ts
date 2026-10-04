@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { forget, hanging, releasedBy, ruinOf } from "../query";
+import { exposureOf } from "../decay";
+import {
+  classesAt,
+  CRACK_S,
+  forget,
+  hanging,
+  releasedBy,
+  ruinOf,
+  stateAt,
+  warningAt,
+} from "../query";
 import { bake } from "../timeline";
 import { BASE, insertOf } from "../types";
 import { SPEC } from "./spec";
@@ -98,6 +108,30 @@ describe("the ruin over time", () => {
         if (above >= 0) expect(r.hangAt[name]).toBeLessThanOrEqual(r.releaseAt[above] + 0.2);
       }
     }
+  });
+
+  it("cracks a block no sooner than the fall next to it that set it wearing loose", () => {
+    let checked = 0;
+    for (const spec of [SPEC, BRICK, RUBBLE]) {
+      for (const seed of [1, 2, 3]) {
+        const r = bake(spec, seed);
+        const { blocks } = r.bond;
+        for (const rel of r.releases.filter((x) => x.worn)) {
+          const b = blocks[rel.i];
+          for (const { j } of [...b.bed, ...b.top, ...b.heads]) {
+            const went = j >= 0 ? r.releaseAt[j] : NaN;
+            if (!(went > rel.t - CRACK_S && went < rel.t)) continue;
+            const [before, after] = [went - 1e-4, went + 1e-4];
+            const exposure = (t: number) =>
+              exposureOf(r.bond, rel.i, stateAt(r, t), classesAt(r, t), r.pace);
+            if (exposure(before) === exposure(after)) continue;
+            checked++;
+            expect(warningAt(r, went - 1e-3).some((w) => w.i === rel.i)).toBe(false);
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(10);
   });
 
   it("knocks off either side of where the roof came down as soon as the other", () => {
