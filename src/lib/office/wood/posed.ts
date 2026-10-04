@@ -317,7 +317,7 @@ export const sheetOf = (name: string, w: number, h: number): Sheet => {
 };
 
 /** Widen what `sheet` covers by `box`, within the sheet. */
-const grow = (sheet: Sheet, box: Room) => {
+export const grow = (sheet: Sheet, box: Room) => {
   const { width, height } = sheet.image;
   sheet.x0 = Math.max(0, Math.min(sheet.x0, box.x));
   sheet.y0 = Math.max(0, Math.min(sheet.y0, box.y));

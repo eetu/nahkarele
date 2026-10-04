@@ -44,7 +44,7 @@ import { CALENDAR, drawCalendar } from "$lib/scene/calendar";
 import { drawPixelText, pixelTextWidth } from "$lib/scene/pixelfont";
 import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 
-import { wallSim } from "./wallSim";
+import { stoneUnit, wallSim } from "./wallSim";
 
 export type Param =
   | { kind: "range"; key: string; min: number; max: number; step: number }
@@ -457,4 +457,15 @@ const text: Unit = {
   },
 };
 
-export const UNITS: Unit[] = [tree, shrub, climber, grass, wood, wallSim, sprite, calendar, text];
+export const UNITS: Unit[] = [
+  tree,
+  shrub,
+  climber,
+  grass,
+  wood,
+  wallSim,
+  stoneUnit,
+  sprite,
+  calendar,
+  text,
+];

@@ -30,8 +30,8 @@ export type Fallen = {
 
 /**
  * What grows, behind the desk, back to front: the floor going green, what is on the back wall
- * (the sill's snow, the climbers), what has come down off it, the trees, the shrubs at their
- * feet, the grass, the apples.
+ * (the sill's snow, the climbers), the trees, the shrubs at their feet, the grass, what has
+ * come down off the wall, the apples.
  */
 export const drawGarden = (
   ctx: CanvasRenderingContext2D,
@@ -45,12 +45,13 @@ export const drawGarden = (
     drawSillSnow(wall, since, sill);
     drawVines(wall, since, seed);
   });
-  drawRubble(ctx, since, seed, fallen.wall, fallen.draw);
   drawSticks(ctx, since, seed, false);
   drawTrees(ctx, since, seed, knocks, false);
   drawGround(ctx, since);
   drawBackShrubs(ctx, since, seed);
   drawGrass(ctx, since, seed);
+  // Fallen stones lie on the grass; moss, not grass, takes them over.
+  drawRubble(ctx, since, seed, fallen.wall, fallen.draw);
   drawApples(ctx, since, seed, knocks, false, takenBy(since, seed, fallen, knocks));
 };
 

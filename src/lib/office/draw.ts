@@ -131,7 +131,7 @@ const AI_X = { 1: 6, 2: SCENE_W - 6 - SLAB.w } as const;
 const DESK = { x: 104, w: 112, y: 118 };
 
 /** What the wall knows of the room: what hangs on it, and what stands in front of it. */
-const WALL: Setting = {
+export const WALL: Setting = {
   fixtures: FIXTURES,
   openings: ["window"],
   before: ["exit"],

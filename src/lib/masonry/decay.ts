@@ -75,7 +75,7 @@ export const PACE: Pace = {
   glue: 3,
   runout: 28,
   repose: 0.84,
-  bounce: [0.3, 0.85],
+  bounce: [0.3, 0.4],
   sink: [600, 3000],
 };
 

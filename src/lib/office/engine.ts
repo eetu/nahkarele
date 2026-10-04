@@ -23,6 +23,8 @@ export const FALL_S = 0.4;
 export const TRAY = { x: 180, y: 112 };
 export const AI_MOUTH = { 1: { x: 50, y: 76 }, 2: { x: 261, y: 76 } } as const;
 export const FLOOR_Y = 150;
+/** Gravity in the room, px/s²: the real thing, at 40 px to the metre. */
+export const G = 392;
 export const DRONE_HOME = { x: 160, y: 40 };
 const DRONE_MAX = 320;
 const DRONE_ACCEL = 2400;

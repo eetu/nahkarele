@@ -50,8 +50,17 @@ export type Body = {
   fresh: Uint8Array | null;
 };
 
-/** A body hitting the ground: when, where, how big a piece, from how high, outside or in. */
-export type Impact = { t: number; x: number; n: number; fall: number; out: boolean };
+/** A body hitting the ground: when, where (its lowest point, and its depth), how big a
+ *  piece, from how high, outside or in. */
+export type Impact = {
+  t: number;
+  x: number;
+  y: number;
+  z: number;
+  n: number;
+  fall: number;
+  out: boolean;
+};
 /** What is heard: one or more impacts at once. */
 export type Cue = { t: number; x: number; big: boolean };
 
@@ -296,7 +305,15 @@ export const bakeRubble = (
     const hit = phasePose(flight, flight.t1);
     const out = hit.z < -T;
     const fell = hit.y - cy;
-    impacts.push({ t: flight.t1, x: hit.x, n: blk.n, fall: fell, out });
+    impacts.push({
+      t: flight.t1,
+      x: hit.x,
+      y: hit.y + halfHeight(blk.w, blk.h, T, hit.phi, hit.theta),
+      z: hit.z,
+      n: blk.n,
+      fall: fell,
+      out,
+    });
     const body: Body = {
       id: bodies.length,
       block: i,

@@ -4,40 +4,37 @@
 // happened); the sliders retune the pace and re-bake at once. Overlays show how each block
 // stands, how exposed it is, when it goes.
 
+import { layBond } from "$lib/masonry/bond";
 import { exposureOf, PACE, type Pace } from "$lib/masonry/decay";
-import { halfDepth, type Pose } from "$lib/masonry/fall";
+import { halfDepth, halfHeight, type Pose } from "$lib/masonry/fall";
+import { fracture } from "$lib/masonry/fracture";
 import { heightOver } from "$lib/masonry/pile";
 import {
   classesAt,
   CRACK_S,
+  hangOn,
   lying,
   moving,
   releasedBy,
   stateAt,
   warningAt,
 } from "$lib/masonry/query";
-import type { Body } from "$lib/masonry/rubble";
+import { type Body, maskOf } from "$lib/masonry/rubble";
 import { gapsOf } from "$lib/masonry/stability";
 import { bake, type Ruin } from "$lib/masonry/timeline";
 import type { Knock, Spec } from "$lib/masonry/types";
+import { WALL } from "$lib/office/draw";
 import { SCENE_H, SCENE_W } from "$lib/office/engine";
+import { K, paintStone } from "$lib/office/wood/stones";
+import { specOf } from "$lib/office/wood/wall";
 import { rect } from "$lib/scene/pixel";
 import { drawPixelText } from "$lib/scene/pixelfont";
 
 import type { Unit, Values } from "./units";
 
-/** A wall like the office's back wall: 320 by 97 px over a dado, a window in it. */
-const SPEC: Spec = {
-  w: 320,
-  h: 97,
-  course: 14,
-  unit: 26,
-  thickness: 8,
-  rough: 1.5,
-  ground: 150,
-  inserts: [{ name: "window", rect: { x: 122, y: 14, w: 76, h: 50 } }],
-  hangs: [],
-};
+/** The office's back wall, as the room lays it: the window an insert, the clock, the pay
+ *  readout, the calendar and the signs hung on it. */
+const SPEC: Spec = specOf(WALL);
 
 const RATES: Record<string, number> = {
   paused: 0,
@@ -140,112 +137,7 @@ const CLASS: Record<string, string> = {
 
 let layer: HTMLCanvasElement | null = null;
 
-/** How far down the screen a px of depth shows (the floor seen from a little above). */
-const K = 0.25;
-
-/** A body as a plain box, its faces shaded by which way they look: a stand-in for the room's
- *  own drawing of stones. Clipped at the ground line in front of it, so a sunk piece shows
- *  only what is above ground. */
-const drawBody = (
-  ctx: CanvasRenderingContext2D,
-  body: Body,
-  pose: Pose,
-  sink: number,
-  ground: number,
-) => {
-  const { w, h, T } = body;
-  const [cf, sf] = [Math.cos(pose.phi), Math.sin(pose.phi)];
-  const [ct, st] = [Math.cos(pose.theta), Math.sin(pose.theta)];
-  const turn = (x: number, y: number, z: number) => {
-    const y1 = y * cf + z * sf;
-    const z1 = -y * sf + z * cf;
-    return { x: x * ct - y1 * st, y: x * st + y1 * ct, z: z1 };
-  };
-  const at = (x: number, y: number, z: number) => {
-    const p = turn(x, y, z);
-    return [pose.x + p.x, pose.y + sink + p.y + K * (pose.z + p.z)];
-  };
-  const faces: [number[], string, number[][]][] = [
-    [
-      [0, 0, 1],
-      "#d4d9dc",
-      [
-        [-1, -1],
-        [1, -1],
-        [1, 1],
-        [-1, 1],
-      ].map(([a, b]) => [a, b, 1]),
-    ],
-    [
-      [0, 0, -1],
-      "#9a8f80",
-      [
-        [-1, -1],
-        [1, -1],
-        [1, 1],
-        [-1, 1],
-      ].map(([a, b]) => [a, b, -1]),
-    ],
-    [
-      [0, -1, 0],
-      "#aab0b4",
-      [
-        [-1, -1],
-        [1, -1],
-        [1, 1],
-        [-1, 1],
-      ].map(([a, b]) => [a, -1, b]),
-    ],
-    [
-      [0, 1, 0],
-      "#7d8489",
-      [
-        [-1, -1],
-        [1, -1],
-        [1, 1],
-        [-1, 1],
-      ].map(([a, b]) => [a, 1, b]),
-    ],
-    [
-      [-1, 0, 0],
-      "#8f969b",
-      [
-        [-1, -1],
-        [1, -1],
-        [1, 1],
-        [-1, 1],
-      ].map(([a, b]) => [-1, a, b]),
-    ],
-    [
-      [1, 0, 0],
-      "#8f969b",
-      [
-        [-1, -1],
-        [1, -1],
-        [1, 1],
-        [-1, 1],
-      ].map(([a, b]) => [1, a, b]),
-    ],
-  ];
-  ctx.save();
-  const front = pose.z + halfDepth(h, T, pose.phi);
-  ctx.beginPath();
-  ctx.rect(0, 0, SCENE_W, ground + K * Math.max(0, front) + 0.5);
-  ctx.clip();
-  for (const [n, colour, corners] of faces) {
-    const m = turn(n[0], n[1], n[2]);
-    if (m.z - K * m.y <= 0.01) continue;
-    ctx.fillStyle = colour;
-    ctx.beginPath();
-    corners.forEach(([a, b, c], k) => {
-      const [x, y] = at((a * w) / 2, (b * h) / 2, (c * T) / 2);
-      if (k) ctx.lineTo(x, y);
-      else ctx.moveTo(x, y);
-    });
-    ctx.fill();
-  }
-  ctx.restore();
-};
+let room: { canvas: HTMLCanvasElement; image: ImageData; pixels: Uint32Array } | null = null;
 
 const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
   const since = sinceOf(v, t);
@@ -328,18 +220,61 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
       }
     }
   });
+  // What falls behind the wall shows in its gaps; then the wall over it; then the room.
   const inFlight = moving(r, since);
   const behind = ({ body, pose }: { body: Body; pose: Pose }) =>
     pose.z + halfDepth(body.h, body.T, pose.phi) <= 0.5;
-  for (const m of inFlight) if (behind(m)) drawBody(ctx, m.body, m.pose, 0, SPEC.h);
+  const back = new ImageData(W, H);
+  const backPx = new Uint32Array(back.data.buffer);
+  for (const m of inFlight) {
+    if (behind(m))
+      paintStone(backPx, W, H, 0, m.body, m.pose, { sink: 0, moss: 0, since, ground: H });
+  }
   layer ??= document.createElement("canvas");
   layer.width = W;
   layer.height = H;
-  layer.getContext("2d")?.putImageData(img, 0, 0);
+  const lctx = layer.getContext("2d");
+  lctx?.putImageData(back, 0, 0);
   ctx.drawImage(layer, 0, 0);
+  lctx?.putImageData(img, 0, 0);
+  ctx.drawImage(layer, 0, 0);
+  // The hung things, outlined, while they hang.
+  for (const { name, rect: f } of SPEC.hangs) {
+    if (!hangOn(r, name, since)) continue;
+    ctx.strokeStyle = "#3a3f45";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(f.x + 0.5, f.y + 0.5, f.w - 1, f.h - 1);
+  }
+  room ??= (() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = SCENE_W;
+    canvas.height = SCENE_H;
+    const image = new ImageData(SCENE_W, SCENE_H);
+    return { canvas, image, pixels: new Uint32Array(image.data.buffer) };
+  })();
+  room.pixels.fill(0);
   const down = lying(r, since);
-  for (const l of down) drawBody(ctx, l.body, l.pose, l.sink, SPEC.ground);
-  for (const m of inFlight) if (!behind(m)) drawBody(ctx, m.body, m.pose, 0, SPEC.ground);
+  const floorAt = (body: Body, pose: Pose) =>
+    SPEC.ground + Math.round(K * Math.max(0, pose.z + halfDepth(body.h, body.T, pose.phi)));
+  for (const l of down) {
+    paintStone(room.pixels, SCENE_W, SCENE_H, 0, l.body, l.pose, {
+      sink: l.sink,
+      moss: 0,
+      since,
+      ground: floorAt(l.body, l.pose),
+    });
+  }
+  for (const m of inFlight) {
+    if (behind(m)) continue;
+    paintStone(room.pixels, SCENE_W, SCENE_H, 0, m.body, m.pose, {
+      sink: 0,
+      moss: 0,
+      since,
+      ground: floorAt(m.body, m.pose),
+    });
+  }
+  room.canvas.getContext("2d")?.putImageData(room.image, 0, 0);
+  ctx.drawImage(room.canvas, 0, 0);
   if (show === "pile") {
     // The heap's height along the wall, nearest the wall and at its toe.
     for (const [z0, z1, c] of [
@@ -396,5 +331,104 @@ export const wallSim: Unit = {
     const since = sinceOf(v, t);
     tapsOf(seed).push({ t: since, x: at.x, y: at.y, kind: how === "roof" ? "roof" : "block" });
     tapsOf(seed).sort((a, b) => a.t - b.t);
+  },
+};
+
+/** One stone of the wall as the room draws it, at any turn, whole or broken, mossed or sunk:
+ *  for tuning how stones look. It stands on a strip of floor, lying or upright as turned. */
+const STONE = { w: 96, h: 64, ground: 44 };
+const PIECES = ["whole", "piece 1", "piece 2", "chip"] as const;
+let stoneTile: { canvas: HTMLCanvasElement; image: ImageData; pixels: Uint32Array } | null = null;
+
+const stoneOf = (v: Values): Body => {
+  const seed = Number(v.seed);
+  const bond = layBond(SPEC, seed);
+  const block = bond.blocks[Math.min(bond.blocks.length - 1, Number(v.block))];
+  const whole: Body = {
+    id: block.i,
+    block: block.i,
+    mask: maskOf(bond, block),
+    w: block.w,
+    h: block.h,
+    T: SPEC.thickness,
+    n: block.n,
+    ox: block.x,
+    oy: block.y,
+    start: 0,
+    phases: [],
+    lands: 0,
+    out: false,
+    settled: 0,
+    lying: null,
+    broken: false,
+    parent: null,
+    chip: false,
+    fresh: null,
+  };
+  const which = String(v.piece);
+  if (which === "whole") return whole;
+  const pieces = fracture(whole.mask, whole.w, whole.h, seed * 977 + block.i, 120);
+  const wanted =
+    which === "chip"
+      ? pieces.find((p) => p.chip)
+      : pieces.filter((p) => !p.chip)[which === "piece 1" ? 0 : 1];
+  const pc = wanted ?? pieces[0];
+  return {
+    ...whole,
+    mask: pc.mask,
+    fresh: pc.fresh,
+    w: pc.w,
+    h: pc.h,
+    n: pc.n,
+    T: pc.chip ? Math.max(2, Math.round(Math.sqrt(pc.n))) : SPEC.thickness,
+    chip: pc.chip,
+  };
+};
+
+export const stoneUnit: Unit = {
+  name: "stone",
+  defaults: { seed: 1, block: 40, piece: "whole", phi: 1.57, theta: 0, moss: 0, sink: 0 },
+  params: () => [
+    { kind: "seed", key: "seed" },
+    { kind: "range", key: "block", min: 0, max: 80, step: 1 },
+    { kind: "select", key: "piece", options: PIECES },
+    { kind: "range", key: "phi", min: -3.2, max: 3.2, step: 0.05 },
+    { kind: "range", key: "theta", min: -0.6, max: 0.6, step: 0.02 },
+    { kind: "range", key: "moss", min: 0, max: 1, step: 0.05 },
+    { kind: "range", key: "sink", min: 0, max: 16, step: 1 },
+  ],
+  size: () => ({ w: STONE.w, h: STONE.h }),
+  draw: (ctx, v) => {
+    ctx.fillStyle = "#8d969c";
+    ctx.fillRect(0, 0, STONE.w, STONE.ground);
+    ctx.fillStyle = "#4f7f33";
+    ctx.fillRect(0, STONE.ground, STONE.w, STONE.h - STONE.ground);
+    const body = stoneOf(v);
+    const phi = Number(v.phi);
+    const theta = Number(v.theta);
+    const z = 8;
+    const pose = {
+      x: STONE.w / 2,
+      y: STONE.ground - halfHeight(body.w, body.h, body.T, phi, theta) - K * z,
+      z,
+      phi,
+      theta,
+    };
+    stoneTile ??= (() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = STONE.w;
+      canvas.height = STONE.h;
+      const image = new ImageData(STONE.w, STONE.h);
+      return { canvas, image, pixels: new Uint32Array(image.data.buffer) };
+    })();
+    stoneTile.pixels.fill(0);
+    paintStone(stoneTile.pixels, STONE.w, STONE.h, 0, body, pose, {
+      sink: Number(v.sink),
+      moss: Number(v.moss),
+      since: 0,
+      ground: STONE.ground + Math.round(K * (z + halfDepth(body.h, body.T, phi))),
+    });
+    stoneTile.canvas.getContext("2d")?.putImageData(stoneTile.image, 0, 0);
+    ctx.drawImage(stoneTile.canvas, 0, 0);
   },
 };

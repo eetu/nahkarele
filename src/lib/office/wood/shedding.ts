@@ -5,14 +5,13 @@
 
 import { hash, rect } from "$lib/scene/pixel";
 
-import { FLOOR_Y } from "../engine";
+import { FLOOR_Y, G } from "../engine";
 import { shedOf } from "./growth";
 import type { Pt } from "./posed";
 import { SEASONS_FROM } from "./seasons";
 import { ageAt, inLane, type Life, livesTo, timeOf } from "./stand";
 
 /** Gravity, scene px/s², as for the wall's pieces. */
-const G = 240;
 /** A fallen branch lies this long, s, sinking into the moss over the last of it. */
 const LIES_S = 300;
 const SINKS_S = 90;
