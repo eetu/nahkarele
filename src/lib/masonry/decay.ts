@@ -75,7 +75,8 @@ export const PACE: Pace = {
   reach: 40,
   blast: 0.15,
   glue: 3,
-  runout: 60,
+  // The floor seen in front of a wall at 40 px to the metre: 3 m.
+  runout: 120,
   repose: 0.84,
   bounce: [0.3, 0.4],
   sink: [600, 3000],

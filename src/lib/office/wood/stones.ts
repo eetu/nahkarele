@@ -8,17 +8,17 @@
 // viewer, a strip of its face on top. Moss climbs it from the ground; sinking, it goes down
 // behind the floor line. Pixels go into a word buffer, as the sheets take them.
 
-import type { Pose } from "$lib/masonry/fall";
+import { DEPTH_SLOPE, type Pose, TURN_STEP } from "$lib/masonry/fall";
 import type { Body } from "$lib/masonry/rubble";
 import { hash } from "$lib/scene/pixel";
 
 import { mossColour } from "./moss";
 
-/** How far down the screen a px of depth shows. */
-export const K = 0.25;
-/** The steps a stone is drawn turned in, rad. */
-const PHI_STEP = Math.PI / 8;
-export const THETA_STEP = Math.PI / 16;
+/** How far down the screen a px of depth shows: the one the masonry lays its rests by. */
+export const K = DEPTH_SLOPE;
+/** The steps a stone is drawn turned in, rad: the ones the masonry turns it to rest by. */
+const PHI_STEP = TURN_STEP.phi;
+export const THETA_STEP = TURN_STEP.theta;
 
 const word = (hex: string) => {
   const v = parseInt(hex.slice(1, 7), 16);
@@ -188,6 +188,18 @@ const scratchOf = (w: number, h: number) => {
   return scratch;
 };
 
+/** A mask `w` by `h` turned half round: upside down and back to front. Made once a mask. */
+const halves = new WeakMap<Uint8Array, Uint8Array>();
+const halfRound = (m: Uint8Array, w: number, h: number) => {
+  let out = halves.get(m);
+  if (!out) {
+    out = new Uint8Array(w * h);
+    for (let q = 0; q < w * h; q++) out[q] = m[w * h - 1 - q];
+    halves.set(m, out);
+  }
+  return out;
+};
+
 /**
  * Paint `body` at `pose` into `out`, a word buffer `W` by `H` whose top-left is scene (0, 0)
  * offset by `top` rows (a buffer for the wall's band starts at 0; one for the floor's strip
@@ -202,12 +214,27 @@ export const paintStone = (
   pose: Pose,
   paint: Paint,
 ) => {
-  const { w, h, T, mask, fresh } = body;
+  const { w, h, T } = body;
   // Turned in steps, as pixel art turns: a sixteenth of a turn out of the plane, a
   // thirty-second in it. Turned smoothly, a stone's pixels are sampled afresh every frame and
   // its grain crawls; in steps, it shows a new pose every few frames, like drawn frames.
-  const phi = Math.round(pose.phi / PHI_STEP) * PHI_STEP;
-  const theta = Math.round(pose.theta / THETA_STEP) * THETA_STEP;
+  let phi = Math.round(pose.phi / PHI_STEP) * PHI_STEP;
+  let theta = Math.round(pose.theta / THETA_STEP) * THETA_STEP;
+  theta -= 2 * Math.PI * Math.round(theta / (2 * Math.PI));
+  // The turn in the plane turns the drawing, the floor's slant already in it: right for a
+  // small turn, but half round it would put what faces up underneath. Turned more than a
+  // quarter either way, a stone is drawn as itself turned half round in its own plane (upside
+  // down and back to front, its tilt the other way round) and turned the rest.
+  const flip = Math.abs(theta) > Math.PI / 2 + 1e-9;
+  if (flip) {
+    theta -= Math.sign(theta) * Math.PI;
+    phi = -phi;
+  }
+  const mask = flip ? halfRound(body.mask, w, h) : body.mask;
+  const fresh = body.fresh && flip ? halfRound(body.fresh, w, h) : body.fresh;
+  // A column and row of the drawing, as the stone's own (for its grain and its face).
+  const ownC = (c: number) => (flip ? w - 1 - c : c);
+  const ownR = (r: number) => (flip ? h - 1 - r : r);
   const cf = Math.cos(phi);
   const sf = Math.sin(phi);
   const project = (y: number, z: number) => y * cf + z * sf + K * (-y * sf + z * cf);
@@ -236,12 +263,17 @@ export const paintStone = (
     const edge = edgeAt(c, r);
     const custom = outside ? paint.back : paint.face;
     // A fresh break: the stone's own colour, paler; or plain new stone.
+    const [oc, or] = [ownC(c), ownR(r)];
     if (fresh?.[r * w + c])
-      return custom ? lighter(custom(body.ox + c, body.oy + r, false), 0.3) : BED.fresh;
-    if (custom) return custom(body.ox + c, body.oy + r, edge);
+      return custom ? lighter(custom(body.ox + oc, body.oy + or, false), 0.3) : BED.fresh;
+    if (custom) return custom(body.ox + oc, body.oy + or, edge);
     if (outside)
-      return edge ? OUTSIDE.edge : hash(body.block, c, r, 81) < 0.15 ? OUTSIDE.stain : OUTSIDE.face;
-    return edge ? INSIDE.edge : hash(body.block, c, r, 13) < 0.08 ? INSIDE.grit : INSIDE.face;
+      return edge
+        ? OUTSIDE.edge
+        : hash(body.block, oc, or, 81) < 0.15
+          ? OUTSIDE.stain
+          : OUTSIDE.face;
+    return edge ? INSIDE.edge : hash(body.block, oc, or, 13) < 0.08 ? INSIDE.grit : INSIDE.face;
   };
   // A face's span down column `c`, from projected row `s0` to `s1`, its depth going from `z0`
   // to `z1`: the rows whose middles it covers (row `s` spans `s` to `s + 1` from the centre),
@@ -292,7 +324,7 @@ export const paintStone = (
       // bed.
       const own = (r: number) =>
         paint.face
-          ? paint.face(body.ox + c, body.oy + Math.min(r1 - 1, Math.max(r0, r)), false)
+          ? paint.face(body.ox + ownC(c), body.oy + ownR(Math.min(r1 - 1, Math.max(r0, r))), false)
           : 0;
       if (upper) {
         const fr = fresh?.[r0 * w + c];
@@ -366,12 +398,13 @@ export const paintStone = (
     let u: number;
     let v: number;
     if (turned) {
-      // From the centre: across the middle of the stone's columns, down the middle of row
-      // `sy` (its buffer's row `oy`).
+      // About the centre: across the middle of the stone's columns, and between the rows its
+      // faces were laid from (scene row `sy` begins there, as its buffer's row `oy` does). A
+      // centre half a row off moves a stone turned half round a whole row.
       const dx = X + 0.5 - sx;
-      const dy = Y - sy;
+      const dy = Y + 0.5 - sy;
       u = Math.floor(dx * ct + dy * st + w / 2);
-      v = Math.floor(-dx * st + dy * ct + oy + 0.5);
+      v = Math.floor(-dx * st + dy * ct + oy);
     } else {
       u = X - left;
       v = Y - (sy - oy);

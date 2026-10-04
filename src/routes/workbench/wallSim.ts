@@ -40,7 +40,7 @@ const SPEC: Spec = specOf(WALL);
  *  come away brick by brick, rubble stone by stone, from a wall 50 cm thick. */
 const BUILDS = {
   block: { course: 14, unit: 26, thickness: 8, brittle: 1 },
-  brick: { course: 4, unit: 10, thickness: 9, brittle: 1.2 },
+  brick: { course: 4, unit: 10, thickness: 9, brittle: 0.4 },
   rubble: { course: 12, unit: 18, thickness: 20, brittle: 0.25 },
 } as const;
 type Build = keyof typeof BUILDS;

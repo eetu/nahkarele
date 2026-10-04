@@ -82,6 +82,8 @@ const TOGETHER: [number, number] = [0.06, 32];
 /** Time steps for finding a landing, s, and the longest flight looked for. */
 const STEP = 1 / 120;
 const LONGEST = 6;
+/** The first number a broken piece takes: past any wall's count of blocks. */
+const PIECES = 1 << 20;
 /** A block let go after the one being worked out is taken to be in the wall this long, s: its
  *  own way out is not known yet. */
 const SOON = 0.15;
@@ -153,6 +155,10 @@ export const bakeRubble = (
   const ground = spec.ground;
   const pile = pileOf(W, pace.runout, pace.sink, pace.repose);
   const bodies: Body[] = [];
+  // Whole pieces are numbered as they are let go, broken ones from `PIECES` on as they break:
+  // numbered after the whole ones, a piece's number (and what is hashed from it, the turn it
+  // lands with) would change with every block let go after it, a tap included.
+  let pieces = 0;
   const impacts: Impact[] = [];
   const whole = spec.unit * spec.course;
 
@@ -421,8 +427,9 @@ export const bakeRubble = (
     const more = clearOfWall(fl, b, block, dir, rests);
     if (more > 0) fl.v.z += dir * Math.min(200, more);
     if (dir < 0 || fl.v.z <= 0) return fl;
-    // Not beyond the heap, to be pulled back to it; and still clear of the wall.
-    const far = pile.depth - Math.max(b.T, b.h) / 2;
+    // Not beyond the heap, to be pulled back to it; and still clear of the wall. Cut short,
+    // somewhere in the heap's last stretch: all to its very edge, they stack up along it.
+    const far = (pile.depth - Math.max(b.T, b.h) / 2) * (1 - 0.25 * hash(block, 62));
     for (let tau = 1 / 60; tau < LONGEST; tau += 1 / 60) {
       const p = phasePose(fl, fl.t0 + tau);
       if (p.y + halfHeight(b.w, b.h, b.T, p.phi, p.theta) < ground) continue;
@@ -772,8 +779,10 @@ export const bakeRubble = (
       if (laidAt[c] > pl.at) since = true;
     }
     const fin = since ? restingPlace(pile, pl.end.x, pl.end.z, body.w, pl.deep, S) : pl.end;
+    // Up onto a whole pixel, never down: a fraction of a pixel into what it lies on, its
+    // bottom row would go under the floor.
     const y = ground - fin.base - pl.rise / 2;
-    const b = { x: fin.x, y: Math.round(y + DEPTH_SLOPE * fin.z) - DEPTH_SLOPE * fin.z, z: fin.z };
+    const b = { x: fin.x, y: Math.floor(y + DEPTH_SLOPE * fin.z) - DEPTH_SLOPE * fin.z, z: fin.z };
     last.b = { ...b, phi: pl.phi, theta: pl.theta };
     if (since) {
       const across = Math.hypot(b.x - last.a.x, b.z - last.a.z);
@@ -785,6 +794,8 @@ export const bakeRubble = (
       body.settled = last.t1;
     }
     const l = lay(pile, body.id, fin.x, fin.z, body.w, pl.deep, fin.base, pl.rise, S);
+    // Its top where it is drawn, put on a whole pixel: sunk this far, it is all under.
+    l.top += y - b.y;
     body.lying = l;
     const [x0, x1] = [
       Math.max(0, Math.floor(l.x0 / 8)),
@@ -894,7 +905,7 @@ export const bakeRubble = (
         };
         const piece: Body = {
           ...body,
-          id: bodies.length,
+          id: PIECES + pieces++,
           mask: pc.mask,
           fresh: pc.fresh,
           w: pc.w,

@@ -163,7 +163,12 @@ describe("a stone at rest", () => {
           return count(px);
         };
         tried++;
-        expect(shot(0, spec.ground)).toBe(shot(0));
+        // Turned in the wall plane, a stone is sampled to the nearest pixel, which puts its
+        // corners up to a pixel off its outline: they may go under a pixel early, or late.
+        // Upright (or half round, drawn as upright), exactly.
+        const turned = Math.round(l.pose.theta / THETA_STEP) % 16 !== 0;
+        const off = turned ? 1 : 0;
+        expect(shot(0, spec.ground + off)).toBe(shot(0));
         let last = Infinity;
         for (let sink = 0; sink < rest.top; sink++) {
           const n = shot(sink, spec.ground);
@@ -171,7 +176,7 @@ describe("a stone at rest", () => {
           last = n;
         }
         // As far down as it is still kept, and no further: gone.
-        expect(shot(rest.top, spec.ground)).toBe(0);
+        expect(shot(rest.top + off, spec.ground)).toBe(0);
       }
     }
     expect(tried).toBeGreaterThan(30);
@@ -179,6 +184,8 @@ describe("a stone at rest", () => {
 
   it("shades toward a colour, and splits between two layers without losing a pixel", () => {
     const r = bake({ ...specOf(WALL), ...BUILDS.brick }, 1);
+    // Split across them all: a chip lying flat can sit wholly in its middle row and below.
+    let split = 0;
     for (const l of lying(r, 1800).slice(0, 20)) {
       const paint = { sink: 0, moss: 0, since: 0, ground: SH };
       const whole = new Uint32Array(SW * SH);
@@ -195,7 +202,6 @@ describe("a stone at rest", () => {
         split: { out: b, test: (_x, Y) => Y < y },
       });
       let wrong = 0;
-      let split = 0;
       for (let o = 0; o < SW * SH; o++) {
         if ((a[o] && b[o]) || (a[o] || b[o]) !== whole[o]) wrong++;
         if (b[o]) split++;
@@ -206,7 +212,7 @@ describe("a stone at rest", () => {
         }
       }
       expect(wrong).toBe(0);
-      expect(split).toBeGreaterThan(0);
     }
+    expect(split).toBeGreaterThan(0);
   });
 });
