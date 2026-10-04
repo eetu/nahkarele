@@ -24,6 +24,7 @@ import { bake, drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 import token from "$lib/sprites/token.json";
 import wc from "$lib/sprites/wc.json";
 
+import { dockAt, drawBox, drawChargerAt, drawChargerLightAt, PAD } from "./charger";
 import {
   AI_MOUTH,
   DESK_CAPACITY,
@@ -334,8 +335,9 @@ const drawDesk = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => 
   rect(ctx, C.crtDark, x + 6, y - 20, 24, 20);
   rect(ctx, C.crt, x + 8, y - 18, 20, 16);
   rect(ctx, C.crtDark, x + 12, y - 6, 12, 1);
-  rect(ctx, C.crtDark, x + w - 18, y - 5, 14, 5);
-  for (let i = 0; i < 3; i++) rect(ctx, C.crt, x + w - 16 + i * 4, y - 4, 2, 2);
+  // The box at its right end; on friday, the drone's charger.
+  if (mood.after) drawChargerAt(ctx, mood.since);
+  else drawBox(ctx);
   // In-tray, beside the specialist.
   rect(ctx, C.deskEdge, TRAY.x - 3, y - 3, 15, 1);
   rect(ctx, C.deskEdge, TRAY.x - 3, y - 3, 1, 3);
@@ -446,9 +448,14 @@ const drawVisitors = (ctx: CanvasRenderingContext2D, mood: Mood) => {
   // The drone idles about the room, and drifts over the jar to feed the bird when it lands.
   const idle = { x: 160 + Math.sin(since * 0.21) * 90, y: 44 + Math.sin(since * 0.37) * 10 };
   const feed = perched ? Math.min(1, (c - 3) / 2) : c >= 13 && c < 16 ? 1 - (c - 13) / 3 : 0;
-  const dx = idle.x + (163 - idle.x) * feed;
-  const dy = idle.y + (DESK.y - 50 - idle.y) * feed + Math.sin(since * 3) * 1.5;
-  drawSprite(ctx, S.drone, dx - 7, dy, { frame: frameOf(S.drone, "hover", since * 16) });
+  // At dusk it comes down onto its charger, and sleeps there, rotors still, till dawn.
+  const dock = dockAt(since);
+  const fx = idle.x + (163 - idle.x) * feed;
+  const fy = idle.y + (DESK.y - 50 - idle.y) * feed;
+  const dx = fx + (PAD.x - fx) * dock;
+  const dy = fy + (PAD.y - fy) * dock + Math.sin(since * 3) * 1.5 * (1 - dock);
+  const frame = dock > 0.98 ? 0 : frameOf(S.drone, "hover", since * 16);
+  drawSprite(ctx, S.drone, Math.round(dx) - 7, Math.round(dy), { frame });
   if (perched) {
     ctx.fillStyle = C.seed;
     for (const sd of SEEDS) {
@@ -604,6 +611,7 @@ export const drawOffice = (
     if (night > 0) {
       if (fixtureOf("clock", mood).on) drawLedClock(ctx, CLOCK, "12:00", mood.since, true);
       drawSigns(ctx, true);
+      drawChargerLightAt(ctx, mood.since);
     }
     drawGlow(ctx, mood);
   } else {

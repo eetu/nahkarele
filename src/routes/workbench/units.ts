@@ -3,6 +3,7 @@
 // An adapter here only sets the stage; the drawing is the unit's own code from $lib.
 
 import { sfx } from "$lib/audio/sfx.svelte";
+import { BOX, drawCharger, PAD as DOCK } from "$lib/office/charger";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "$lib/office/engine";
 import {
   type Climber,
@@ -51,6 +52,7 @@ import {
 import { drawGround } from "$lib/office/wood/weather";
 import { CALENDAR, drawCalendar } from "$lib/scene/calendar";
 import { drawPixelText, pixelTextWidth } from "$lib/scene/pixelfont";
+import droneSprite from "$lib/sprites/drone.json";
 import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 
 import { stoneUnit, wallSim } from "./wallSim";
@@ -537,6 +539,41 @@ const text: Unit = {
   },
 };
 
+/** The drone's charger on its box at the desk's end: coming out of it, its panel to the sun,
+ *  the drone asleep on it. */
+const SUNS: Record<string, { tilt: number; up: boolean }> = {
+  morning: { tilt: -2, up: true },
+  noon: { tilt: 0, up: true },
+  evening: { tilt: 2, up: true },
+  night: { tilt: 0, up: false },
+};
+const charger: Unit = {
+  name: "charger",
+  animated: true,
+  defaults: { open: 1, sun: "noon", docked: 0 },
+  params: () => [
+    { kind: "range", key: "open", min: 0, max: 1, step: 0.05 },
+    { kind: "select", key: "sun", options: Object.keys(SUNS) },
+    { kind: "toggle", key: "docked" },
+  ],
+  size: () => ({ w: 44, h: 36 }),
+  draw: (ctx, v, t) => {
+    const { tilt, up } = SUNS[str(v, "sun")];
+    const docked = num(v, "docked");
+    ctx.fillStyle = up ? "#b9c0c4" : "#4a5058";
+    ctx.fillRect(0, 0, 44, 36);
+    ctx.save();
+    ctx.translate(-(BOX.x - 15), -(BOX.y - 28));
+    ctx.fillStyle = "#8a6a4a";
+    ctx.fillRect(BOX.x - 15, BOX.y + BOX.h, 44, 4);
+    drawCharger(ctx, num(v, "open"), tilt, up, docked, t);
+    const frame = docked ? 0 : frameOf(droneSprite as Sprite, "hover", t * 16);
+    const y = docked ? DOCK.y : DOCK.y - 14 + Math.sin(t * 3) * 1.5;
+    drawSprite(ctx, droneSprite as Sprite, DOCK.x - 7, Math.round(y), { frame });
+    ctx.restore();
+  },
+};
+
 export const UNITS: Unit[] = [
   tree,
   conk,
@@ -548,5 +585,6 @@ export const UNITS: Unit[] = [
   stoneUnit,
   sprite,
   calendar,
+  charger,
   text,
 ];

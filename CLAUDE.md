@@ -103,7 +103,9 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   year and the day: the great tit stays the winter (fluffed up), sings in spring and brings a
   fledgling in summer; barn swallows come in late spring, nest on AI #1 and leave in early
   autumn; a hooded crow struts, caws from the broken wall, takes fallen apples and scares the
-  tit off the jar. All of them sleep the nights. The wind
+  tit off the jar. All of them sleep the nights, and so does the drone: at the first dusk a
+  solar charger comes up out of the box on the desk (`office/charger.ts`), its panel turning
+  to the sun by day, and the drone sleeps on it every night. The wind
   (`wood/wind.ts`) is a function of time too: a mean by season, gusts that cross the room
   from the upwind side. Every tree moves by one simulation (`wood/sway.ts`): its wood is a
   rig of pieces hung off their parents, each turning about its base against its width cubed,
