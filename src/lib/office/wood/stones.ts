@@ -317,8 +317,11 @@ export const paintStone = (
     }
   }
   // Into the scene, turned in the plane about the stone's centre, sunk, mossed and clipped.
-  const sx = pose.x;
-  const sy = pose.y + K * pose.z + paint.sink;
+  // Its centre on a whole pixel. Turned about a centre between pixels, a stone moving a
+  // fraction of a pixel a frame is sampled afresh every frame: its outline and grain shimmer.
+  // About a whole pixel, its turned image only moves, a whole pixel at a time.
+  const sx = Math.round(pose.x);
+  const sy = Math.round(pose.y + K * pose.z + paint.sink);
   const ct = Math.cos(theta);
   const st = Math.sin(theta);
   const turned = theta !== 0;
