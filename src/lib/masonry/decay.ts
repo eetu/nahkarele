@@ -98,7 +98,7 @@ export const scheduleOf = (spec: Spec, seed: number, pace: Pace, knocks: Knock[]
       t: 0.4 + rand() * 2.6,
       x: 20 + rand() * (W - 40),
       w: 26 + rand() * 26,
-      depth: 14,
+      depth: 10,
       dir: rand() < 0.7 ? 1 : -1,
     });
   }
@@ -111,7 +111,7 @@ export const scheduleOf = (spec: Spec, seed: number, pace: Pace, knocks: Knock[]
       t,
       x: 20 + rand() * (W - 40),
       w: big ? 60 + rand() * 30 : 20 + rand() * 30,
-      depth: big ? 28 : 14,
+      depth: big ? 24 : 10,
       dir: rand() < 0.7 ? 1 : -1,
     });
   }

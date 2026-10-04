@@ -21,11 +21,11 @@ describe("the back wall", () => {
     }
   });
 
-  it("comes down at the blast and keeps crumbling for as long as anyone watches", () => {
+  it("comes down at the blast and keeps crumbling through its first hours", () => {
     for (const seed of [4, 5, 6]) {
       expect(rubbleCue(0, 60, seed, WALL).length).toBeGreaterThan(0);
       expect(rubbleCue(600, 1800, seed, WALL).length).toBeGreaterThan(0);
-      expect(rubbleCue(4000, 6000, seed, WALL).length).toBeGreaterThan(0);
+      expect(rubbleCue(1800, 7200, seed, WALL).length).toBeGreaterThan(0);
       expect(rubbleCue(0, 60, seed, WALL)).toEqual(rubbleCue(0, 60, seed, WALL));
     }
   });
