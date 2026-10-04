@@ -20,6 +20,7 @@ import {
   ruinOf,
   warningAt,
 } from "$lib/masonry/query";
+import type { Body } from "$lib/masonry/rubble";
 import type { Ruin } from "$lib/masonry/timeline";
 import type { Spec } from "$lib/masonry/types";
 import { hash, smooth } from "$lib/scene/pixel";
@@ -27,7 +28,7 @@ import { hash, smooth } from "$lib/scene/pixel";
 import { FLOOR_Y, G, SCENE_H, SCENE_W } from "../engine";
 import { drawSheet, grow, type Sheet, sheetOf } from "./posed";
 import { ROOT_Y } from "./stand";
-import { K, nearOf, paintStone } from "./stones";
+import { faceOf, K, nearOf, paintStone } from "./stones";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
@@ -72,6 +73,7 @@ export const specOf = (setting: Setting): Spec => {
     course: 8,
     unit: 16,
     thickness: 8,
+    plaster: true,
     ground: FLOOR_Y,
     g: G,
     inserts: setting.openings.map((name) => ({ name, rect: setting.fixtures[name] })),
@@ -162,6 +164,69 @@ type Holes = {
 };
 
 let holes: Holes | null = null;
+
+/** Where the plaster has come off the standing wall: the blocks and their joints, and the
+ *  coat's broken edge round them; as last baked, for which key. */
+let bare: { key: string; image: ImageData; canvas: HTMLCanvasElement } | null = null;
+
+/** The wall's coat at `t`, laid over the room's plaster: nothing where it still is, the
+ *  masonry where it has come off, a darker line where it ends. */
+const drawBare = (ctx: CanvasRenderingContext2D, r: Ruin, seed: number, t: number) => {
+  const skin = r.skin;
+  if (!skin) return;
+  let lost = 0;
+  for (const at of skin.lost) if (at <= t) lost++;
+  if (!lost) return;
+  const key = `${seed}|${lost}`;
+  if (!bare || bare.key !== key) {
+    bare ??= {
+      key,
+      image: new ImageData(SCENE_W, WALL_H),
+      canvas: canvasOf(SCENE_W, WALL_H),
+    };
+    const words = new Uint32Array(bare.image.data.buffer).fill(0);
+    const face = faceOf(r.bond, skin, t);
+    const { owner } = r.bond;
+    const W = SCENE_W;
+    const off = (q: number) => {
+      const k = skin.patch[q];
+      return owner[q] >= 0 && !(k >= 0 && skin.lost[k] > t);
+    };
+    for (let y = 0; y < WALL_H; y++) {
+      for (let x = 0; x < W; x++) {
+        const q = y * W + x;
+        if (owner[q] < 0) continue;
+        const ends =
+          (x > 0 && off(q - 1)) ||
+          (x < W - 1 && off(q + 1)) ||
+          (y > 0 && off(q - W)) ||
+          (y < WALL_H - 1 && off(q + W));
+        if (off(q) || ends) words[q] = face(x, y, false);
+      }
+    }
+    bare.canvas.getContext("2d")?.putImageData(bare.image, 0, 0);
+    bare.key = key;
+  }
+  ctx.drawImage(bare.canvas, 0, 0);
+};
+
+/** A stone's faces: its front as the wall's was where it came from when it left (its coat,
+ *  or the block bare), its top and bottom the block bare, its back the outside's render. */
+type Faces = { face: ReturnType<typeof faceOf>; bed: ReturnType<typeof faceOf> };
+const faces = new WeakMap<Ruin, { bed: ReturnType<typeof faceOf>; at: Map<number, Faces> }>();
+export const facesFor = (r: Ruin, body: Body) => {
+  let known = faces.get(r);
+  if (!known) {
+    known = { bed: faceOf(r.bond, null, 0), at: new Map() };
+    faces.set(r, known);
+  }
+  let made = known.at.get(body.start);
+  if (!made) {
+    made = { face: faceOf(r.bond, r.skin, body.start), bed: known.bed };
+    known.at.set(body.start, made);
+  }
+  return made;
+};
 
 const canvasOf = (w: number, h: number) => {
   const c = document.createElement("canvas");
@@ -282,6 +347,7 @@ export const drawWall = (
   night?: Shade,
 ) => {
   const r = ruinFor(seed, setting);
+  drawBare(ctx, r, seed, since);
   const broken = releasedBy(r, since);
   const open = setting.openings.filter((_, k) => r.insertAt[k] <= since);
   if (!broken && !open.length) {
@@ -312,6 +378,7 @@ export const drawWall = (
   const near = nearOf("stones-behind", SCENE_W * WALL_H);
   for (const { body, pose } of moving(r, since)) {
     const box = paintStone(sheet.pixels, SCENE_W, WALL_H, 0, body, pose, {
+      ...facesFor(r, body),
       sink: 0,
       moss: 0,
       since,
@@ -353,6 +420,7 @@ export const paintLying = (r: Ruin, since: number, fronts: Rect[], shade: Shade,
   const hidden = behindFront(fronts);
   for (const { body, pose, sink, age } of lying(r, since)) {
     paintStone(into.front, SCENE_W, RUBBLE_H, RUBBLE_TOP, body, pose, {
+      ...facesFor(r, body),
       sink,
       moss: smooth((age - MOSS_FROM) / MOSS_S),
       since,
@@ -383,6 +451,7 @@ export const paintFalling = (
   const hidden = behindFront(fronts);
   for (const { body, pose } of moving(r, since)) {
     const box = paintStone(into.front, SCENE_W, SCENE_H, 0, body, pose, {
+      ...facesFor(r, body),
       sink: 0,
       moss: 0,
       since,

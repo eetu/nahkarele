@@ -58,6 +58,9 @@ export type Paint = {
   hidden?: (x: number, y: number) => boolean;
   face?: Face;
   back?: Face;
+  /** Its own stone, for its top and bottom: its face bare (a plastered face is plaster only
+   *  on the face). By default, its face. */
+  bed?: Face;
   /** Only what is in front of the wall's face, or only what is behind it: a stone leaving
    *  the wall is drawn twice, its parts still in the wall seen only through the gaps. */
   depth?: "front" | "back";
@@ -122,7 +125,7 @@ const MASONRY = {
     mortar: "#b8b1a0",
   },
 };
-const PLASTER = { face: word("#b9c0c4"), grit: word("#a9b1b5"), rim: word("#8d969c") };
+const PLASTER = { face: word("#b9c0c4"), rim: word("#8d969c") };
 
 /**
  * A wall's face at `t`, pixel by pixel in wall px: plaster where its coat still is (a darker
@@ -159,7 +162,8 @@ export const faceOf = (
         (x < W - 1 && !coated(q + 1) && bond.owner[q + 1] >= 0) ||
         (q >= W && !coated(q - W) && bond.owner[q - W] >= 0) ||
         (q + W < bond.owner.length && !coated(q + W) && bond.owner[q + W] >= 0);
-      const w = open ? PLASTER.rim : hash(x, y, 13) < 0.08 ? PLASTER.grit : PLASTER.face;
+      // Plain plaster, the room's own colour, darker along where the coat ends.
+      const w = open ? PLASTER.rim : PLASTER.face;
       return edge ? darker(w, 0.2) : w;
     }
     // Bare masonry needs no darkened outline: its mortar outlines it.
@@ -325,9 +329,10 @@ export const paintStone = (
       // Its top and bottom: fresh where it broke; its own stone (taken from the middle of the
       // column, clear of the mortar round it), lit facing up and shaded facing down; or plain
       // bed.
+      const stone = paint.bed ?? paint.face;
       const own = (r: number) =>
-        paint.face
-          ? paint.face(body.ox + ownC(c), body.oy + ownR(Math.min(r1 - 1, Math.max(r0, r))), false)
+        stone
+          ? stone(body.ox + ownC(c), body.oy + ownR(Math.min(r1 - 1, Math.max(r0, r))), false)
           : 0;
       if (upper) {
         const fr = fresh?.[r0 * w + c];

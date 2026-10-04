@@ -186,7 +186,7 @@ const shown = (name: string, image: ImageData) => {
   return canvas;
 };
 
-const faces = new WeakMap<Ruin, Map<number, { face: Face; back?: Face }>>();
+const faces = new WeakMap<Ruin, Map<number, { face: Face; back?: Face; bed?: Face }>>();
 /** A stone's faces: inside as the wall's face was when it left (plaster or masonry), outside
  *  bare masonry, but for blocks, rendered. Kept by ruin and by when it left, which matters
  *  only under plaster. */
@@ -202,6 +202,7 @@ const facesOf = (r: Ruin, body: Body) => {
     made = {
       face: faceOf(r.bond, r.skin, at),
       back: r.spec.bond && r.spec.bond !== "block" ? faceOf(r.bond, null, 0) : undefined,
+      bed: r.skin ? faceOf(r.bond, null, 0) : undefined,
     };
     known.set(at, made);
   }

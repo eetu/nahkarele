@@ -6,6 +6,7 @@ import { FLOOR_Y, SCENE_H, SCENE_W } from "../../engine";
 import { healAt } from "../outside";
 import { paintStone } from "../stones";
 import {
+  facesFor,
   fixtureAt,
   floatingAt,
   MOSS_FROM,
@@ -132,11 +133,15 @@ describe("the stones in the room", () => {
         const near = new Float32Array(N).fill(-Infinity);
         const base = { moss: 0, since, ground: SCENE_H, floor: FLOOR_Y, near, shade };
         for (const l of down)
-          paintStone(one, SCENE_W, SCENE_H, 0, l.body, l.pose, { ...base, sink: l.sink });
+          paintStone(one, SCENE_W, SCENE_H, 0, l.body, l.pose, {
+            ...base,
+            ...facesFor(r, l.body),
+            sink: l.sink,
+          });
         const alone = new Uint32Array(N);
         const free = new Float32Array(N).fill(-Infinity);
         for (const m of flying) {
-          const paint = { ...base, sink: 0, depth: "front" as const };
+          const paint = { ...base, ...facesFor(r, m.body), sink: 0, depth: "front" as const };
           paintStone(one, SCENE_W, SCENE_H, 0, m.body, m.pose, paint);
           paintStone(alone, SCENE_W, SCENE_H, 0, m.body, m.pose, { ...paint, near: free });
         }
