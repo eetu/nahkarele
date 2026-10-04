@@ -53,7 +53,15 @@ import {
   SEEDS,
   youngAt,
 } from "./wood/tit";
-import { drawShade, drawWall, fixtureAt, type Rect, rubbleCue, type Setting } from "./wood/wall";
+import {
+  drawShade,
+  drawWall,
+  type Fixture as FallenFixture,
+  fixtureAt,
+  type Rect,
+  rubbleCue,
+  type Setting,
+} from "./wood/wall";
 import { windowAt } from "./wood/weather";
 import { windAt } from "./wood/wind";
 
@@ -233,15 +241,19 @@ const drawFallenWindow = (ctx: CanvasRenderingContext2D, x: number, y: number) =
  * still showing 12:00, the readout its dashes. The signs are drawn with the room's other signs.
  */
 const drawFallen =
-  (since: number) => (ctx: CanvasRenderingContext2D, name: string, x: number, y: number) => {
+  (since: number): FallenFixture =>
+  (ctx, name, x, y, part) => {
+    if (part === "light") {
+      if (name === "clock")
+        drawLedClock(ctx, { ...CLOCK, x: x + 2, y: y + 2 }, "12:00", since, true);
+      else if (name === "pay")
+        drawPixelText(ctx, "-.--€", x + 2 + PAY.w - 2, y + 4, "#3a1410", { align: "right" });
+      return;
+    }
     if (name === "window") drawFallenWindow(ctx, x, y);
-    else if (name === "clock") {
-      drawHousing(ctx, x, y, CLOCK);
-      drawLedClock(ctx, { ...CLOCK, x: x + 2, y: y + 2 }, "12:00", since, true);
-    } else if (name === "pay") {
-      drawHousing(ctx, x, y, PAY);
-      drawPixelText(ctx, "-.--€", x + 2 + PAY.w - 2, y + 4, "#3a1410", { align: "right" });
-    } else if (name === "calendar") drawCalendar(ctx, x, y + 2, "fri", null);
+    else if (name === "clock") drawHousing(ctx, x, y, CLOCK);
+    else if (name === "pay") drawHousing(ctx, x, y, PAY);
+    else if (name === "calendar") drawCalendar(ctx, x, y + 2, "fri", null);
   };
 
 /** Salary so far in red segments' colours, or a dead readout on friday. */

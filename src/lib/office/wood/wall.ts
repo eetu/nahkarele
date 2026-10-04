@@ -567,18 +567,45 @@ export const drawRubble = (
   seed: number,
   setting: Setting,
   room: Shade,
-  fixture: (ctx: CanvasRenderingContext2D, name: string, x: number, y: number) => void,
+  fixture: Fixture,
 ) => {
   const r = ruinFor(seed, setting);
   const { lain, falling } = stonesAt(since, seed, setting, room);
   ctx.drawImage(lain.front.canvas, 0, RUBBLE_TOP);
   drawSheet(ctx, falling.front);
   drawDust(ctx, r, since);
-  for (const [name, b] of Object.entries(fixturesOf(r, setting))) {
-    const at = placeOf(b, since);
-    if (!at.on) fixture(ctx, name, Math.round(at.x), Math.round(at.y));
+  const down = Object.entries(fixturesOf(r, setting))
+    .map(([name, b]) => ({ name, at: placeOf(b, since) }))
+    .filter(({ at }) => !at.on);
+  if (!down.length) return;
+  // In the room's light, as they were on the wall: their bodies all on one layer, shaded
+  // together (a layer drawn once a frame); what lights itself after, as lit as it was.
+  fixtures ??= canvasOf(SCENE_W, SCENE_H);
+  const off = fixtures.getContext("2d");
+  if (!off) return;
+  off.clearRect(0, 0, SCENE_W, SCENE_H);
+  for (const { name, at } of down) fixture(off, name, Math.round(at.x), Math.round(at.y), "body");
+  if (room.k > 0) {
+    off.globalCompositeOperation = "source-atop";
+    off.globalAlpha = room.k;
+    off.fillStyle = room.colour;
+    off.fillRect(0, 0, SCENE_W, SCENE_H);
+    off.globalCompositeOperation = "source-over";
+    off.globalAlpha = 1;
   }
+  ctx.drawImage(fixtures, 0, 0);
+  for (const { name, at } of down) fixture(ctx, name, Math.round(at.x), Math.round(at.y), "light");
 };
+
+/** Draws a fallen fixture by name at its top-left corner: its body, or what lights itself. */
+export type Fixture = (
+  ctx: CanvasRenderingContext2D,
+  name: string,
+  x: number,
+  y: number,
+  part: "body" | "light",
+) => void;
+let fixtures: HTMLCanvasElement | null = null;
 
 /** What thuds between two moments of friday, and where: stones and fixtures landing. */
 export const rubbleCue = (

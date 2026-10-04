@@ -16,6 +16,7 @@ import {
   drawOnWall,
   drawRubble,
   drawRubbleBehind,
+  type Fixture,
   fixtureAt,
   type Setting,
   type Shade,
@@ -34,7 +35,7 @@ const takenBy = (since: number, seed: number, fallen: Fallen, knocks: Knocks) =>
  *  its stones keep once they are off it. */
 export type Fallen = {
   wall: Setting;
-  draw: (ctx: CanvasRenderingContext2D, name: string, x: number, y: number) => void;
+  draw: Fixture;
   room: Shade;
 };
 
