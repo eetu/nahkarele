@@ -84,6 +84,10 @@ const STEP = 1 / 120;
 const LONGEST = 6;
 /** The first number a broken piece takes: past any wall's count of blocks. */
 const PIECES = 1 << 20;
+/** Pieces in the air overlapping by less than this, px, have not met. */
+const SLACK = 0.5;
+/** How many times a piece in the air is knocked by another, at most. */
+const MEETS = 4;
 /** A block let go after the one being worked out is taken to be in the wall this long, s: its
  *  own way out is not known yet. */
 const SOON = 0.15;
@@ -477,6 +481,8 @@ export const bakeRubble = (
     dir: 1 | -1;
     land: number;
     ver: number;
+    /** How many times it has met another in the air. */
+    hits: number;
   };
   const flights: Flight[] = [];
   for (const rel of releases) {
@@ -520,7 +526,7 @@ export const bakeRubble = (
       fresh: null,
     };
     bodies.push(body);
-    flights.push({ body, fl, box, cy: blk.y + blk.h / 2, dir, land: 0, ver: 0 });
+    flights.push({ body, fl, box, cy: blk.y + blk.h / 2, dir, land: 0, ver: 0, hits: 0 });
   }
 
   // --- Coming down, in the order things happen ------------------------------------------
@@ -567,7 +573,14 @@ export const bakeRubble = (
   // before what lands then, which lands on it). A flight's landing is worked out as it sets
   // off, on the heap as it is then, and again for those in the air whenever something comes to
   // rest in their way.
-  type Event = { t: number; kind: 0 | 1 | 2; k: number; ver: number };
+  type Event = {
+    t: number;
+    kind: 0 | 1 | 2 | 3;
+    k: number;
+    ver: number;
+    j?: number;
+    jver?: number;
+  };
   const queue: Event[] = [];
   const before = (a: Event, b: Event) =>
     a.t < b.t || (a.t === b.t && (a.kind < b.kind || (a.kind === b.kind && a.k < b.k)));
@@ -794,8 +807,10 @@ export const bakeRubble = (
       body.settled = last.t1;
     }
     const l = lay(pile, body.id, fin.x, fin.z, body.w, pl.deep, fin.base, pl.rise, S);
-    // Its top where it is drawn, put on a whole pixel: sunk this far, it is all under.
-    l.top += y - b.y;
+    // Its top where it is drawn: put on a whole pixel, and lying tilted (propped on something
+    // at one end) its high corner over a flat top. Sunk this far, it is all under.
+    const [st, ct] = [Math.abs(Math.sin(pl.theta)), Math.abs(Math.cos(pl.theta))];
+    l.top += y - b.y + Math.max(0, 0.5 * (body.w * st + pl.rise * ct) - pl.rise / 2);
     body.lying = l;
     const [x0, x1] = [
       Math.max(0, Math.floor(l.x0 / 8)),
@@ -823,6 +838,155 @@ export const bakeRubble = (
         enqueue({ t: again, kind: 2, k, ver: f.ver });
       }
     }
+  };
+
+  // --- Meeting in the air ------------------------------------------------------------
+
+  /** A piece in flight at `t` as a turned rectangle in the wall's plane (its centre, half its
+   *  length and its height as turned out of the plane, its turn in it) and half its depth. */
+  const shapeAt = (f: Flight, t: number) => {
+    const p = phasePose(f.fl, t);
+    const { w, h, T: d } = f.box;
+    const hh = 0.5 * (Math.abs(h * Math.cos(p.phi)) + Math.abs(d * Math.sin(p.phi)));
+    return { p, hw: w / 2, hh, hz: halfDepth(h, d, p.phi) };
+  };
+  type Shape = ReturnType<typeof shapeAt>;
+  /** How deep two pieces overlap, px, and the way from `b` to `a` it is least: null if they are
+   *  apart (by the sides of each rectangle, and in depth). */
+  const overlapOf = (a: Shape, b: Shape) => {
+    const dz = a.p.z - b.p.z;
+    const oz = a.hz + b.hz - Math.abs(dz) - SLACK;
+    if (oz <= 0) return null;
+    let best = { d: oz, n: { x: 0, y: 0, z: Math.sign(dz) || 1 } };
+    for (const turn of [a.p.theta, a.p.theta + Math.PI / 2, b.p.theta, b.p.theta + Math.PI / 2]) {
+      const [ux, uy] = [Math.cos(turn), Math.sin(turn)];
+      const half = (s: Shape) =>
+        s.hw * Math.abs(Math.cos(s.p.theta - turn)) + s.hh * Math.abs(Math.sin(s.p.theta - turn));
+      const dist = (a.p.x - b.p.x) * ux + (a.p.y - b.p.y) * uy;
+      const o = half(a) + half(b) - Math.abs(dist) - SLACK;
+      if (o <= 0) return null;
+      if (o < best.d) {
+        const sign = Math.sign(dist) || 1;
+        best = { d: o, n: { x: ux * sign, y: uy * sign, z: 0 } };
+      }
+    }
+    return best;
+  };
+
+  /** The velocity of flight `f` at `t`. */
+  const speedOf = (f: Flight, t: number): Vec => ({
+    x: f.fl.v.x,
+    y: f.fl.v.y + g * (t - f.fl.t0),
+    z: f.fl.v.z,
+  });
+  /** Whether two pieces overlapping by `n` are coming together. */
+  const closing = (a: Flight, b: Flight, t: number, n: Vec) => {
+    const [va, vb] = [speedOf(a, t), speedOf(b, t)];
+    return (va.x - vb.x) * n.x + (va.y - vb.y) * n.y + (va.z - vb.z) * n.z < 0;
+  };
+  /** The box flight `f` sweeps from `t0` to `t1`: its path's bounds (straight across and in
+   *  depth, an arc up and down), widened by its reach whichever way it turns. */
+  const sweptOf = (f: Flight, t0: number, t1: number) => {
+    const [a, b] = [phasePose(f.fl, t0), phasePose(f.fl, t1)];
+    let y0 = Math.min(a.y, b.y);
+    const y1 = Math.max(a.y, b.y);
+    // The top of the arc, if it is in the window.
+    const apex = f.fl.t0 - f.fl.v.y / g;
+    if (apex > t0 && apex < t1) y0 = Math.min(y0, phasePose(f.fl, apex).y);
+    const r = 0.5 * Math.hypot(f.box.w, f.box.h, f.box.T);
+    return {
+      x0: Math.min(a.x, b.x) - r,
+      x1: Math.max(a.x, b.x) + r,
+      y0: y0 - r,
+      y1: y1 + r,
+      z0: Math.min(a.z, b.z) - r,
+      z1: Math.max(a.z, b.z) + r,
+    };
+  };
+
+  /** Where flight `k`, in the air from `from`, first meets another in the air, each checked
+   *  until either comes down. Setting off into one coming its way, at once; one it is leaving
+   *  (pieces leaving side by side set off touching), only once they have been apart. */
+  const meetings = (k: number, from: number) => {
+    const f = flights[k];
+    for (const j of airborne) {
+      if (j === k) continue;
+      const o = flights[j];
+      const [t0, t1] = [Math.max(from, o.fl.t0), Math.min(f.land, o.land)];
+      if (t1 <= t0) continue;
+      const [sa, sb] = [sweptOf(f, t0, t1), sweptOf(o, t0, t1)];
+      if (sa.x1 < sb.x0 || sb.x1 < sa.x0 || sa.y1 < sb.y0 || sb.y1 < sa.y0) continue;
+      if (sa.z1 < sb.z0 || sb.z1 < sa.z0) continue;
+      const [a, b] = k < j ? [k, j] : [j, k];
+      const meet = (t: number) =>
+        enqueue({ t, kind: 3, k: a, ver: flights[a].ver, j: b, jver: flights[b].ver });
+      const start = overlapOf(shapeAt(f, t0), shapeAt(o, t0));
+      if (start && closing(f, o, t0, start.n)) {
+        meet(t0);
+        continue;
+      }
+      let apart = start === null;
+      for (let t = t0 + 2 * STEP; t < t1; t += 2 * STEP) {
+        const met = overlapOf(shapeAt(f, t), shapeAt(o, t)) !== null;
+        if (!apart) {
+          apart = !met;
+          continue;
+        }
+        if (!met) continue;
+        let [lo, hi] = [t - 2 * STEP, t];
+        for (let n = 0; n < 12; n++) {
+          const mid = (lo + hi) / 2;
+          if (overlapOf(shapeAt(f, mid), shapeAt(o, mid))) hi = mid;
+          else lo = mid;
+        }
+        meet(hi);
+        break;
+      }
+    }
+  };
+
+  /** Flight `f` sets off again at `t` from where it is with velocity `v`, as it was turning. */
+  const setOff = (k: number, t: number, v: Vec) => {
+    const f = flights[k];
+    const c = phasePose(f.fl, t);
+    f.fl.t1 = t;
+    const fl: Fly = { ...f.fl, t0: t, t1: t + LONGEST, c, v };
+    f.body.phases.push(fl);
+    f.fl = fl;
+    f.ver++;
+    f.land = touchdown(f, t, t + LONGEST);
+    enqueue({ t: f.land, kind: 2, k, ver: f.ver });
+  };
+
+  /** Two pieces meeting in the air at `t` knock each other apart along the way they overlap
+   *  least, as hard as they were coming together, keeping a little of it (the heap's
+   *  restitution), the lighter piece taking more; then each flies on from there. Neither is
+   *  knocked back toward the wall it is still beside. */
+  const meet = (ka: number, kb: number, t: number) => {
+    const [a, b] = [flights[ka], flights[kb]];
+    // A few knocks each: three or more in a huddle would knock each other on for ever.
+    if (a.hits >= MEETS || b.hits >= MEETS) return;
+    const touch = overlapOf(shapeAt(a, t), shapeAt(b, t));
+    if (!touch) return;
+    a.hits++;
+    b.hits++;
+    const [va, vb] = [speedOf(a, t), speedOf(b, t)];
+    const { n } = touch;
+    const together = (va.x - vb.x) * n.x + (va.y - vb.y) * n.y + (va.z - vb.z) * n.z;
+    if (together >= 0) return;
+    const [ma, mb] = [a.body.n, b.body.n];
+    const J = (-(1 + pace.bounce[0]) * together) / (1 / ma + 1 / mb);
+    const away = (f: Flight, v: Vec, k: number): Vec => {
+      const out = { x: v.x + k * n.x, y: v.y + k * n.y, z: v.z + k * n.z };
+      // By the wall, not back toward it.
+      const z = phasePose(f.fl, t).z;
+      if (z > -T && z < T && Math.sign(out.z) !== f.dir) out.z = Math.max(0, out.z * f.dir) * f.dir;
+      return out;
+    };
+    setOff(ka, t, away(a, va, J / ma));
+    setOff(kb, t, away(b, vb, -J / mb));
+    meetings(ka, t);
+    meetings(kb, t);
   };
 
   /** How a piece lying at `x`, `z` is turned in the plane: as the heap slopes under it, give
@@ -937,6 +1101,11 @@ export const bakeRubble = (
       f.land = touchdown(f, f.fl.t0, f.fl.t0 + LONGEST);
       airborne.add(e.k);
       enqueue({ t: f.land, kind: 2, k: e.k, ver: f.ver });
+      meetings(e.k, f.fl.t0);
+    } else if (e.kind === 3) {
+      const j = e.j as number;
+      const both = airborne.has(e.k) && airborne.has(j);
+      if (both && e.ver === f.ver && e.jver === flights[j].ver) meet(e.k, j, e.t);
     } else if (e.ver === f.ver) {
       airborne.delete(e.k);
       comeDown(f);

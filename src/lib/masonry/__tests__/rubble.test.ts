@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { phasePose } from "../fall";
+import { phasePose, poseAt } from "../fall";
 import { sinkOf } from "../pile";
 import { cuesBetween, forget, lying, moving, ruinOf } from "../query";
 import { bake } from "../timeline";
@@ -32,9 +32,9 @@ describe("what comes off the wall", () => {
         if (rel?.kind !== "weather" && rel?.kind !== "knock") continue;
         // A piece deeper than it is tall slides out instead.
         if (body.T >= body.h * 0.9) continue;
-        const flight = body.phases.find((p) => p.k === "fly");
-        if (!flight) throw new Error("no flight");
-        const phi = Math.abs(phasePose(flight, flight.t1).phi);
+        if (!body.phases.some((p) => p.k === "fly")) throw new Error("no flight");
+        // As it lands: a flight may be knocked into another by a piece it meets in the air.
+        const phi = Math.abs(poseAt(body.phases, body.lands).phi);
         // Worked loose, 100 to 150 degrees or so; knocked off, it may spin on further.
         expect(phi).toBeGreaterThan(1.2);
         expect(phi).toBeLessThan(rel.kind === "knock" ? 3.8 : 3.2);
