@@ -1,9 +1,10 @@
 // A ruin baked once from its spec and seed: every block's release, in time order, worked out
 // by stepping from event to event. An event is a collapse knocking blocks off the wall's top,
 // a blow given as input, or a block whose hazard reaches its threshold. After each, what no
-// longer stands comes down in waves a fraction of a second apart, inserts go when what holds
-// them goes, and the exposure of what is left is brought up to date. Hung things go with the
-// block above them, or once most of the wall behind them has gone.
+// longer stands comes down: what lost its bed a moment after that bed went, the rest in waves
+// a fraction of a second apart; inserts go when what holds them goes, and the exposure of what
+// is left is brought up to date. Hung things go with the block above them, or once most of the
+// wall behind them has gone.
 
 import { hash } from "$lib/scene/pixel";
 
@@ -27,7 +28,11 @@ import { type Bond, insertOf, insertRef, type Spec } from "./types";
 
 /** How long the bake looks ahead, s: past this, nothing more is worked out. */
 export const HORIZON = 1e6;
-/** Waves of a cascade follow each other this far apart, s (from, plus up to). */
+/** A piece whose bed has just gone goes this soon after it, s (from, plus up to): before what
+ *  was under it has cleared the wall, so the fall can start the moment it has. */
+const FOLLOW: [number, number] = [0.02, 0.03];
+/** Waves of a cascade that nothing gave way under (an arch failing) follow each other this far
+ *  apart, s (from, plus up to). */
 const WAVE: [number, number] = [0.12, 0.23];
 /** An insert goes this long after what held it, s. */
 const LETGO = 0.15;
@@ -187,14 +192,18 @@ export const bake = (spec: Spec, seed: number, pace: Pace = PACE): Ruin => {
       waves.forEach((wave, w) => {
         at += WAVE[0] + WAVE[1] * hash(seed, w, Math.floor(t * 8), 33);
         for (const { i, kind } of wave) {
-          // Never before what it rested on has gone.
-          let after = at;
+          // Brought down by what it rested on going, now: just after it. Otherwise with its
+          // wave, and never before what it rested on has gone.
+          let lost = -Infinity;
           for (const c of blocks[i].bed) {
             const k = insertOf(c.j);
             const went = c.j >= 0 ? releaseAt[c.j] : k >= 0 ? insertAt[k] : -Infinity;
-            if (Number.isFinite(went)) after = Math.max(after, went + WAVE[0]);
+            if (Number.isFinite(went)) lost = Math.max(lost, went);
           }
-          release(i, after + 0.1 * hash(seed, i, 34), kind, dirOf(seed, i, after));
+          const follows = lost >= t;
+          const from = follows ? lost + FOLLOW[0] : Math.max(at, lost + WAVE[0]);
+          const when = from + (follows ? FOLLOW[1] : 0.1) * hash(seed, i, 34);
+          release(i, when, kind, dirOf(seed, i, from));
         }
       });
       let loose = false;

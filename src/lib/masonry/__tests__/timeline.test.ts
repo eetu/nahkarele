@@ -40,6 +40,24 @@ describe("the ruin over time", () => {
     }
   });
 
+  it("lets go of what rested on a piece a moment after the piece goes", () => {
+    for (const spec of [SPEC, BRICK, RUBBLE]) {
+      for (const seed of [1, 2, 3]) {
+        const r = bake(spec, seed);
+        for (const rel of r.releases.filter((x) => x.kind === "drop")) {
+          const lost = Math.max(
+            ...r.bond.blocks[rel.i].bed.map((c) => {
+              const k = insertOf(c.j);
+              return c.j >= 0 ? r.releaseAt[c.j] : k >= 0 ? r.insertAt[k] : -Infinity;
+            }),
+          );
+          expect(rel.t - lost).toBeGreaterThanOrEqual(0.02);
+          expect(rel.t - lost).toBeLessThanOrEqual(0.05);
+        }
+      }
+    }
+  });
+
   it("wears like a ruin: the top goes first, the foot stays", () => {
     let topGone = 0;
     let top = 0;
