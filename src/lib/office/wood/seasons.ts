@@ -1,5 +1,8 @@
-// Friday's clock: the storm after the blast, the wood growing in, then the year turning,
-// and what the year is doing: leaves, snow, litter.
+// Friday's clock: the storm after the blast, the wood growing in, then the year turning, as
+// korpi's calendar; and what the year is doing to the wood: leaves, snow, litter.
+
+import { type Calendar, type Season, seasonAt as seasonOf } from "@anarkisti/korpi/clock";
+import { snowCover as coverOf } from "@anarkisti/korpi/sky";
 
 import { ramp } from "$lib/scene/pixel";
 
@@ -12,28 +15,26 @@ export const SEASONS_FROM = 320;
 /** Seconds per season. */
 export const SEASON_S = 150;
 
-export type Season = {
-  /** 0 summer, 1 autumn, 2 winter, 3 spring. */
-  k: 0 | 1 | 2 | 3;
-  /** How far through it, 0..1. */
-  p: number;
+/** Friday's year: it turns once the wood has grown in, a day is a minute and a month eight of
+ *  them, and the first day dawns as the storm clears. */
+export const FRIDAY: Calendar = {
+  from: SEASONS_FROM,
+  season: SEASON_S,
+  day: 60,
+  month: 480,
+  dawn: STORM_S,
 };
 
-export const seasonAt = (since: number): Season => {
-  if (since < SEASONS_FROM) return { k: 0, p: 0 };
-  const t = (since - SEASONS_FROM) / SEASON_S;
-  return { k: (Math.floor(t) % 4) as Season["k"], p: t % 1 };
-};
+export type { Season };
+
+export const seasonAt = (since: number): Season => seasonOf(FRIDAY, since);
 
 /** How much of the crown is leaf, 0..1: bare in winter, back in spring. */
 export const foliage = ({ k, p }: Season) =>
   k === 0 ? 1 : k === 1 ? 1 - ramp(p, 0.35, 1) : k === 2 ? 0 : ramp(p, 0.3, 0.9);
 
 /** Snow on the ground and the ledges, 0..1. */
-export const snowCover = (since: number) => {
-  const { k, p } = seasonAt(since);
-  return k === 2 ? ramp(p, 0.1, 0.7) : k === 3 ? 1 - ramp(p, 0, 0.4) : 0;
-};
+export const snowCover = (since: number) => coverOf(FRIDAY, since);
 
 /** Fallen leaves on the floor, 0..1: they pile in autumn and the moss has them by spring. */
 export const litter = ({ k, p }: Season) =>

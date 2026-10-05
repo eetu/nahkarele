@@ -1,12 +1,15 @@
 // Friday's weather: what the window shows, the litter and snow on the ground and the
-// ledges, and the leaves and flakes that fall through the room on the wind.
+// ledges, and the leaves and flakes that fall through the room on the wind. The year's spells
+// are korpi's; the storm after the blast and its rain are friday's own.
+
+import { weatherAt } from "@anarkisti/korpi/sky";
 
 import { hash, ramp, rect } from "$lib/scene/pixel";
 import type { Weather } from "$lib/scene/sky";
 
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
 import { dayAt } from "./daylight";
-import { litter, type Season, seasonAt, SEASONS_FROM, snowCover, STORM_S } from "./seasons";
+import { FRIDAY, litter, type Season, seasonAt, SEASONS_FROM, snowCover, STORM_S } from "./seasons";
 import { planOf, standing } from "./stand";
 import { autumnOf, crownOf, deciduous } from "./trees";
 import { driftOf } from "./wind";
@@ -21,45 +24,16 @@ export const windowAt = (since: number): { progress: number; weather: Weather } 
   const { progress } = dayAt(since);
   // The first summer comes in, after the storm's rain, while the wood grows.
   if (since < SEASONS_FROM) return { progress, weather: since < 160 ? "rain" : "clear" };
-  const { k, p } = seasonAt(since);
-  const wet = spellsOf(k).some(([a, b]) => p >= a && p < b);
-  return { progress, weather: !wet ? "clear" : k === 2 ? "snow" : "rain" };
+  return { progress, weather: weatherAt(FRIDAY, since).kind };
 };
-
-/**
- * When it rains or snows, by season, as shares of it: a spell of summer rain, a wet autumn with
- * a dry spell in it, two snowfalls in winter with clear frost (and the moon) between and after,
- * a spring shower.
- */
-const SPELLS: [number, number][][] = [
-  [[0.4, 0.55]],
-  [
-    [0.15, 0.4],
-    [0.55, 0.75],
-  ],
-  [
-    [0.05, 0.38],
-    [0.55, 0.8],
-  ],
-  [[0.3, 0.45]],
-];
-const spellsOf = (k: number) => SPELLS[k];
 
 /** How hard it is snowing, 0..1, easing in and out of each winter spell. */
-const snowing = (since: number) => {
-  const { k, p } = seasonAt(since);
-  if (k !== 2 || since < SEASONS_FROM) return 0;
-  return Math.max(...SPELLS[2].map(([a, b]) => ramp(p, a, a + 0.04) * (1 - ramp(p, b - 0.04, b))));
-};
+const snowing = (since: number) => weatherAt(FRIDAY, since).snow;
 
 /** How hard it is raining, 0..1: the storm's rain as the wood comes in, then the spells of
- *  every season but winter, easing in and out like the snow's. */
-const raining = (since: number) => {
-  if (since < SEASONS_FROM) return 1 - ramp(since, 150, 160);
-  const { k, p } = seasonAt(since);
-  if (k === 2) return 0;
-  return Math.max(...SPELLS[k].map(([a, b]) => ramp(p, a, a + 0.04) * (1 - ramp(p, b - 0.04, b))));
-};
+ *  every season but winter. */
+const raining = (since: number) =>
+  since < SEASONS_FROM ? 1 - ramp(since, 150, 160) : weatherAt(FRIDAY, since).rain;
 
 /** Something drawn once per quantised state and reused: snow cover, leaf litter. */
 const baked = new Map<string, { key: string; canvas: HTMLCanvasElement }>();
