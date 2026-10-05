@@ -30,7 +30,8 @@ import { specOf } from "$lib/office/wood/wall";
 import { rect } from "$lib/scene/pixel";
 import { drawPixelText } from "$lib/scene/pixelfont";
 
-import type { Unit, Values } from "./units";
+import { clock as hms, px, share } from "./show";
+import type { Param, Unit, Values } from "./units";
 
 /** The office's back wall, as the room lays it: the window an insert, the clock, the pay
  *  readout, the calendar and the signs hung on it. */
@@ -68,20 +69,119 @@ const RATES: Record<string, number> = {
 };
 
 /** The tunable part of the pace, slider by slider. */
-const TUNE: { key: string; min: number; max: number; step: number; get: (p: Pace) => number }[] = [
-  { key: "eta", min: 3600, max: 72000, step: 600, get: (p) => p.eta },
-  { key: "beta", min: 1, max: 3, step: 0.1, get: (p) => p.beta },
-  { key: "free", min: 1, max: 8, step: 0.5, get: (p) => p.free },
-  { key: "open", min: 1, max: 5, step: 0.25, get: (p) => p.open },
-  { key: "glued", min: 1, max: 30, step: 1, get: (p) => p.glued },
-  { key: "confined", min: 0, max: 0.5, step: 0.01, get: (p) => p.confined },
-  { key: "shock", min: 0, max: 0.1, step: 0.005, get: (p) => p.after[0] },
-  { key: "collapses", min: 0, max: 30, step: 1, get: (p) => p.collapses },
-  { key: "bite", min: 4, max: 97, step: 1, get: (p) => p.bite },
-  { key: "sinks", min: 60, max: 14400, step: 60, get: (p) => p.sink[1] },
-  { key: "bounce", min: 0, max: 0.8, step: 0.05, get: (p) => p.bounce[0] },
-  { key: "repose", min: 0.3, max: 1.5, step: 0.05, get: (p) => p.repose },
-  { key: "glue", min: 0, max: 6, step: 0.5, get: (p) => p.glue },
+type Tune = Param & { kind: "range"; get: (p: Pace) => number };
+/** A slider of the pace, folded under its heading. */
+const tune = (t: Omit<Tune, "kind" | "group">): Tune => ({ ...t, kind: "range", group: "pace" });
+const TUNE: Tune[] = [
+  tune({
+    key: "eta",
+    min: 3600,
+    max: 72000,
+    step: 600,
+    show: hms,
+    hint: "wear's Weibull scale: a block's typical life",
+    get: (p) => p.eta,
+  }),
+  tune({
+    key: "beta",
+    min: 1,
+    max: 3,
+    step: 0.1,
+    hint: "wear's shape: over 1, the older the faster it goes",
+    get: (p) => p.beta,
+  }),
+  tune({
+    key: "free",
+    min: 1,
+    max: 8,
+    step: 0.5,
+    hint: "× wear for a block with its top free",
+    get: (p) => p.free,
+  }),
+  tune({
+    key: "open",
+    min: 1,
+    max: 5,
+    step: 0.25,
+    hint: "× wear for a block beside a gap",
+    get: (p) => p.open,
+  }),
+  tune({
+    key: "glued",
+    min: 1,
+    max: 30,
+    step: 1,
+    hint: "× wear for one held over an edge by mortar alone",
+    get: (p) => p.glued,
+  }),
+  tune({
+    key: "confined",
+    min: 0,
+    max: 0.5,
+    step: 0.01,
+    hint: "× wear for one held on every side",
+    get: (p) => p.confined,
+  }),
+  tune({
+    key: "shock",
+    min: 0,
+    max: 0.1,
+    step: 0.005,
+    hint: "how hard a collapse shakes what is near it",
+    get: (p) => p.after[0],
+  }),
+  tune({
+    key: "collapses",
+    min: 0,
+    max: 30,
+    step: 1,
+    hint: "roof collapses after the blast",
+    get: (p) => p.collapses,
+  }),
+  tune({
+    key: "bite",
+    min: 4,
+    max: 97,
+    step: 1,
+    show: px,
+    hint: "how far down from the top a collapse knocks off",
+    get: (p) => p.bite,
+  }),
+  tune({
+    key: "sinks",
+    min: 60,
+    max: 14400,
+    step: 60,
+    show: hms,
+    hint: "how long a fallen piece takes to sink away",
+    get: (p) => p.sink[1],
+  }),
+  tune({
+    key: "bounce",
+    min: 0,
+    max: 0.8,
+    step: 0.05,
+    show: share,
+    hint: "a landing's speed kept upward",
+    get: (p) => p.bounce[0],
+  }),
+  tune({
+    key: "repose",
+    min: 0.3,
+    max: 1.5,
+    step: 0.05,
+    hint: "the steepest the heap stands, rise over run",
+    get: (p) => p.repose,
+  }),
+  tune({
+    key: "glue",
+    min: 0,
+    max: 6,
+    step: 0.5,
+    show: px,
+    hint: "how far past its bed mortar holds a block",
+    get: (p) => p.glue,
+  }),
 ];
 
 const paceOf = (v: Values): Pace => ({
@@ -138,13 +238,6 @@ const sinceOf = (v: Values, t: number) => {
     Object.assign(clock, { base: clock.base + (t - clock.t0) * clock.rate, t0: t, rate });
   }
   return clock.base + (t - clock.t0) * clock.rate;
-};
-
-const hms = (s: number) => {
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = Math.floor(s % 60);
-  return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 };
 
 const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
@@ -390,6 +483,7 @@ const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
 
 export const wallSim: Unit = {
   name: "wall",
+  about: "the back wall coming down, to watch, poke and tune; a tap on it does what tap is set to",
   defaults: {
     seed: 1,
     since: 0,
@@ -402,13 +496,36 @@ export const wallSim: Unit = {
   },
   params: () => [
     { kind: "seed", key: "seed" },
-    { kind: "range", key: "since", min: 0, max: 43200, step: 0.1 },
-    { kind: "select", key: "rate", options: Object.keys(RATES) },
+    {
+      kind: "range",
+      key: "since",
+      min: 0,
+      max: 43200,
+      step: 0.1,
+      show: hms,
+      hint: "where its clock starts; scrub back before a tap and it never happened",
+    },
+    {
+      kind: "select",
+      key: "rate",
+      options: Object.keys(RATES),
+      hint: "its clock against the bench's",
+    },
     { kind: "select", key: "wall", options: Object.keys(BUILDS) },
-    { kind: "toggle", key: "plaster" },
-    { kind: "select", key: "show", options: ["look", "classes", "hazard", "order", "pile"] },
-    { kind: "select", key: "tap", options: ["knock out", "roof", "forget taps"] },
-    ...TUNE.map(({ key, min, max, step }) => ({ kind: "range" as const, key, min, max, step })),
+    { kind: "toggle", key: "plaster", hint: "a coat that comes off in patches" },
+    {
+      kind: "select",
+      key: "show",
+      options: ["look", "classes", "hazard", "order", "pile"],
+      hint: "as drawn, how each block stands, how exposed, when it goes, the heap",
+    },
+    {
+      kind: "select",
+      key: "tap",
+      options: ["knock out", "roof", "forget taps"],
+      hint: "knock out the block, bring roof down there, or forget this seed's taps",
+    },
+    ...TUNE.map(({ get: _, ...param }) => param),
   ],
   size: () => ({ w: SCENE_W, h: SCENE_H }),
   animated: true,
@@ -480,15 +597,38 @@ const stoneOf = (v: Values): Body => {
 
 export const stoneUnit: Unit = {
   name: "stone",
+  about: "one stone of the wall as the room draws it, at any turn, whole or broken",
   defaults: { seed: 1, block: 40, piece: "whole", phi: 1.57, theta: 0, moss: 0, sink: 0 },
   params: () => [
     { kind: "seed", key: "seed" },
-    { kind: "range", key: "block", min: 0, max: 80, step: 1 },
-    { kind: "select", key: "piece", options: PIECES },
-    { kind: "range", key: "phi", min: -3.2, max: 3.2, step: 0.05 },
-    { kind: "range", key: "theta", min: -0.6, max: 0.6, step: 0.02 },
-    { kind: "range", key: "moss", min: 0, max: 1, step: 0.05 },
-    { kind: "range", key: "sink", min: 0, max: 16, step: 1 },
+    { kind: "range", key: "block", min: 0, max: 80, step: 1, hint: "which block of the wall" },
+    { kind: "select", key: "piece", options: PIECES, hint: "whole, a piece of it broken, a chip" },
+    {
+      kind: "range",
+      key: "phi",
+      min: -3.2,
+      max: 3.2,
+      step: 0.05,
+      hint: "tipped out of the wall's plane, top toward the room, radians",
+    },
+    {
+      kind: "range",
+      key: "theta",
+      min: -0.6,
+      max: 0.6,
+      step: 0.02,
+      hint: "turned in the wall's plane, radians",
+    },
+    { kind: "range", key: "moss", min: 0, max: 1, step: 0.05, show: share },
+    {
+      kind: "range",
+      key: "sink",
+      min: 0,
+      max: 16,
+      step: 1,
+      show: px,
+      hint: "how far it has sunk into the ground",
+    },
   ],
   size: () => ({ w: STONE.w, h: STONE.h }),
   draw: (ctx, v) => {

@@ -1,25 +1,66 @@
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import { leaveKey } from "$lib/keys";
 
   import Tile from "./Tile.svelte";
-  import { type Param, UNITS, type Values } from "./units";
+  import { type Param, type Unit, UNITS, type Values } from "./units";
 
   /** How many seeds the grid shows. */
   const GRID = 8;
 
-  let index = $state(0);
-  const values = $state<Record<string, Values>>(
-    Object.fromEntries(UNITS.map((u) => [u.name, { ...u.defaults }])),
+  /** What the bench was last showing, and how: kept through reloads, the hot ones too. */
+  const PREFS = "nahkarele:workbench";
+  type Prefs = { unit?: string; zoom?: number; grid?: boolean; values?: Record<string, Values> };
+  const saved = ((): Prefs => {
+    try {
+      return (JSON.parse(localStorage.getItem(PREFS) ?? "{}") as Prefs) ?? {};
+    } catch {
+      return {};
+    }
+  })();
+  /** A unit's saved values over its defaults: only those it still has, of the same type. */
+  const valuesOf = (u: Unit): Values => {
+    const kept = saved.values?.[u.name] ?? {};
+    const out = { ...u.defaults };
+    for (const [key, value] of Object.entries(kept)) {
+      if (key in out && typeof value === typeof out[key]) out[key] = value;
+    }
+    return out;
+  };
+
+  let index = $state(
+    Math.max(
+      0,
+      UNITS.findIndex((u) => u.name === saved.unit),
+    ),
   );
-  let zoom = $state(3);
-  let grid = $state(false);
+  const values = $state<Record<string, Values>>(
+    Object.fromEntries(UNITS.map((u) => [u.name, valuesOf(u)])),
+  );
+  let zoom = $state(saved.zoom ?? 3);
+  let grid = $state(saved.grid ?? false);
   let playing = $state(true);
   let t = $state(0);
 
   const unit = $derived(UNITS[index]);
   const v = $derived(values[unit.name]);
   const seeded = $derived("seed" in unit.defaults);
+  const params = $derived(unit.params(v));
+  /** The params folded under each heading, in the order the headings first come. */
+  const groups = $derived(
+    [...new Set(params.flatMap((p) => (p.group ? [p.group] : [])))].map((name) => ({
+      name,
+      params: params.filter((p) => p.group === name),
+    })),
+  );
+
+  $effect(() => {
+    const prefs = JSON.stringify({ unit: unit.name, zoom, grid, values });
+    try {
+      localStorage.setItem(PREFS, prefs);
+    } catch {
+      /* the bench then forgets */
+    }
+  });
   const tiles = $derived(
     grid && seeded
       ? Array.from({ length: GRID }, (_, i) => ({ ...v, seed: Number(v.seed) + i }))
@@ -43,8 +84,21 @@
     return () => cancelAnimationFrame(raf);
   });
 
+  /**
+   * Whether the bench keeps out of a key press: what is being typed, and Space or Enter on a
+   * control that takes them itself. A slider takes neither, so every key still works after one
+   * has been moved.
+   */
+  const keepOut = (e: KeyboardEvent) => {
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return true;
+    const el = e.target instanceof Element ? e.target : null;
+    if (el?.closest("textarea, input[type=text], input[type=number]")) return true;
+    const own = "button, a, summary, select, input[type=checkbox]";
+    return (e.key === " " || e.key === "Enter") && !!el?.closest(own);
+  };
+
   const onKey = (e: KeyboardEvent) => {
-    if (leaveKey(e)) return;
+    if (keepOut(e)) return;
     const k = e.key;
     if (k === "]") index = (index + 1) % UNITS.length;
     else if (k === "[") index = (index - 1 + UNITS.length) % UNITS.length;
@@ -62,7 +116,48 @@
     if (p.kind === "toggle") set(p.key, (el as HTMLInputElement).checked ? 1 : 0);
     else set(p.key, p.kind === "range" || p.kind === "seed" ? Number(el.value) : el.value);
   };
+
+  const shown = (p: Param & { kind: "range" }) =>
+    p.show ? p.show(Number(v[p.key])) : String(v[p.key]);
 </script>
+
+{#snippet row(p: Param)}
+  {@const hint = p.hint ? `hint-${p.key}` : undefined}
+  <div class="param">
+    <label>
+      <span class="label">{p.key}</span>
+      {#if p.kind === "range"}
+        <input
+          type="range"
+          min={p.min}
+          max={p.max}
+          step={p.step}
+          value={v[p.key]}
+          aria-describedby={hint}
+          oninput={(e) => input(p, e)}
+        />
+        <span class="num value">{shown(p)}</span>
+      {:else if p.kind === "select"}
+        <select value={v[p.key]} aria-describedby={hint} onchange={(e) => input(p, e)}>
+          {#each p.options as o (o)}<option value={o}>{o}</option>{/each}
+        </select>
+      {:else if p.kind === "toggle"}
+        <input
+          type="checkbox"
+          checked={Boolean(v[p.key])}
+          aria-describedby={hint}
+          onchange={(e) => input(p, e)}
+        />
+      {:else if p.kind === "seed"}
+        <input type="number" value={v[p.key]} oninput={(e) => input(p, e)} />
+        <button onclick={reseed} title="a random seed (r)">new</button>
+      {:else}
+        <input type="text" value={v[p.key]} aria-describedby={hint} oninput={(e) => input(p, e)} />
+      {/if}
+    </label>
+    {#if p.hint}<small class="hint" id={hint}>{p.hint}</small>{/if}
+  </div>
+{/snippet}
 
 <svelte:head><title>workbench · nahkarele</title></svelte:head>
 <svelte:window onkeydown={onKey} />
@@ -79,7 +174,15 @@
 
   <nav>
     {#each UNITS as u, i (u.name)}
-      <button class:active={i === index} onclick={() => (index = i)}>{u.name}</button>
+      <!-- A click leaves the focus where it was, so Space goes on playing and pausing. -->
+      <button
+        class:active={i === index}
+        title={u.about}
+        onmousedown={(e) => e.preventDefault()}
+        onclick={() => (index = i)}
+      >
+        {u.name}
+      </button>
     {/each}
   </nav>
 
@@ -90,40 +193,31 @@
   </main>
 
   <aside class="halo-card">
-    {#each unit.params(v) as p (p.key)}
-      <label>
-        <span class="label">{p.key}</span>
-        {#if p.kind === "range"}
-          <input
-            type="range"
-            min={p.min}
-            max={p.max}
-            step={p.step}
-            value={v[p.key]}
-            oninput={(e) => input(p, e)}
-          />
-          <span class="num value">{v[p.key]}</span>
-        {:else if p.kind === "select"}
-          <select value={v[p.key]} onchange={(e) => input(p, e)}>
-            {#each p.options as o (o)}<option value={o}>{o}</option>{/each}
-          </select>
-        {:else if p.kind === "toggle"}
-          <input type="checkbox" checked={Boolean(v[p.key])} onchange={(e) => input(p, e)} />
-        {:else if p.kind === "seed"}
-          <input type="number" value={v[p.key]} oninput={(e) => input(p, e)} />
-          <button onclick={reseed}>new</button>
-        {:else}
-          <input type="text" value={v[p.key]} oninput={(e) => input(p, e)} />
-        {/if}
-      </label>
+    <hgroup>
+      <h2>
+        {unit.name}
+        {#if unit.animated && !playing}<span class="label paused">paused · space</span>{/if}
+      </h2>
+      <p class="about">{unit.about}</p>
+    </hgroup>
+    {#each params.filter((p) => !p.group) as p (p.key)}
+      {@render row(p)}
     {/each}
-    <label>
+    {#each groups as g (g.name)}
+      <details>
+        <summary class="label">{g.name} · {g.params.length}</summary>
+        {#each g.params as p (p.key)}
+          {@render row(p)}
+        {/each}
+      </details>
+    {/each}
+    <label title="- and + on the keyboard">
       <span class="label">zoom</span>
       <input type="range" min="1" max="8" step="1" bind:value={zoom} />
       <span class="num value">{zoom}×</span>
     </label>
     {#if seeded}
-      <label class="check">
+      <label class="check" title="g on the keyboard">
         <input type="checkbox" bind:checked={grid} />
         <span class="label">grid of {GRID} seeds</span>
       </label>
@@ -182,8 +276,13 @@
   main {
     display: flex;
     align-items: flex-start;
-    justify-content: center;
     overflow: auto;
+  }
+
+  /* Centred while it fits; wider, it starts at the left edge and scrolls, rather than being
+     cut off on both sides as a centred overflow is. */
+  main:not(.grid) > :global(figure) {
+    margin-inline: auto;
   }
 
   main.grid {
@@ -201,11 +300,60 @@
     padding: 1rem;
   }
 
+  hgroup h2 {
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  .about {
+    margin: 0.2rem 0 0;
+    color: var(--halo-text-muted);
+    font-size: 0.85rem;
+  }
+
+  .paused {
+    margin-left: 0.4rem;
+    color: var(--halo-accent);
+  }
+
+  .param {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .hint {
+    padding-left: 5.5rem;
+    color: var(--halo-text-muted);
+    font-size: 0.75rem;
+    line-height: 1.3;
+  }
+
+  details[open] summary {
+    margin-bottom: 0.7rem;
+  }
+
+  summary {
+    cursor: pointer;
+  }
+
+  details .param + .param {
+    margin-top: 0.7rem;
+  }
+
   label {
     display: grid;
-    grid-template-columns: 5rem 1fr auto;
+    grid-template-columns: 5rem minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  label input[type="range"] {
+    min-width: 0;
+  }
+
+  label input[type="checkbox"] {
+    justify-self: start;
   }
 
   label.check {
@@ -225,8 +373,20 @@
   }
 
   .value {
-    min-width: 2.5rem;
+    min-width: 3.5rem;
     text-align: right;
+    white-space: nowrap;
+  }
+
+  /* No keyboard, no use for its keys. */
+  @media (hover: none) {
+    .keys {
+      display: none;
+    }
+
+    header a {
+      margin-left: auto;
+    }
   }
 
   @media (max-width: 900px) {

@@ -21,8 +21,18 @@ import {
   drawConk,
   tallOf,
 } from "$lib/office/wood/conks";
+import {
+  closes,
+  type Flower,
+  type FlowerPlan,
+  FLOWERS,
+  paintFlowerParts,
+  planFlowers,
+} from "$lib/office/wood/flowers";
 import { type GrassPlan, paintGrassParts, planGrass } from "$lib/office/wood/grass";
 import { archOf, fruitAt, lifespanOf, planAt } from "$lib/office/wood/growth";
+import { drawSpider } from "$lib/office/wood/life";
+import { drawFlowers } from "$lib/office/wood/meadow";
 import { drawPosed, sheetScope } from "$lib/office/wood/posed";
 import { rustleOf } from "$lib/office/wood/rustle";
 import { lookAt, SEASON_S, SEASONS_FROM } from "$lib/office/wood/seasons";
@@ -55,20 +65,37 @@ import { drawPixelText, pixelTextWidth } from "$lib/scene/pixelfont";
 import droneSprite from "$lib/sprites/drone.json";
 import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 
+import { clock, px, share, years } from "./show";
 import { stoneUnit, wallSim } from "./wallSim";
 
-export type Param =
-  | { kind: "range"; key: string; min: number; max: number; step: number }
-  | { kind: "select"; key: string; options: readonly string[] }
-  | { kind: "seed"; key: string }
-  | { kind: "text"; key: string }
+export type Param = {
+  key: string;
+  /** What it sets, as a fact: its unit, what its ends mean. Shown under the control. */
+  hint?: string;
+  /** Folded away under this heading until opened: knobs for tuning, not for looking. */
+  group?: string;
+} & (
+  | {
+      kind: "range";
+      min: number;
+      max: number;
+      step: number;
+      /** How the value reads beside the slider. */
+      show?: (v: number) => string;
+    }
+  | { kind: "select"; options: readonly string[] }
+  | { kind: "seed" }
+  | { kind: "text" }
   /** On or off: a checkbox, its value 1 or 0. */
-  | { kind: "toggle"; key: string };
+  | { kind: "toggle" }
+);
 
 export type Values = Record<string, number | string>;
 
 export type Unit = {
   name: string;
+  /** What it shows, in a line, and what a tap on it does. */
+  about: string;
   /** Starting values; a unit with a `seed` can be shown as a grid of seeds. */
   defaults: Values;
   /** The controls, which may depend on the current values. */
@@ -88,6 +115,25 @@ const str = (v: Values, key: string) => String(v[key]);
 
 const SEASONS = ["summer", "autumn", "winter", "spring"] as const;
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+
+/** The season to dress for, and how far into it. */
+const SEASON: Param[] = [
+  { kind: "select", key: "season", options: SEASONS },
+  { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01, show: share },
+];
+/** The bench's wind, in friday's strength. */
+const WIND: Param[] = [
+  {
+    kind: "range",
+    key: "wind",
+    min: -2,
+    max: 2,
+    step: 0.1,
+    hint: "1 a stiff breeze; below 0 it blows to the left",
+  },
+  { kind: "select", key: "gusts", options: ["steady", "gusty"], hint: "gusty: a gust every 8 s" },
+];
+const SEASON_WIND = [...SEASON, ...WIND];
 
 /** The office wall and a strip of floor, so a tree stands where it would. */
 const office = (ctx: CanvasRenderingContext2D, w: number, h: number, floor: number) => {
@@ -126,6 +172,7 @@ const TALL_H = 640;
  *  on friday. `room` shows it as the room would (180 px high) or whole. */
 const tree: Unit = {
   name: "tree",
+  about: "one tree at an age, in the wind as on friday",
   animated: true,
   defaults: {
     species: "birch",
@@ -140,12 +187,22 @@ const tree: Unit = {
   params: () => [
     { kind: "select", key: "species", options: SPECIES },
     { kind: "seed", key: "seed" },
-    { kind: "range", key: "age", min: 0, max: 40, step: 0.25 },
-    { kind: "select", key: "room", options: ["room", "whole"] },
-    { kind: "select", key: "season", options: SEASONS },
-    { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01 },
-    { kind: "range", key: "wind", min: -2, max: 2, step: 0.1 },
-    { kind: "select", key: "gusts", options: ["steady", "gusty"] },
+    {
+      kind: "range",
+      key: "age",
+      min: 0,
+      max: 40,
+      step: 0.25,
+      show: years,
+      hint: "the first wood is 5 when the year starts turning",
+    },
+    {
+      kind: "select",
+      key: "room",
+      options: ["room", "whole"],
+      hint: "room: cut at the room's 180 px; whole: all of it",
+    },
+    ...SEASON_WIND,
   ],
   size: (v) => ({ w: 260, h: str(v, "room") === "whole" ? TALL_H : SCENE_H }),
   draw: (ctx, v, t) => {
@@ -193,6 +250,7 @@ const tree: Unit = {
 /** One conk on a strip of trunk, at any size, age and season. */
 const conk: Unit = {
   name: "conk",
+  about: "one bracket fungus on a strip of trunk",
   defaults: {
     kind: "tinder",
     seed: 1,
@@ -207,13 +265,28 @@ const conk: Unit = {
   params: () => [
     { kind: "select", key: "kind", options: CONKS },
     { kind: "seed", key: "seed" },
-    { kind: "range", key: "reach", min: 1, max: 9, step: 1 },
-    { kind: "range", key: "years", min: 0, max: 10, step: 1 },
+    {
+      kind: "range",
+      key: "reach",
+      min: 1,
+      max: 9,
+      step: 1,
+      show: px,
+      hint: "how far it stands out from the bark",
+    },
+    { kind: "range", key: "years", min: 0, max: 10, step: 1, hint: "bands grown, one a year" },
     { kind: "select", key: "side", options: ["right", "left"] },
-    { kind: "select", key: "season", options: SEASONS },
-    { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01 },
-    { kind: "range", key: "withered", min: 0, max: 1, step: 0.05 },
-    { kind: "toggle", key: "snow" },
+    ...SEASON,
+    {
+      kind: "range",
+      key: "withered",
+      min: 0,
+      max: 1,
+      step: 0.05,
+      show: share,
+      hint: "how far an annual has gone over; perennials keep",
+    },
+    { kind: "toggle", key: "snow", hint: "a cap of snow (chaga takes none)" },
   ],
   size: () => ({ w: 40, h: 36 }),
   draw: (ctx, v) => {
@@ -246,6 +319,7 @@ const conk: Unit = {
 /** One shrub in the wind, rustling as on friday. */
 const shrub: Unit = {
   name: "shrub",
+  about: "one shrub, rustling as on friday",
   animated: true,
   defaults: {
     kind: "raspberry",
@@ -260,12 +334,26 @@ const shrub: Unit = {
   params: () => [
     { kind: "select", key: "kind", options: SHRUBS },
     { kind: "seed", key: "seed" },
-    { kind: "range", key: "growth", min: 0, max: 1, step: 0.025 },
-    { kind: "select", key: "season", options: SEASONS },
-    { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01 },
-    { kind: "range", key: "height", min: 4, max: 40, step: 1 },
-    { kind: "range", key: "wind", min: -2, max: 2, step: 0.1 },
-    { kind: "select", key: "gusts", options: ["steady", "gusty"] },
+    {
+      kind: "range",
+      key: "growth",
+      min: 0,
+      max: 1,
+      step: 0.025,
+      show: share,
+      hint: "0 a shoot, 1 full grown",
+    },
+    ...SEASON,
+    {
+      kind: "range",
+      key: "height",
+      min: 4,
+      max: 40,
+      step: 1,
+      show: px,
+      hint: "full grown, at 40 px to the metre",
+    },
+    ...WIND,
   ],
   size: () => ({ w: 60, h: 50 }),
   draw: (ctx, v, t) => {
@@ -298,6 +386,7 @@ const shrubPlans = new Map<string, ShrubPlan>();
 /** One climber up a wall, as far as it has reached, rustling as on friday. */
 const climber: Unit = {
   name: "climber",
+  about: "one climber up a wall, as far as it has reached",
   animated: true,
   defaults: {
     kind: "creeper",
@@ -312,12 +401,18 @@ const climber: Unit = {
   params: () => [
     { kind: "select", key: "kind", options: CLIMBERS },
     { kind: "seed", key: "seed" },
-    { kind: "range", key: "reach", min: 0, max: 1, step: 0.02 },
-    { kind: "select", key: "season", options: SEASONS },
-    { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01 },
-    { kind: "range", key: "height", min: 30, max: 140, step: 5 },
-    { kind: "range", key: "wind", min: -2, max: 2, step: 0.1 },
-    { kind: "select", key: "gusts", options: ["steady", "gusty"] },
+    {
+      kind: "range",
+      key: "reach",
+      min: 0,
+      max: 1,
+      step: 0.02,
+      show: share,
+      hint: "how far up its full height it has got",
+    },
+    ...SEASON,
+    { kind: "range", key: "height", min: 30, max: 140, step: 5, show: px, hint: "its full height" },
+    ...WIND,
   ],
   size: () => ({ w: 60, h: 150 }),
   draw: (ctx, v, t) => {
@@ -349,15 +444,21 @@ const climberPlans = new Map<string, ClimberPlan>();
 /** A patch of grass, three tufts, waving as on friday. */
 const grass: Unit = {
   name: "grass",
+  about: "a patch of three tufts, waving as on friday",
   animated: true,
   defaults: { seed: 1, growth: 1, season: "summer", through: 0.7, wind: 0.8, gusts: "gusty" },
   params: () => [
     { kind: "seed", key: "seed" },
-    { kind: "range", key: "growth", min: 0, max: 1, step: 0.05 },
-    { kind: "select", key: "season", options: SEASONS },
-    { kind: "range", key: "through", min: 0, max: 0.99, step: 0.01 },
-    { kind: "range", key: "wind", min: -2, max: 2, step: 0.1 },
-    { kind: "select", key: "gusts", options: ["steady", "gusty"] },
+    {
+      kind: "range",
+      key: "growth",
+      min: 0,
+      max: 1,
+      step: 0.05,
+      show: share,
+      hint: "how far the tufts are up",
+    },
+    ...SEASON_WIND,
   ],
   size: () => ({ w: 60, h: 24 }),
   draw: (ctx, v, t) => {
@@ -392,6 +493,114 @@ const grass: Unit = {
 };
 const grassPlans = new Map<number, GrassPlan>();
 
+/** A patch of one kind of flower in the wind, through its year; `night` closes those that
+ *  close, `room` caps how tall it stands. */
+const flower: Unit = {
+  name: "flower",
+  about: "a patch of one kind of flower through its year",
+  animated: true,
+  defaults: {
+    kind: "fireweed",
+    seed: 1,
+    growth: 1,
+    season: "summer",
+    through: 0.6,
+    night: 0,
+    room: 60,
+    wind: 0.8,
+    gusts: "gusty",
+  },
+  params: () => [
+    { kind: "select", key: "kind", options: FLOWERS },
+    { kind: "seed", key: "seed" },
+    {
+      kind: "range",
+      key: "growth",
+      min: 0,
+      max: 1,
+      step: 0.05,
+      show: share,
+      hint: "how far the patch has come in, or withered",
+    },
+    ...SEASON,
+    { kind: "toggle", key: "night", hint: "closes the kinds that close at night" },
+    {
+      kind: "range",
+      key: "room",
+      min: 2,
+      max: 60,
+      step: 1,
+      show: px,
+      hint: "the most it may stand; in front of the desk there is little",
+    },
+    ...WIND,
+  ],
+  size: () => ({ w: 40, h: 64 }),
+  draw: (ctx, v, t) => {
+    const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
+    const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
+    office(ctx, 40, 64, 56);
+    if (look.snow > 0) {
+      ctx.globalAlpha = look.snow;
+      ctx.fillStyle = "#f4f7fa";
+      ctx.fillRect(0, 56, 40, 8);
+      ctx.globalAlpha = 1;
+    }
+    const seed = num(v, "seed");
+    const kind = str(v, "kind") as Flower;
+    const key = `${seed}|${kind}|${num(v, "room")}`;
+    let plan = flowerPlans.get(key);
+    if (!plan) {
+      plan = planFlowers(seed, kind, { x: 20, y: 60 }, num(v, "room"));
+      flowerPlans.set(key, plan);
+    }
+    const g = num(v, "growth");
+    const shut = num(v, "night") > 0 && closes(kind);
+    const pose = rustleOf(plan, g, look, t, (_, ago) => blowing(v, t - ago));
+    const it = plan;
+    drawPosed(
+      ctx,
+      `flower${seed}`,
+      `${key}|${g}|${look.k}|${look.p}|${shut}`,
+      (rec, part) => paintFlowerParts(rec, it, g, look, shut, part),
+      pose,
+    );
+  },
+};
+const flowerPlans = new Map<string, FlowerPlan>();
+
+/** The spider on its thread in the wind, `length` of it let out, climbing up and down it as in
+ *  the room when `climbs`. */
+const spider: Unit = {
+  name: "spider",
+  about: "the spider on its thread, swung by the wind as a pendulum",
+  animated: true,
+  defaults: { length: 34, climbs: 1, wind: 0.8, gusts: "gusty" },
+  params: () => [
+    {
+      kind: "range",
+      key: "length",
+      min: 4,
+      max: 60,
+      step: 1,
+      show: px,
+      hint: "thread let out; the longer, the slower it swings",
+    },
+    {
+      kind: "toggle",
+      key: "climbs",
+      hint: "up and down its thread, 12 px each way, as in the room",
+    },
+    ...WIND,
+  ],
+  size: () => ({ w: 60, h: 80 }),
+  draw: (ctx, v, t) => {
+    office(ctx, 60, 80, 76);
+    const len = num(v, "length") + (num(v, "climbs") ? Math.sin(t * 0.6) * 12 : 0);
+    drawSpider(ctx, 30, 0, len, t, (ago) => blowing(v, t - ago));
+  },
+};
+
 /** Apples shaken down on the bench, per seed of wood. */
 const benchKnocks = new Map<number, Knocks>();
 const knocksOf = (seed: number): Knocks => {
@@ -402,14 +611,24 @@ const knocksOf = (seed: number): Knocks => {
   return fresh;
 };
 
-/** Friday's stand as the room grows it, `since` plus the bench's clock. Tap the apple tree
- *  while it has ripe apples to shake one down; it starts in late summer, when they are. */
+/** Friday's stand as the room grows it, `since` plus the bench's clock, and the flowers
+ *  under it. Tap the apple tree while it has ripe apples to shake one down; it starts in late
+ *  summer, when they are. */
 const wood: Unit = {
   name: "wood",
+  about: "friday's stand and flowers as the room grows them; tap the apple tree for an apple",
   defaults: { seed: 1, since: SEASONS_FROM + 0.85 * SEASON_S },
   params: () => [
     { kind: "seed", key: "seed" },
-    { kind: "range", key: "since", min: 0, max: SEASONS_FROM + 80 * SEASON_S, step: 5 },
+    {
+      kind: "range",
+      key: "since",
+      min: 0,
+      max: SEASONS_FROM + 80 * SEASON_S,
+      step: 5,
+      show: clock,
+      hint: "into friday, plus the bench's clock; the year turns from 0:05:20, 10 min a year",
+    },
   ],
   size: () => ({ w: SCENE_W, h: SCENE_H }),
   animated: true,
@@ -424,6 +643,9 @@ const wood: Unit = {
     drawTrees(ctx, since, seed, knocks, true);
     sheetScope("");
     drawGround(ctx, since);
+    sheetScope(`wood${seed}:`);
+    drawFlowers(ctx, since, seed);
+    sheetScope("");
     drawApples(ctx, since, seed, knocks, false);
     drawApples(ctx, since, seed, knocks, true);
   },
@@ -454,12 +676,15 @@ const SPRITES: Record<string, Sprite> = Object.fromEntries(
   ).map((s) => [s.name, s]),
 );
 const ALL_FRAMES = "all frames";
+/** No variant: the sprite's own palette. */
+const OWN = "own colours";
 const PAD = 3;
 
 /** Any dab sprite: every frame side by side, or one animation playing, in any variant. */
 const sprite: Unit = {
   name: "sprite",
-  defaults: { sprite: "deer", animation: ALL_FRAMES, variant: "-", fps: 6 },
+  about: "any dab sprite: its frames side by side, or one animation playing",
+  defaults: { sprite: "deer", animation: ALL_FRAMES, variant: OWN, fps: 6 },
   params: (v) => {
     const s = SPRITES[str(v, "sprite")];
     return [
@@ -469,8 +694,13 @@ const sprite: Unit = {
         key: "animation",
         options: [ALL_FRAMES, ...Object.keys(s.animations ?? {})],
       },
-      { kind: "select", key: "variant", options: ["-", ...Object.keys(s.variants ?? {})] },
-      { kind: "range", key: "fps", min: 1, max: 16, step: 1 },
+      {
+        kind: "select",
+        key: "variant",
+        options: [OWN, ...Object.keys(s.variants ?? {})],
+        hint: "a palette variant drawn in dab",
+      },
+      { kind: "range", key: "fps", min: 1, max: 16, step: 1, hint: "frames a second, playing" },
     ];
   },
   size: (v) => {
@@ -481,7 +711,7 @@ const sprite: Unit = {
   animated: true,
   draw: (ctx, v, t) => {
     const s = SPRITES[str(v, "sprite")];
-    const variant = str(v, "variant") === "-" ? undefined : str(v, "variant");
+    const variant = str(v, "variant") === OWN ? undefined : str(v, "variant");
     const animation = str(v, "animation");
     if (animation === ALL_FRAMES) {
       s.frames.forEach((_, i) =>
@@ -497,10 +727,18 @@ const sprite: Unit = {
 
 const calendar: Unit = {
   name: "calendar",
+  about: "the wall calendar, the day and what is left of it",
   defaults: { day: "monday", count: 24 },
   params: () => [
     { kind: "select", key: "day", options: DAYS },
-    { kind: "range", key: "count", min: -1, max: 120, step: 1 },
+    {
+      kind: "range",
+      key: "count",
+      min: -1,
+      max: 120,
+      step: 1,
+      hint: "messages left; -1 for none, as on friday",
+    },
   ],
   size: () => ({ w: CALENDAR.w + 8, h: CALENDAR.h + 10 }),
   draw: (ctx, v) => {
@@ -520,11 +758,12 @@ const INKS: Record<string, { ink: string; ground: string }> = {
 
 const text: Unit = {
   name: "pixel text",
+  about: "the 5×7 face the rooms write in",
   defaults: { text: "belt 1.0  5.68€", ink: "readout", scale: 1 },
   params: () => [
     { kind: "text", key: "text" },
-    { kind: "select", key: "ink", options: Object.keys(INKS) },
-    { kind: "range", key: "scale", min: 1, max: 4, step: 1 },
+    { kind: "select", key: "ink", options: Object.keys(INKS), hint: "one of the rooms' readouts" },
+    { kind: "range", key: "scale", min: 1, max: 4, step: 1, hint: "px to a pixel of the face" },
   ],
   size: (v) => ({
     w: pixelTextWidth(str(v, "text"), num(v, "scale")) + 6,
@@ -549,12 +788,21 @@ const SUNS: Record<string, { tilt: number; up: boolean }> = {
 };
 const charger: Unit = {
   name: "charger",
+  about: "the drone's solar charger on its box at the desk's end",
   animated: true,
   defaults: { open: 1, sun: "noon", docked: 0 },
   params: () => [
-    { kind: "range", key: "open", min: 0, max: 1, step: 0.05 },
-    { kind: "select", key: "sun", options: Object.keys(SUNS) },
-    { kind: "toggle", key: "docked" },
+    {
+      kind: "range",
+      key: "open",
+      min: 0,
+      max: 1,
+      step: 0.05,
+      show: share,
+      hint: "how far it has come up out of the box",
+    },
+    { kind: "select", key: "sun", options: Object.keys(SUNS), hint: "the panel turns to it" },
+    { kind: "toggle", key: "docked", hint: "the drone asleep on it" },
   ],
   size: () => ({ w: 44, h: 36 }),
   draw: (ctx, v, t) => {
@@ -584,6 +832,8 @@ export const UNITS: Unit[] = [
   shrub,
   climber,
   grass,
+  flower,
+  spider,
   wood,
   wallSim,
   stoneUnit,
