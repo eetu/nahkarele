@@ -1,4 +1,5 @@
 import { prefersReducedMotion } from "$lib/keys";
+import type { Knock } from "$lib/masonry/types";
 import { CALENDAR, drawCalendar } from "$lib/scene/calendar";
 import { drawLedClock } from "$lib/scene/led";
 import { rect } from "$lib/scene/pixel";
@@ -58,6 +59,7 @@ import {
   drawWall,
   type Fixture as FallenFixture,
   fixtureAt,
+  pokeAt,
   type Rect,
   rubbleCue,
   type Setting,
@@ -92,6 +94,8 @@ export type Mood = {
   seed: number;
   /** Apples shaken down early, and when. */
   knocks: Knocks;
+  /** Blocks poked out of the back wall, in time order. */
+  pokes: Knock[];
 };
 
 export const GLASS = { x: 126, y: 18, w: 68, h: 42 };
@@ -124,14 +128,16 @@ type Fixture = keyof typeof FIXTURES;
 
 /** Where fixture `name` is: on the wall where it always was, or, on friday, on its way down. */
 const fixtureOf = (name: Fixture, mood: Mood) =>
-  mood.after ? fixtureAt(name, mood.since, mood.seed, WALL) : { on: true, rect: FIXTURES[name] };
+  mood.after
+    ? fixtureAt(name, mood.since, mood.seed, wallOf(mood))
+    : { on: true, rect: FIXTURES[name] };
 
 /** Where a sign is now, for its button. */
 export const signAt = (name: keyof typeof SIGNS, mood: Mood): Rect => fixtureOf(name, mood).rect;
 
 /** What came down off the wall between two moments of friday, and where: for the thuds. */
 export const wallCue = (from: number, to: number, mood: Mood) =>
-  rubbleCue(from, to, mood.seed, WALL);
+  rubbleCue(from, to, mood.seed, wallOf(mood));
 
 /** What the wall signs show: the speaker's state, and fullscreen (null where unsupported). */
 export type Signs = { muted: boolean; fullscreen: boolean | null };
@@ -154,6 +160,20 @@ export const WALL: Setting = {
     { x: DESK.x - 1, y: DESK.y, w: DESK.w + 2, h: FLOOR_Y - DESK.y },
   ],
 };
+
+let poked: { pokes: Knock[]; wall: Setting } | null = null;
+
+/** The wall as friday has it: the room's, with the pokes it has taken. */
+export const wallOf = (mood: Mood): Setting => {
+  if (!mood.pokes.length) return WALL;
+  if (poked?.pokes !== mood.pokes)
+    poked = { pokes: mood.pokes, wall: { ...WALL, knocks: mood.pokes } };
+  return poked.wall;
+};
+
+/** A poke at scene `x`, `y` on friday: the blow it gives the wall, or null for none. */
+export const pokeOf = (x: number, y: number, mood: Mood) =>
+  mood.after ? pokeAt(x, y, mood.since, mood.seed, wallOf(mood)) : null;
 
 const C = {
   wall: "#b9c0c4",
@@ -194,7 +214,7 @@ const drawRoom = (ctx: CanvasRenderingContext2D, s: OfficeState, mood: Mood) => 
     // After the blast the wall comes down piece by piece, and the world outside shows through
     // the gaps and the window alike.
     const outside = outsideOf(sky, mood.since, mood.seed);
-    drawWall(ctx, outside, mood.since, mood.seed, WALL, nightOutside(sky));
+    drawWall(ctx, outside, mood.since, mood.seed, wallOf(mood), nightOutside(sky));
     if (fixtureOf("window", mood).on) {
       const scenery = outside
         ? (c: CanvasRenderingContext2D) => c.drawImage(outside, 0, 0)
@@ -448,7 +468,7 @@ export const birdCue = (from: number, to: number, mood: Mood) =>
 
 /** Where the crow cawed between two moments of friday. */
 export const crowCaws = (from: number, to: number, mood: Mood) =>
-  crowCue(from, to, mood.seed, WALL, mood.knocks);
+  crowCue(from, to, mood.seed, wallOf(mood), mood.knocks);
 
 const drawVisitors = (ctx: CanvasRenderingContext2D, mood: Mood) => {
   const { since, seed } = mood;
@@ -585,7 +605,11 @@ export const drawOffice = (
   };
   // Everything that stands in the room, back to front, in two parts: the room and its floor,
   // then what walks and flies over the exit sign lying there.
-  const fallen = { wall: WALL, draw: drawFallen(mood.since), room: { colour: NIGHT, k: dark } };
+  const fallen = {
+    wall: wallOf(mood),
+    draw: drawFallen(mood.since),
+    room: { colour: NIGHT, k: dark },
+  };
   const drawStanding = (ctx: CanvasRenderingContext2D) => {
     if (mood.after) drawGarden(ctx, mood, fallen);
     drawSigns(ctx, false);
@@ -600,7 +624,7 @@ export const drawOffice = (
   const drawOver = (ctx: CanvasRenderingContext2D) => {
     drawForeground(ctx, mood, fallen);
     drawVisitors(ctx, mood);
-    drawCrow(ctx, mood.since, mood.seed, WALL, mood.knocks, "desk");
+    drawCrow(ctx, mood.since, mood.seed, wallOf(mood), mood.knocks, "desk");
     drawAir(ctx, mood, fallen);
   };
   // Friday's night shades the wood as well as the room, but not the world through the gaps and

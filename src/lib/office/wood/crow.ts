@@ -64,7 +64,8 @@ const visits = new Map<string, Visit | null>();
 
 /** Visit `n`, worked out whole; null if there is none (a night). */
 const visitOf = (n: number, seed: number, setting: Setting, knocks: Knocks): Visit | null => {
-  const key = `${seed}|${n}|${JSON.stringify(knocks)}`;
+  // Blows only add up, so how many the wall has taken tells one wall from the next.
+  const key = `${seed}|${n}|${JSON.stringify(knocks)}|${setting.knocks?.length ?? 0}`;
   if (visits.has(key)) return visits.get(key) ?? null;
   const visit = plan(n, seed, setting, knocks);
   visits.set(key, visit);

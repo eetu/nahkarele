@@ -22,7 +22,7 @@ import {
 } from "$lib/masonry/query";
 import type { Body } from "$lib/masonry/rubble";
 import type { Ruin } from "$lib/masonry/timeline";
-import type { Spec } from "$lib/masonry/types";
+import type { Knock, Spec } from "$lib/masonry/types";
 import { hash, smooth } from "$lib/scene/pixel";
 
 import { FLOOR_Y, G, SCENE_H, SCENE_W } from "../engine";
@@ -47,6 +47,8 @@ export type Setting = {
   /** Fixtures that come down in front of the furniture, onto the near floor: the exit sign,
    *  so it can still be found, and pressed. */
   before?: string[];
+  /** Blows given from the room, in time order: blocks poked out. */
+  knocks?: Knock[];
 };
 
 /** The wall that can break: down to the dado, scene px. */
@@ -80,6 +82,7 @@ export const specOf = (setting: Setting): Spec => {
     hangs: Object.entries(setting.fixtures)
       .filter(([name]) => !setting.openings.includes(name))
       .map(([name, rect]) => ({ name, rect })),
+    knocks: setting.knocks,
   };
   specs.set(setting, spec);
   return spec;
@@ -622,6 +625,35 @@ export const rubbleCue = (
     if (t > from && t <= to) hits.push({ x: b.x + b.w / 2, big: true });
   }
   return hits;
+};
+
+/** How long after a poke its block goes, s: long enough to bake the wall again first. */
+const POKE_LEAD = 0.15;
+
+/**
+ * A poke at scene `x`, `y`, `since` seconds into friday: the blow that knocks out the block
+ * there, or null where none stands to take it (a gap, the window) or something is in front
+ * of it (what hangs on it, what stands before it).
+ */
+export const pokeAt = (
+  x: number,
+  y: number,
+  since: number,
+  seed: number,
+  setting: Setting,
+): Knock | null => {
+  const [px, py] = [Math.floor(x), Math.floor(y)];
+  if (px < 0 || px >= SCENE_W || py < 0 || py >= WALL_H) return null;
+  const t = since + POKE_LEAD;
+  const over = (f: Rect) => px >= f.x && px < f.x + f.w && py >= f.y && py < f.y + f.h;
+  if (setting.fronts.some(over)) return null;
+  for (const name of Object.keys(setting.fixtures)) {
+    const { on, rect } = fixtureAt(name, t, seed, setting);
+    if (on && over(rect)) return null;
+  }
+  const r = ruinFor(seed, setting);
+  const o = r.bond.owner[py * SCENE_W + px];
+  return o >= 0 && r.releaseAt[o] > t ? { t, x: px, y: py, kind: "block" } : null;
 };
 
 /** How many blocks hang in the air `since` seconds into friday: none, if the ruin is right. */

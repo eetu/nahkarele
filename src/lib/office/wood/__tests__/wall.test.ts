@@ -12,6 +12,7 @@ import {
   MOSS_FROM,
   paintFalling,
   paintLying,
+  pokeAt,
   RUBBLE_H,
   RUBBLE_TOP,
   rubbleCue,
@@ -176,5 +177,29 @@ describe("the stones in the room", () => {
       for (let o = 0; o < RUBBLE_TOP * SCENE_W; o++) expect(px[o]).toBe(0);
     }
     expect(RUBBLE_TOP + RUBBLE_H).toBe(SCENE_H);
+  });
+});
+
+describe("a poke at the wall", () => {
+  it("knocks out the block it lands on, and nothing where no block stands to take it", () => {
+    for (const seed of [21, 22, 23]) {
+      const since = 30;
+      // Low on the wall, clear of what hangs there: the foot stands for good.
+      const knock = pokeAt(40, 90, since, seed, WALL);
+      expect(knock).toMatchObject({ x: 40, y: 90, kind: "block" });
+      expect(knock && knock.t).toBeGreaterThan(since);
+      const before = ruinOf(specOf(WALL), seed);
+      const block = before.bond.owner[90 * SCENE_W + 40];
+      expect(before.releaseAt[block]).toBeGreaterThan(since + 1);
+      const poked = { ...WALL, knocks: knock ? [knock] : [] };
+      expect(ruinOf(specOf(poked), seed).releaseAt[block]).toBe(knock?.t);
+      // The window, the clock hung over the wall, the dado below it.
+      expect(pokeAt(150, 30, since, seed, WALL)).toBeNull();
+      expect(pokeAt(220, 30, since, seed, WALL)).toBeNull();
+      expect(pokeAt(40, 120, since, seed, WALL)).toBeNull();
+      // Nor through what stands in front of the wall.
+      const slab = { ...WALL, fronts: [{ x: 30, y: 32, w: 20, h: 118 }] };
+      expect(pokeAt(40, 90, since, seed + 10, slab)).toBeNull();
+    }
   });
 });

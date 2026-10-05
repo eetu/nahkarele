@@ -1,4 +1,5 @@
 import { sfx } from "$lib/audio/sfx.svelte";
+import type { Knock } from "$lib/masonry/types";
 
 import { OFFICE_DAYS } from "./days";
 import type { Mood } from "./draw";
@@ -50,12 +51,46 @@ const woodSeed = (at: number) => Math.floor(at / 1000) % 2 ** 31;
 
 const saveFriday = (at: number | null) => {
   try {
-    if (at === null) localStorage.removeItem(FRIDAY_KEY);
-    else localStorage.setItem(FRIDAY_KEY, String(at));
+    if (at === null) {
+      localStorage.removeItem(FRIDAY_KEY);
+      localStorage.removeItem(TAPS_KEY);
+    } else localStorage.setItem(FRIDAY_KEY, String(at));
   } catch {
     /* the wood then starts over on reload */
   }
 };
+
+/** What has been done to this friday: apples shaken down, blocks poked out of the wall. */
+const TAPS_KEY = "nahkarele:specialist:friday:taps";
+type Taps = Pick<Mood, "knocks" | "pokes">;
+
+const loadTaps = (): Taps => {
+  try {
+    const v = JSON.parse(localStorage.getItem(TAPS_KEY) ?? "null") as Partial<Taps> | null;
+    return { knocks: v?.knocks ?? {}, pokes: v?.pokes ?? [] };
+  } catch {
+    return { knocks: {}, pokes: [] };
+  }
+};
+
+const saveTaps = ({ knocks, pokes }: Taps) => {
+  try {
+    localStorage.setItem(TAPS_KEY, JSON.stringify({ knocks, pokes }));
+  } catch {
+    /* they are then undone by a reload */
+  }
+};
+
+/** A room that has not had friday yet. */
+const calm = (): Mood => ({
+  blast: null,
+  after: false,
+  since: 0,
+  pressedAt: -10,
+  seed: 0,
+  knocks: {},
+  pokes: [],
+});
 
 /**
  * The specialist's week. The simulation lives in `sim` outside the reactive graph;
@@ -76,7 +111,7 @@ class OfficeWeek {
     pile: 0,
   });
   sim: OfficeState = createOffice(OFFICE_DAYS[0], seed());
-  mood: Mood = { blast: null, after: false, since: 0, pressedAt: -10, seed: 0, knocks: {} };
+  mood: Mood = calm();
   diff = { read: 0, total: 0 };
   /** Wall-clock start of friday's loop, while it runs. */
   private fridayAt: number | null = null;
@@ -99,10 +134,11 @@ class OfficeWeek {
 
   clockIn = () => {
     this.away = false;
-    this.mood = { blast: null, after: false, since: 0, pressedAt: -10, seed: 0, knocks: {} };
+    this.mood = calm();
     if (this.current.task === "jar") {
       this.fridayAt = Date.now();
       saveFriday(this.fridayAt);
+      saveTaps(this.mood);
       this.mood.after = true;
       this.mood.seed = woodSeed(this.fridayAt);
       this.screen = "loop";
@@ -201,6 +237,19 @@ class OfficeWeek {
     this.fresh();
   };
 
+  /** A shake of the apple tree on friday: apple `key` comes down now. */
+  knock = (key: string) => {
+    this.mood.knocks[key] = this.mood.since;
+    saveTaps(this.mood);
+  };
+
+  /** A poke at the back wall on friday, knocking out the block at `knock`. A new list, so the
+   *  wall built from the last one is told apart. */
+  poke = (knock: Knock) => {
+    this.mood.pokes = [...this.mood.pokes, knock];
+    saveTaps(this.mood);
+  };
+
   /** Dev only: put friday's clock at `since` seconds. */
   warp = (since: number) => {
     if (this.fridayAt === null) return;
@@ -222,12 +271,11 @@ class OfficeWeek {
     this.fridayAt = at;
     this.day = OFFICE_DAYS.length - 1;
     this.mood = {
-      blast: null,
+      ...calm(),
       after: true,
       since: (Date.now() - at) / 1000,
-      pressedAt: -10,
       seed: woodSeed(at),
-      knocks: {},
+      ...loadTaps(),
     };
     this.screen = "loop";
   };
@@ -236,7 +284,7 @@ class OfficeWeek {
     this.fridayAt = null;
     saveFriday(null);
     this.screen = "memo";
-    this.mood = { blast: null, after: false, since: 0, pressedAt: -10, seed: 0, knocks: {} };
+    this.mood = calm();
     this.sim = createOffice(this.current, seed());
     this.sync();
   };

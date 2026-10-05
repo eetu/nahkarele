@@ -4,7 +4,7 @@
   import { panOf, sfx } from "$lib/audio/sfx.svelte";
   import { fullscreen } from "$lib/fullscreen.svelte";
   import { leaveKey } from "$lib/keys";
-  import { birdCue, crowCaws, drawOffice, signAt, SIGNS, wallCue } from "$lib/office/draw";
+  import { birdCue, crowCaws, drawOffice, pokeOf, signAt, SIGNS, wallCue } from "$lib/office/draw";
   import {
     AI_MOUTH,
     FLY_S,
@@ -20,6 +20,7 @@
   import { swallowCue } from "$lib/office/wood/swallows";
   import { windAt } from "$lib/office/wood/wind";
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
+  import { holdScreen } from "$lib/wakeLock";
 
   import SceneSign from "../SceneSign.svelte";
 
@@ -53,10 +54,41 @@
     const { mood } = officeWeek;
     const key = shakeApple(mood.since, mood.seed, mood.knocks);
     if (!key) return;
-    mood.knocks[key] = mood.since;
+    officeWeek.knock(key);
     sfx.rustle();
   };
+
+  /** The scene point under a pointer event on the canvas. */
+  const sceneAt = (e: MouseEvent) => {
+    const r = (e.currentTarget as HTMLCanvasElement).getBoundingClientRect();
+    return {
+      x: ((e.clientX - r.left) / r.width) * SCENE_W,
+      y: ((e.clientY - r.top) / r.height) * SCENE_H,
+    };
+  };
+  const pokeUnder = (e: MouseEvent) => {
+    if (officeWeek.screen !== "loop") return null;
+    const { x, y } = sceneAt(e);
+    return pokeOf(x, y, officeWeek.mood);
+  };
+  /** On friday a tap on the wall knocks out the block there. */
+  const poke = (e: MouseEvent) => {
+    const knock = pokeUnder(e);
+    if (!knock) return;
+    officeWeek.poke(knock);
+    sfx.crumble(pan(knock.x));
+  };
+  let pokable = $state(false);
+  const hover = (e: PointerEvent) => {
+    if (e.pointerType === "mouse") pokable = pokeUnder(e) !== null;
+  };
   const staffed = $derived(officeWeek.screen === "shift");
+  const pan = (x: number) => panOf(x, SCENE_W);
+
+  // Friday is a screensaver of its own: the device's should not cut in.
+  $effect(() => {
+    if (officeWeek.screen === "loop") return holdScreen();
+  });
   /** A viewport shorter than this (a phone on its side) puts the desk beside the scene. */
   const SHORT_PX = 520;
   const short = () => window.innerHeight < SHORT_PX;
@@ -116,8 +148,6 @@
     if (flying.stage === "fly-in") return early ? AI_MOUTH[flying.from].x : desk;
     return early ? desk : AI_MOUTH[flying.to].x;
   };
-
-  const pan = (x: number) => panOf(x, SCENE_W);
 
   const play = (e: OfficeEvent) => {
     if (e.kind === "send") sfx.send(pan(AI_MOUTH[e.from].x), e.direct);
@@ -226,7 +256,13 @@
   <div class="box" style:--px="{fit.sceneCss / SCENE_W}px">
     <div class="viewport" style:width="{fit.viewCss}px">
       <div class="frame" bind:this={frameEl} style:width="{fit.sceneCss}px">
-        <canvas bind:this={canvas} aria-label="an office: two AI slabs and a desk between them"
+        <canvas
+          bind:this={canvas}
+          class:pokable
+          aria-label="an office: two AI slabs and a desk between them"
+          onclick={poke}
+          onpointermove={hover}
+          onpointerleave={() => (pokable = false)}
         ></canvas>
         <!-- Leaving is leaving: the next visit starts a new week. -->
         {#if appleRect && officeWeek.screen === "loop"}
@@ -312,6 +348,10 @@
     width: 100%;
     image-rendering: pixelated;
     aspect-ratio: 320 / 180;
+  }
+
+  canvas.pokable {
+    cursor: pointer;
   }
 
   .overlay {
