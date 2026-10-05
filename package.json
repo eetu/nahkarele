@@ -27,6 +27,7 @@
     "@lucide/svelte": "^1.48.0"
   },
   "devDependencies": {
+    "@anarkisti/dab": "^0.1.0",
     "@anarkisti/eslint-config": "^1.1.0",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.70.3",
