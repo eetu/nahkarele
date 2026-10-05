@@ -159,7 +159,10 @@
   </div>
 {/snippet}
 
-<svelte:head><title>workbench · nahkarele</title></svelte:head>
+<svelte:head>
+  <title>workbench · nahkarele</title>
+  <meta name="robots" content="noindex" />
+</svelte:head>
 <svelte:window onkeydown={onKey} />
 
 <div class="bench">
@@ -167,7 +170,8 @@
     <h1 class="label">workbench</h1>
     <p class="label keys">
       <kbd>[</kbd> <kbd>]</kbd> unit · <kbd>g</kbd> grid of seeds · <kbd>r</kbd> new seed ·
-      <kbd>space</kbd> play · <kbd>-</kbd> <kbd>+</kbd> zoom · <kbd>`</kbd> back to the game
+      <kbd>space</kbd> play · <kbd>-</kbd> <kbd>+</kbd> zoom{#if import.meta.env.DEV}
+        · <kbd>`</kbd> back to the game{/if}
     </p>
     <a class="label" href={resolve("/")}>front page</a>
   </header>

@@ -163,7 +163,7 @@ In dev, a bar under every page jumps between days, holds friday's shuttle and op
 controls, `g` for a grid of seeds, `[` `]` between units; a unit with `tap` answers clicks
 (the wood: shake the apple tree; the wall simulator: knock a block out or bring roof down,
 then scrub, retune or switch the wall to bricks, rubble or plaster). A unit is a small adapter in
-`src/routes/workbench/units.ts` over a draw function in `$lib`; production builds answer 404.
+`src/routes/workbench/units.ts` over a draw function in `$lib`; production serves it too, unlinked and noindex.
 `./install-hooks.sh` once after clone; the pre-commit hook runs `validate`. Icons: edit
 `static/favicon.svg`, then `scripts/gen-icons.sh` (needs librsvg + ImageMagick). Tape: edit
 `src/lib/tape/orientation.json`, then `uv run scripts/gen-tape.py` (Piper on mini, ffmpeg); it
