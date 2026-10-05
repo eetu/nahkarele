@@ -678,13 +678,15 @@ let shade: HTMLCanvasElement | null = null;
 
 /**
  * The room's shade, `alpha` of `colour`, over everything but what is outside: the gaps in the
- * wall as last drawn, and `glass` (the window, while it hangs). The outside keeps its own
- * light: the sky at night is already as dark as it should be, and the moon as bright.
+ * wall as last drawn, less what still hangs over them (`hung`), and `glass` (the window, while
+ * it hangs). The outside keeps its own light: the sky at night is already as dark as it should
+ * be, and the moon as bright.
  */
 export const drawShade = (
   ctx: CanvasRenderingContext2D,
   alpha: number,
   colour: string,
+  hung: readonly Rect[],
   glass: Rect | null,
 ) => {
   shade ??= document.createElement("canvas");
@@ -697,8 +699,13 @@ export const drawShade = (
   off.globalCompositeOperation = "copy";
   off.fillStyle = colour;
   off.fillRect(0, 0, SCENE_W, SCENE_H);
+  if (holes) {
+    off.globalCompositeOperation = "destination-out";
+    off.drawImage(holes.mask, 0, 0);
+    off.globalCompositeOperation = "source-over";
+    for (const r of hung) off.fillRect(r.x, r.y, r.w, r.h);
+  }
   off.globalCompositeOperation = "destination-out";
-  if (holes) off.drawImage(holes.mask, 0, 0);
   if (glass) off.fillRect(glass.x, glass.y, glass.w, glass.h);
   off.globalCompositeOperation = "source-over";
   ctx.globalAlpha = alpha;

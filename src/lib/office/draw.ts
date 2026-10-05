@@ -514,11 +514,11 @@ const layers = new Map<string, HTMLCanvasElement>();
 
 /**
  * `paint` drawn on layer `name`, the layer shaded `alpha` of `colour` wherever it was
- * painted, then put over `ctx`: a shade for what was drawn and nothing behind it. Painted at
- * scene px, which is all anything in the room draws at. A layer of its own for each thing
- * shaded in a frame: one canvas drawn, refilled and drawn again in a frame leaves the browser
- * to keep the first contents for the first draw, and Safari draws lazily, showing the second
- * contents twice.
+ * painted, then put over `ctx`: a shade for what was drawn and nothing behind it. The layer is
+ * `ctx`'s size and transform, so text, arcs and glows come out as they do by day, not at scene
+ * px scaled up. A layer of its own for each thing shaded in a frame: one canvas drawn, refilled
+ * and drawn again in a frame leaves the browser to keep the first contents for the first draw,
+ * and Safari draws lazily, showing the second contents twice.
  */
 const drawShadedLayer = (
   ctx: CanvasRenderingContext2D,
@@ -527,27 +527,34 @@ const drawShadedLayer = (
   alpha: number,
   colour: string,
 ) => {
+  const { width, height } = ctx.canvas;
   let layer = layers.get(name);
   if (!layer) {
     layer = document.createElement("canvas");
     layers.set(name, layer);
   }
-  if (layer.width !== SCENE_W) {
-    layer.width = SCENE_W;
-    layer.height = SCENE_H;
+  if (layer.width !== width || layer.height !== height) {
+    layer.width = width;
+    layer.height = height;
   }
   const off = layer.getContext("2d");
   if (!off) return paint(ctx);
-  off.clearRect(0, 0, SCENE_W, SCENE_H);
+  off.setTransform(1, 0, 0, 1, 0, 0);
+  off.clearRect(0, 0, width, height);
+  off.setTransform(ctx.getTransform());
   off.imageSmoothingEnabled = false;
   paint(off);
+  off.setTransform(1, 0, 0, 1, 0, 0);
   off.globalCompositeOperation = "source-atop";
   off.globalAlpha = alpha;
   off.fillStyle = colour;
-  off.fillRect(0, 0, SCENE_W, SCENE_H);
+  off.fillRect(0, 0, width, height);
   off.globalCompositeOperation = "source-over";
   off.globalAlpha = 1;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(layer, 0, 0);
+  ctx.restore();
 };
 
 /** Paint one frame. `ctx` is already scaled so one unit is one scene pixel. */
@@ -566,11 +573,18 @@ export const drawOffice = (
   ctx.save();
   ctx.translate(shake, 0);
   drawRoom(ctx, s, mood);
+  // On friday the room darkens, but not the world through its gaps and window; what hangs on
+  // the wall over a gap darkens with the room.
+  const shadeRoom = (alpha: number) => {
+    const hung = (["window", "clock", "pay", "calendar"] as const)
+      .map((name) => fixtureOf(name, mood))
+      .filter((at) => at.on)
+      .map((at) => at.rect);
+    drawShade(ctx, alpha, NIGHT, hung, fixtureOf("window", mood).on ? GLASS : null);
+  };
   const dark = roomDarkness(sky) + (mood.after ? 0.15 : 0);
-  if (dark > 0 && mood.after) {
-    // On friday the room darkens, but not the world through its gaps and window.
-    drawShade(ctx, dark, NIGHT, fixtureOf("window", mood).on ? GLASS : null);
-  } else if (dark > 0) {
+  if (dark > 0 && mood.after) shadeRoom(dark);
+  else if (dark > 0) {
     ctx.globalAlpha = dark;
     rect(ctx, NIGHT, 0, 0, SCENE_W, SCENE_H);
     ctx.globalAlpha = 1;
@@ -634,7 +648,7 @@ export const drawOffice = (
   // its light wherever it lies, under whatever passes over it.
   const night = mood.after ? (1 - daylight(sky.progress)) * 0.32 : 0;
   if (night > 0) {
-    drawShade(ctx, night, NIGHT, fixtureOf("window", mood).on ? GLASS : null);
+    shadeRoom(night);
     drawShadedLayer(ctx, "standing", drawStanding, night, NIGHT);
     drawFallenExit(ctx);
     drawShadedLayer(ctx, "over", drawOver, night, NIGHT);
