@@ -6,6 +6,7 @@
 
 import { crowTook, drawCrow } from "./crow";
 import { drawDeer, drawFliers, drawGlowing, drawSmallLife } from "./life";
+import { drawFlowers } from "./meadow";
 import { drawCracks, drawGrass, drawMoss, drawVines } from "./overgrowth";
 import { drawSticks } from "./shedding";
 import { drawApples, drawTrees, type Knocks } from "./stand";
@@ -41,8 +42,8 @@ export type Fallen = {
 
 /**
  * What grows, behind the desk, back to front: the floor going green, what is on the back wall
- * (the sill's snow, the climbers), the trees, the shrubs at their feet, the grass, what has
- * come down off the wall, the apples.
+ * (the sill's snow, the climbers), the trees, the shrubs at their feet, the grass and the
+ * flowers, what has come down off the wall, the apples.
  */
 export const drawGarden = (
   ctx: CanvasRenderingContext2D,
@@ -62,6 +63,7 @@ export const drawGarden = (
   drawGround(ctx, since);
   drawBackShrubs(ctx, since, seed);
   drawGrass(ctx, since, seed);
+  drawFlowers(ctx, since, seed);
   // Fallen stones lie on the grass; moss, not grass, takes them over.
   drawRubble(ctx, since, seed, fallen.wall, fallen.room, fallen.draw);
   drawApples(ctx, since, seed, knocks, false, takenBy(since, seed, fallen, knocks));
@@ -87,7 +89,7 @@ export const drawForeground = (
   { since, seed, knocks }: Friday,
   fallen: Fallen,
 ) => {
-  drawSmallLife(ctx, since, (x, y) => climbTo(x, y, since, seed, fallen.wall));
+  drawSmallLife(ctx, since, seed, (x, y) => climbTo(x, y, since, seed, fallen.wall));
   drawCrow(ctx, since, seed, fallen.wall, knocks, "floor");
   drawFrontShrubs(ctx, since, seed);
   drawDeer(ctx, since);

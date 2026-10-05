@@ -18,9 +18,10 @@ src/lib/office/      software specialist: engine (messages, desk, pay), tasks, d
   wood/              friday's wood: garden (draw order) · seasons · wind · growth + trees + sway
                      (how trees grow, look and move) · shedding (dead branches coming down) ·
                      conks (bracket fungi on old and dead wood) ·
-                     shrubs, climbers, grass + sprawl + rustle (the soft plants and how they
-                     move) · posed (draws both) · stand (the six trees' lives, apples) ·
-                     undergrowth (the shrubs) · overgrowth (cracks, grass, climbers) · moss ·
+                     shrubs, climbers, flowers, grass + sprawl + rustle (the soft plants and
+                     how they move) · posed (draws both) · stand (the six trees' lives, apples) ·
+                     undergrowth (the shrubs) · overgrowth (cracks, grass, climbers) ·
+                     meadow (which flower holds each spot of floor) · moss ·
                      wall + stones (the back wall coming down, as drawn) · outside (the world
                      behind it) ·
                      weather · life · tit, crow, swallows (the birds)
@@ -99,7 +100,14 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   with it. In dev a shuttle under the room runs friday's clock
   ahead or back while held, faster the further it is pulled. Apples ripen, fall
   through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
-  early (`mood.knocks`), the one thing on friday that answers the player. The birds keep the
+  early (`mood.knocks`), and a tap on the back wall knocks out the block there (`mood.pokes`,
+  baked into the masonry as a blow), the two things on friday that answer the player; both
+  are kept through a reload. Flowers come up on the floor (`wood/flowers.ts`, each kind on its
+  own calendar, the ones that close at night closing; `wood/meadow.ts`): coltsfoot,
+  dandelion and fireweed on the open floor after the blast, oxeye and harebell once it has
+  settled, and wood anemone, lily of the valley and wood sorrel as the crowns close over; a
+  fallen tree's gap brings the pioneers back. Which kind holds a spot is decided a year at a
+  time under the snow, from the shade the stand casts. The birds keep the
   year and the day: the great tit stays the winter (fluffed up), sings in spring and brings a
   fledgling in summer; barn swallows come in late spring, nest on AI #1 and leave in early
   autumn; a hooded crow struts, caws from the broken wall, takes fallen apples and scares the
@@ -110,12 +118,13 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   from the upwind side. Every tree moves by one simulation (`wood/sway.ts`): its wood is a
   rig of pieces hung off their parents, each turning about its base against its width cubed,
   and clumps, fruit and the owl ride the piece they hang on. The soft plants (shrubs,
-  climbers, grass; `wood/sprawl.ts`) move by their own rules (`wood/rustle.ts`): no skeleton,
+  climbers, flowers, grass; `wood/sprawl.ts`) move by their own rules (`wood/rustle.ts`): no skeleton,
   each stem a whippy rod (a climber's clings to the wall), waves running across them, leaves
   turning over in a stiff wind. Climbers grow by reaching, not swelling; the hop dies back each
-  winter. Both answer the wind's history through the same damped
-  spring (`springOf`), and both are painted once into pixel lists and re-posed each frame
-  (`wood/posed.ts`). Leaves and snow ride the wind's integral (`driftOf`); grass, the
+  winter. Both answer the wind's history through the same damped spring (`springOf`), and
+  both are painted once into pixel lists and re-posed each frame (`wood/posed.ts`). The
+  spider swings on its thread by the same spring, at a pendulum's pace for the thread's
+  length. Leaves and snow ride the wind's integral (`driftOf`); grass, the
   window's rain and a sound bed follow it. The back wall is masonry (`$lib/masonry`, the room's
   side in `wood/wall.ts` and `wood/stones.ts`): cement blocks laid in courses under plaster,
   baked once per seed into a timeline; the plaster comes off in patches over the years
@@ -134,7 +143,8 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   each): the season sets how long the sun is up and how high it climbs, how dark the night
   gets; the moon crosses the nights through its phases. Night shades the wood as well as the
   room; the outside keeps its own light, and fireflies, the clock and the signs on the wall
-  stay lit.
+  stay lit. Friday is a screensaver, so it holds the screen awake while it runs
+  (`wakeLock.ts`).
 - **Scene pieces draw themselves.** A tree, a sprite, the calendar, pixel text: a draw function
   over a canvas context and plain values, no DOM. That is what lets the workbench show them
   alone; keep new pieces that way.

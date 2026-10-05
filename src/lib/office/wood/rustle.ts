@@ -1,4 +1,4 @@
-// How the soft plants move, which is not how trees do: shrubs, climbers, grass. None has a
+// How the soft plants move, which is not how trees do: shrubs, climbers, flowers, grass. None has a
 // skeleton to lean. Each stem is a whippy rod, bending smoothly from its base (more at the
 // tip) as a damped spring answering the wind at its own pace, and a long one nods as it
 // swings; a climber clings to the wall and hardly bends at all. A wave runs downwind across
@@ -30,6 +30,18 @@ type Give = {
   evergreen?: boolean;
 };
 
+/** A flower is a stalk and a head: the short ones quiver, the tall ones bow to the wave. */
+const STALK: Give = {
+  hz: 1.5,
+  zeta: 0.35,
+  give: 0.25,
+  nod: 0.3,
+  wave: 0.6,
+  ripple: 0,
+  silver: 0,
+  evergreen: true,
+};
+
 const KIND: Record<Rustler, Give> = {
   raspberry: { hz: 0.8, zeta: 0.25, give: 0.15, nod: 0.35, wave: 0, ripple: 1.2, silver: 0.7 },
   lilac: { hz: 0.6, zeta: 0.3, give: 0.12, nod: 0.15, wave: 0, ripple: 1, silver: 0.3 },
@@ -48,6 +60,14 @@ const KIND: Record<Rustler, Give> = {
   creeper: { hz: 1.2, zeta: 0.4, give: 0, nod: 0, wave: 0, ripple: 0.6, silver: 0.25 },
   hop: { hz: 0.5, zeta: 0.3, give: 0.03, nod: 0.2, wave: 0, ripple: 0.8, silver: 0.35 },
   clematis: { hz: 0.7, zeta: 0.35, give: 0.02, nod: 0.1, wave: 0, ripple: 0.7, silver: 0.15 },
+  coltsfoot: STALK,
+  dandelion: STALK,
+  anemone: STALK,
+  sorrel: { ...STALK, give: 0.15, wave: 0.3 },
+  lily: { ...STALK, hz: 1.3, give: 0.15 },
+  harebell: { ...STALK, hz: 1.2, give: 0.35, nod: 0.4, wave: 1 },
+  oxeye: { ...STALK, hz: 1, give: 0.3, wave: 1.1 },
+  fireweed: { ...STALK, hz: 0.7, zeta: 0.3, give: 0.12, nod: 0.2, wave: 0.8 },
   // Grass is all stem, and the wave runs through it.
   grass: {
     hz: 1.1,

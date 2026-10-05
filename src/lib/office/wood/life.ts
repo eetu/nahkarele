@@ -1,6 +1,7 @@
 // What lives in the wood: bugs, a deer, a rabbit, a fox, a hedgehog in the autumn litter,
 // butterflies, an owl, fireflies. Each comes and goes by the clock.
 
+import { prefersReducedMotion } from "$lib/keys";
 import { hash, ramp, rect } from "$lib/scene/pixel";
 import butterfly from "$lib/sprites/butterfly.json";
 import deer from "$lib/sprites/deer.json";
@@ -10,11 +11,11 @@ import owl from "$lib/sprites/owl.json";
 import rabbit from "$lib/sprites/rabbit.json";
 import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
 
-import { FLOOR_Y, SCENE_W } from "../engine";
+import { FLOOR_Y, G, SCENE_W } from "../engine";
 import { type Season, seasonAt, snowCover } from "./seasons";
 import { hedgehogApple, type Knocks, planOf, poseAt, standing } from "./stand";
 import { drawApple } from "./trees";
-import { windAt } from "./wind";
+import { feltBy, historyOf, springOf, windAt } from "./wind";
 
 const S = {
   rabbit: rabbit as Sprite,
@@ -28,7 +29,7 @@ const S = {
 /** How high up the wall a climber at `x` can get on its way to `y`: no higher than it stands. */
 export type Climb = (x: number, y: number) => number;
 
-/** Things that move in once nobody is looking: ants, ladybugs, a snail, a spider. */
+/** Things that move in once nobody is looking: ants, ladybugs, a snail. */
 const drawCritters = (ctx: CanvasRenderingContext2D, since: number, climb: Climb) => {
   const step = Math.floor(since * 8);
   // The floor's small life goes under as the snow comes, and back out as it melts.
@@ -65,18 +66,70 @@ const drawCritters = (ctx: CanvasRenderingContext2D, since: number, climb: Climb
     rect(ctx, "#c8b89a", x - 1, y + 3, 5, 1);
     rect(ctx, "#c8b89a", x - 1, y - 1, 1, 1);
   }
-  // A spider on its thread from the ceiling, bobbing.
-  if (since > 25) {
-    const x = 118;
-    const y = Math.round(34 + Math.sin(since * 0.6) * 12);
-    ctx.globalAlpha = 0.6;
-    rect(ctx, "#d8dde2", x, 0, 1, y);
-    ctx.globalAlpha = 1;
-    rect(ctx, "#15120f", x - 1, y, 3, 2);
-    const kick = step % 2;
-    rect(ctx, "#15120f", x - 2, y + kick, 1, 1);
-    rect(ctx, "#15120f", x + 2, y + 1 - kick, 1, 1);
+};
+
+/** Where the spider's thread hangs from. */
+const SPIDER_X = 118;
+/** How far the wind pushes the spider aside, per unit of it and px of thread; and how far a
+ *  pendulum can go, as a share of its length. */
+const SWING = 0.35;
+const SWING_MAX = 0.6;
+/** How the thread rings once pushed: a pendulum, its pace set by its length, hardly damped. */
+const swings = new Map<number, Float64Array>();
+const swingOf = (len: number) => {
+  let spring = swings.get(len);
+  if (!spring) {
+    spring = springOf(Math.sqrt(G / len) / (2 * Math.PI), 0.12);
+    swings.set(len, spring);
   }
+  return spring;
+};
+
+/**
+ * A spider on `len` px of thread hung from `x0`, `top`, swung by `wind` (its strength `ago`
+ * seconds back, + to the right) as a pendulum is: the longer the thread, the slower the swing.
+ * Swung aside, it rises on the arc, and the thread bows downwind on its way down to it. `t`
+ * works its legs.
+ */
+export const drawSpider = (
+  ctx: CanvasRenderingContext2D,
+  x0: number,
+  top: number,
+  len: number,
+  t: number,
+  wind: (ago: number) => number,
+) => {
+  const length = Math.max(1, Math.round(len));
+  const history = historyOf((_, ago) => wind(ago), x0);
+  const reach = SWING_MAX * length;
+  const swing = SWING * length * feltBy(swingOf(length), history);
+  const dx = Math.max(-reach, Math.min(reach, swing));
+  const drop = Math.round(Math.sqrt(length * length - dx * dx));
+  const bow = 0.15 * dx;
+  ctx.globalAlpha = 0.6;
+  for (let ty = 0; ty < drop; ty++) {
+    const u = ty / drop;
+    rect(ctx, "#d8dde2", x0 + dx * u + bow * 4 * u * (1 - u), top + ty);
+  }
+  ctx.globalAlpha = 1;
+  const x = Math.round(x0 + dx);
+  const y = top + drop;
+  rect(ctx, "#15120f", x - 1, y, 3, 2);
+  const kick = Math.floor(t * 8) % 2;
+  rect(ctx, "#15120f", x - 2, y + kick, 1, 1);
+  rect(ctx, "#15120f", x + 2, y + 1 - kick, 1, 1);
+};
+
+/** How long the room's spider lets its thread out, px, and how far it climbs up and down it. */
+const SPIDER_LEN = 34;
+const SPIDER_CLIMB = 12;
+
+/** The room's spider, from the ceiling once things have moved in, in friday's wind. */
+const drawRoomSpider = (ctx: CanvasRenderingContext2D, since: number, seed: number) => {
+  if (since <= 25) return;
+  const calm = prefersReducedMotion() ? 0.3 : 1;
+  const len = SPIDER_LEN + Math.sin(since * 0.6) * SPIDER_CLIMB;
+  drawSpider(ctx, SPIDER_X, 0, len, since, (ago) => windAt(since - ago, seed, SPIDER_X) * calm);
 };
 
 /**
@@ -346,10 +399,12 @@ const drawFireflies = (
 export const drawSmallLife = (
   ctx: CanvasRenderingContext2D,
   since: number,
+  seed: number,
   climb: Climb = (_x, y) => y,
 ) => {
   const season = seasonAt(since);
   drawCritters(ctx, since, climb);
+  drawRoomSpider(ctx, since, seed);
   drawRabbit(ctx, since, season);
   drawFox(ctx, since);
   drawHedgehog(ctx, since, season);

@@ -1,8 +1,9 @@
-// What a soft plant is made of: shrubs, climbers and grass alike. Stems as runs of pieces up
+// What a soft plant is made of: shrubs, climbers, flowers and grass alike. Stems as runs of pieces up
 // from the ground, leaves and buds hanging on them, each there once the plant has grown
 // enough. They move by `rustle.ts` and are drawn by `posed.ts`.
 
 import type { Climber } from "./climbers";
+import type { Flower } from "./flowers";
 import type { Pt } from "./posed";
 import type { Shrub } from "./shrubs";
 
@@ -13,7 +14,7 @@ export type Leaves = Pt & { r: number; at: number; stem: number; s: number; bloo
 /** Something else on a stem: a berry, a flower, a cone, a seed head. */
 export type Bud = Pt & { stem: number; s: number; at: number };
 
-export type Rustler = Shrub | Climber | "grass";
+export type Rustler = Shrub | Climber | Flower | "grass";
 
 /** A soft plant: stems up from the ground (each piece says which stem), and what grows on them. */
 export type Sprawl = {
