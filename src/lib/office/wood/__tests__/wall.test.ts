@@ -1,6 +1,5 @@
+import { lying, moving, ruinOf } from "@anarkisti/korpi/masonry";
 import { describe, expect, it } from "vitest";
-
-import { lying, moving, ruinOf } from "$lib/masonry/query";
 
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../../engine";
 import { healAt } from "../outside";

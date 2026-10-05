@@ -1,5 +1,6 @@
+import type { Knock } from "@anarkisti/korpi/masonry";
+
 import { prefersReducedMotion } from "$lib/keys";
-import type { Knock } from "$lib/masonry/types";
 import { CALENDAR, drawCalendar } from "$lib/scene/calendar";
 import { drawLedClock } from "$lib/scene/led";
 import { rect } from "$lib/scene/pixel";

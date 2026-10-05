@@ -1,4 +1,4 @@
-// The office's back wall after the blast, as masonry (`$lib/masonry`): blocks laid in courses,
+// The office's back wall after the blast, as masonry (`@anarkisti/korpi/masonry`): blocks laid in courses,
 // a window in it, a clock, a calendar and signs hung on it. The roof comes down at the blast
 // and for its first years; blocks work loose from the top and the edges of the gaps, decade by
 // decade, and whatever is left without support comes down with them; the foot stands for good.
@@ -10,19 +10,21 @@
 // fixtures, and the drawing.
 
 import {
+  type Body,
   climb,
   cuesBetween,
   hanging,
+  type Knock,
   lying,
   lyingKey,
   moving,
   releasedBy,
+  type Ruin,
   ruinOf,
+  type Spec,
   warningAt,
-} from "$lib/masonry/query";
-import type { Body } from "$lib/masonry/rubble";
-import type { Ruin } from "$lib/masonry/timeline";
-import type { Knock, Spec } from "$lib/masonry/types";
+} from "@anarkisti/korpi/masonry";
+
 import { hash, smooth } from "$lib/scene/pixel";
 
 import { FLOOR_Y, G, SCENE_H, SCENE_W } from "../engine";
@@ -88,7 +90,19 @@ export const specOf = (setting: Setting): Spec => {
   return spec;
 };
 
-const ruinFor = (seed: number, setting: Setting) => ruinOf(specOf(setting), seed);
+/** Each wall's ruins by seed, baked once: the last few seeds asked for. */
+const ruins = new WeakMap<Spec, Map<number, Ruin>>();
+const ruinFor = (seed: number, setting: Setting) => {
+  const spec = specOf(setting);
+  const bySeed = ruins.get(spec) ?? new Map<number, Ruin>();
+  ruins.set(spec, bySeed);
+  const known = bySeed.get(seed);
+  if (known) return known;
+  const ruin = ruinOf(spec, seed);
+  bySeed.set(seed, ruin);
+  if (bySeed.size > 4) bySeed.delete(bySeed.keys().next().value as number);
+  return ruin;
+};
 
 // --- Fixtures --------------------------------------------------------------------------
 

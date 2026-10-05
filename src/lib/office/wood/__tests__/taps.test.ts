@@ -1,8 +1,6 @@
+import { bake, type Knock, lying, moving, type Ruin, type Spec } from "@anarkisti/korpi/masonry";
 import { describe, expect, it } from "vitest";
 
-import { lying, moving } from "$lib/masonry/query";
-import { bake, type Ruin } from "$lib/masonry/timeline";
-import type { Knock, Spec } from "$lib/masonry/types";
 import { WALL } from "$lib/office/draw";
 
 import { specOf } from "../wall";

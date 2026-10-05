@@ -4,25 +4,32 @@
 // happened); the sliders retune the pace and re-bake at once. Overlays show how each block
 // stands, how exposed it is, when it goes.
 
-import { layBond } from "$lib/masonry/bond";
-import { exposureOf, PACE, type Pace } from "$lib/masonry/decay";
-import { halfDepth, halfHeight } from "$lib/masonry/fall";
-import { fracture } from "$lib/masonry/fracture";
-import { heightOver } from "$lib/masonry/pile";
 import {
+  bake,
+  type Body,
   classesAt,
   CRACK_S,
+  exposureOf,
+  fracture,
+  gapsOf,
+  halfDepth,
+  halfHeight,
   hangOn,
+  heightOver,
+  type Knock,
+  layBond,
   lying,
   moving,
+  PACE,
+  type Pace,
+  pieceOf,
   releasedBy,
+  type Ruin,
+  type Spec,
   stateAt,
   warningAt,
-} from "$lib/masonry/query";
-import { type Body, pieceOf } from "$lib/masonry/rubble";
-import { gapsOf } from "$lib/masonry/stability";
-import { bake, type Ruin } from "$lib/masonry/timeline";
-import type { Knock, Spec } from "$lib/masonry/types";
+} from "@anarkisti/korpi/masonry";
+
 import { WALL } from "$lib/office/draw";
 import { SCENE_H, SCENE_W } from "$lib/office/engine";
 import { type Face, faceOf, K, nearOf, paintStone } from "$lib/office/wood/stones";

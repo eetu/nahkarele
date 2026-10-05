@@ -1,7 +1,6 @@
+import { bake, lying } from "@anarkisti/korpi/masonry";
 import { describe, expect, it } from "vitest";
 
-import { lying } from "$lib/masonry/query";
-import { bake } from "$lib/masonry/timeline";
 import { WALL } from "$lib/office/draw";
 
 import { faceOf, K, paintStone, THETA_STEP } from "../stones";

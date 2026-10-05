@@ -1,5 +1,6 @@
+import type { Knock } from "@anarkisti/korpi/masonry";
+
 import { sfx } from "$lib/audio/sfx.svelte";
-import type { Knock } from "$lib/masonry/types";
 
 import { OFFICE_DAYS } from "./days";
 import type { Mood } from "./draw";

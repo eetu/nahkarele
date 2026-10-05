@@ -5,15 +5,15 @@ Interactive nahkarele simulator: two jobs where the human is in the loop and cha
 tape-drive computer after them, re-checks every boot anyway. `/specialist` (2026) is a
 software specialist at a desk between AI #1 and AI #2, approving messages the AIs act on
 regardless, until a brain in a jar takes the desk. A static SvelteKit SPA served by nginx. Siblings: `../logo` (same container
-shape), `../dice` (same SvelteKit stack), `eetu/scene` (origin of `src/lib/tape/cassette.ts`).
+shape), `../dice` (same SvelteKit stack), `eetu/scene` (origin of `src/lib/tape/cassette.ts`),
+`../korpi` (`@anarkisti/korpi`, the world kit friday's pieces are moving into) and `../dab`
+(`@anarkisti/dab`: the sprite editor, and `/core`, which reads the sprites), both linked with
+`portal:` until they are published.
 
 ## Layout
 
 ```
 src/lib/factory/     kumitehdas: engine (belt, gate, TÄ'h, floor bots), days, drawing, week store
-src/lib/masonry/     a wall coming down, for any game: bond (blocks, bricks, rubble) · stability
-                     (what stands) · decay + timeline (when each piece goes) · fall + rubble +
-                     pile (falls, the heap) · fracture · skin (plaster) · query (read at any t)
 src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, week store
   wood/              friday's wood: garden (draw order) · seasons · wind · growth + trees + sway
                      (how trees grow, look and move) · shedding (dead branches coming down) ·
@@ -47,7 +47,9 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   defects count as misses.
 - **Don't tell the player TÄ'h corrects them.** Memos and HUD never say so; the x-ray readout,
   sparkles and the review's "shipped without you" reveal it.
-- **Sprites are dab files** (github.com/eetu/dab): edit them there, `sprite.ts` only reads.
+- **Sprites are dab files** (github.com/eetu/dab): edit them there. `@anarkisti/dab/core`
+  reads them (the walk dab draws an assembly in, a grid's pixels); `sprite.ts` only keeps
+  each grid's frame as a canvas.
   They are written as dab writes them and kept out of Prettier. Every sprite is drawn at its
   own size, one sprite pixel to a scene pixel: a bigger animal is a bigger drawing.
   A sprite may carry parts (the deer's four legs): `drawSprite` draws them where dab places
@@ -125,8 +127,8 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   both are painted once into pixel lists and re-posed each frame (`wood/posed.ts`). The
   spider swings on its thread by the same spring, at a pendulum's pace for the thread's
   length. Leaves and snow ride the wind's integral (`driftOf`); grass, the
-  window's rain and a sound bed follow it. The back wall is masonry (`$lib/masonry`, the room's
-  side in `wood/wall.ts` and `wood/stones.ts`): cement blocks laid in courses under plaster,
+  window's rain and a sound bed follow it. The back wall is masonry (`@anarkisti/korpi/masonry`, the
+  room's side and its drawing in `wood/wall.ts` and `wood/stones.ts`): cement blocks laid in courses under plaster,
   baked once per seed into a timeline; the plaster comes off in patches over the years
   (soonest beside a gap) and shows the blocks. A block stands while its centre of mass is over its bed (or mortar holds it
   a little past, or the arch over a gap leans on it); the roof comes down at the blast and in

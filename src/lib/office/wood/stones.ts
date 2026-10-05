@@ -8,8 +8,8 @@
 // viewer, a strip of its face on top. Moss climbs it from the ground; sinking, it goes down
 // behind the floor line. Pixels go into a word buffer, as the sheets take them.
 
-import { DEPTH_SLOPE, type Pose, TURN_STEP } from "$lib/masonry/fall";
-import type { Body } from "$lib/masonry/rubble";
+import { type Body, DEPTH_SLOPE, type Pose, TURN_STEP } from "@anarkisti/korpi/masonry";
+
 import { hash } from "$lib/scene/pixel";
 
 import { mossColour } from "./moss";
