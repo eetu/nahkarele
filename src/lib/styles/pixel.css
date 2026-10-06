@@ -13,7 +13,9 @@
 
 .pixel-card {
   --ink: #3d3d3d;
-  --ink-soft: #6e6a62;
+  --ink-soft: #57534c;
+  /* The accent as text on paper: the theme's orange is too light to read there. */
+  --accent-ink: #b85f00;
   /* The paper doesn't change with the theme, so neither do the tokens drawn on it. */
   --halo-text-main: var(--ink);
   --halo-bg-light: #e8e4d8;
@@ -31,15 +33,17 @@
   filter: drop-shadow(calc(var(--px) * 2) calc(var(--px) * 2) 0 rgb(0 0 0 / 30%));
   padding: 0.9rem 1.1rem;
   color: var(--ink);
+  /* Smoothed: the typeface's outlines are off any pixel grid, so unsmoothed they render with
+     uneven strokes at small sizes. */
   font-family: "Pixelify Sans", var(--halo-font-heading);
-  -webkit-font-smoothing: none;
 }
 
 .pixel-card .label,
 .pixel-card dt {
   color: var(--ink-soft);
   font-family: "Pixelify Sans", var(--halo-font-heading);
-  letter-spacing: 0.03em;
+  font-size: 0.875rem;
+  letter-spacing: 0.02em;
 }
 
 .pixel-card a {

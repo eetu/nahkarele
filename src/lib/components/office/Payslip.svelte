@@ -93,7 +93,7 @@
   }
 
   .total {
-    color: var(--halo-accent);
+    color: var(--accent-ink);
   }
 
   .neg {
