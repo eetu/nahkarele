@@ -1,21 +1,19 @@
-import { lying, moving, ruinOf } from "@anarkisti/korpi/masonry";
+import { ruinOf } from "@anarkisti/korpi/masonry";
+import { raster, rasterPen } from "@anarkisti/korpi/paint";
 import { describe, expect, it } from "vitest";
 
+import { ROOM_VIEW } from "../../depth";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../../engine";
 import { healAt } from "../outside";
-import { paintStone } from "../stones";
 import {
-  facesFor,
   fixtureAt,
   floatingAt,
-  MOSS_FROM,
-  paintFalling,
-  paintLying,
+  onWall,
+  paintWall,
   pokeAt,
-  RUBBLE_H,
-  RUBBLE_TOP,
   rubbleCue,
   specOf,
+  standsAt,
 } from "../wall";
 
 const FIXTURES = {
@@ -85,97 +83,59 @@ describe("what is left of the wall", () => {
   });
 });
 
-describe("the stones in the room", () => {
-  const N = SCENE_W * SCENE_H;
-  const shade = { colour: "#0a0f1c", k: 0.2 };
+describe("the wall in the room", () => {
+  const near = (d: number, z: number) => Math.abs(d + z) < 1e-6;
 
-  it("drawn in layers about the back trees, over and under what lies, are the nearest stone at each pixel", () => {
-    let frames = 0;
-    let behind = 0;
-    let covered = 0;
-    let wrong = 0;
+  it("puts its face at the wall, and each stone at its own depth, in the room or outside", () => {
+    const seen = { face: 0, room: 0, outside: 0 };
     for (const seed of [1, 2, 3]) {
-      const r = ruinOf(specOf(WALL), seed);
-      // The blast and its first two minutes: much falling onto much lying, none of it mossed.
-      for (let since = 1; since < MOSS_FROM; since += 0.37) {
-        const down = lying(r, since);
-        const flying = moving(r, since);
-        if (!down.length || !flying.length) continue;
-        frames++;
-        const band = SCENE_W * RUBBLE_H;
-        const lain = {
-          front: new Uint32Array(band),
-          behind: new Uint32Array(band),
-          near: new Float32Array(band),
-        };
-        paintLying(r, since, WALL.fronts, shade, lain);
-        const fell = {
-          front: new Uint32Array(N),
-          behind: new Uint32Array(N),
-          near: new Float32Array(N),
-        };
-        paintFalling(r, since, WALL.fronts, shade, lain.near, fell, () => {});
-        // In the order they are drawn.
-        const shown = new Uint32Array(N);
-        const off = RUBBLE_TOP * SCENE_W;
-        for (const [layer, at] of [
-          [lain.behind, off],
-          [fell.behind, 0],
-          [lain.front, off],
-          [fell.front, 0],
-        ] as const) {
-          layer.forEach((p, o) => {
-            if (p) shown[o + at] = p;
-          });
+      // The blast and its first minutes: much falling onto much lying.
+      for (let since = 1; since < 240; since += 7.3) {
+        const scene = raster(SCENE_W, SCENE_H);
+        // A glowing sky behind it all.
+        scene.glow.fill(255);
+        paintWall(scene, ROOM_VIEW, since, seed, WALL);
+        for (let i = 0; i < scene.px.length; i++) {
+          if (!scene.px[i]) continue;
+          const d = scene.depth[i];
+          const row = Math.floor(i / SCENE_W);
+          // Nothing it paints gives light of its own.
+          expect(scene.glow[i]).toBe(0);
+          if (near(d, 0)) seen.face++;
+          else if (d < 0) {
+            seen.room++;
+            // What lies in the room is out on the floor, never under it.
+            const p = ROOM_VIEW.unproject((i % SCENE_W) + 0.5, row + 0.5, d);
+            expect(p.y).toBeGreaterThan(-0.05);
+          } else seen.outside++;
         }
-        // Everything in one buffer, nearest wins.
-        const one = new Uint32Array(N);
-        const near = new Float32Array(N).fill(-Infinity);
-        const base = { moss: 0, since, ground: SCENE_H, floor: FLOOR_Y, near, shade };
-        for (const l of down)
-          paintStone(one, SCENE_W, SCENE_H, 0, l.body, l.pose, {
-            ...base,
-            ...facesFor(r, l.body),
-            sink: l.sink,
-          });
-        const alone = new Uint32Array(N);
-        const free = new Float32Array(N).fill(-Infinity);
-        for (const m of flying) {
-          const paint = { ...base, ...facesFor(r, m.body), sink: 0, depth: "front" as const };
-          paintStone(one, SCENE_W, SCENE_H, 0, m.body, m.pose, paint);
-          paintStone(alone, SCENE_W, SCENE_H, 0, m.body, m.pose, { ...paint, near: free });
-        }
-        for (let o = 0; o < N; o++) {
-          if (shown[o] !== one[o]) wrong++;
-          if (alone[o] && shown[o] !== alone[o]) covered++;
-        }
-        behind += lain.behind.reduce((n, p) => n + (p ? 1 : 0), 0);
-        behind += fell.behind.reduce((n, p) => n + (p ? 1 : 0), 0);
       }
     }
-    expect(frames).toBeGreaterThan(10);
-    expect(wrong).toBe(0);
-    // It was put to the test: stones behind the trees, and falling stones behind lying ones.
-    expect(behind).toBeGreaterThan(0);
-    expect(covered).toBeGreaterThan(0);
+    expect(seen.face).toBeGreaterThan(0);
+    expect(seen.room).toBeGreaterThan(0);
+    expect(seen.outside).toBeGreaterThan(0);
   });
 
-  it("lie within the band they are drawn in", () => {
-    for (const seed of [1, 2, 3]) {
-      const r = ruinOf(specOf(WALL), seed);
-      const px = new Uint32Array(N);
-      for (const l of lying(r, 3600)) {
-        paintStone(px, SCENE_W, SCENE_H, 0, l.body, l.pose, {
-          sink: l.sink,
-          moss: 0,
-          since: 3600,
-          ground: SCENE_H,
-          floor: FLOOR_Y,
-        });
+  it("leaves its gaps for what is beyond it, and what is on it goes with it", () => {
+    for (const seed of [4, 5]) {
+      const since = 900;
+      const scene = raster(SCENE_W, SCENE_H);
+      paintWall(scene, ROOM_VIEW, since, seed, WALL);
+      const stands = standsAt(since, seed, WALL);
+      const ivy = raster(SCENE_W, SCENE_H);
+      onWall(rasterPen(ivy), since, seed, WALL).fill(0xff00ff00, 0, 0, SCENE_W, 97);
+      let gaps = 0;
+      for (let y = 0; y < 97; y++) {
+        for (let x = 0; x < SCENE_W; x++) {
+          const i = y * SCENE_W + x;
+          if (stands(x, y)) continue;
+          gaps++;
+          expect(near(scene.depth[i], 0)).toBe(false);
+          expect(ivy.px[i]).toBe(0);
+        }
       }
-      for (let o = 0; o < RUBBLE_TOP * SCENE_W; o++) expect(px[o]).toBe(0);
+      expect(gaps).toBeGreaterThan(0);
     }
-    expect(RUBBLE_TOP + RUBBLE_H).toBe(SCENE_H);
   });
 });
 

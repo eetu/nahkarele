@@ -14,15 +14,15 @@ shape), `../dice` (same SvelteKit stack), `eetu/scene` (origin of `src/lib/tape/
 
 ```
 src/lib/factory/     kumitehdas: engine (belt, gate, TÄ'h, floor bots), days, drawing, week store
-src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, week store
-  wood/              friday's wood: garden (draw order) · seasons · wind · growth + trees + sway
-                     (how trees grow, look and move) · shedding (dead branches coming down) ·
-                     conks (bracket fungi on old and dead wood) ·
-                     shrubs, climbers, flowers, grass + sprawl + rustle (the soft plants and
-                     how they move) · posed (draws both) · stand (the six trees' lives, apples) ·
-                     undergrowth (the shrubs) · overgrowth (cracks, grass, climbers) ·
-                     meadow (which flower holds each spot of floor) · moss ·
-                     wall + stones (the back wall coming down, as drawn) · outside (the world
+src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, depth
+                     (the room's view and depths), week store
+  wood/              friday's wood, the room's side of korpi `plants` (what grows, how it moves
+                     and is painted): garden (draw order) · seasons · wind ·
+                     stand (the six slots, lanes, the apple tree's tap) · shedding (where dead
+                     branches come to rest, a stick painted) · undergrowth (the shrubs) ·
+                     overgrowth (cracks, grass, climbers) · meadow (the flowers' spots) ·
+                     moss · posed (the soft plants' paintings) ·
+                     wall (the back wall coming down; korpi paints it) · outside (the world
                      behind it) ·
                      weather · life · tit, crow, swallows (the birds)
 src/lib/audio/       synthesized sound for both rooms, the mute
@@ -48,8 +48,8 @@ docker/              optional Liwan tracker entrypoint (same as logo)
 - **Don't tell the player TÄ'h corrects them.** Memos and HUD never say so; the x-ray readout,
   sparkles and the review's "shipped without you" reveal it.
 - **Sprites are dab files** (github.com/eetu/dab): edit them there. `@anarkisti/dab/core`
-  reads them (the walk dab draws an assembly in, a grid's pixels); `sprite.ts` only keeps
-  each grid's frame as a canvas.
+  reads them (the walk dab draws an assembly in, a grid's pixels); `sprite.ts` paints them
+  through a pen (korpi `sprites`, runs of a colour), or onto a canvas for the factory.
   They are written as dab writes them and kept out of Prettier. Every sprite is drawn at its
   own size, one sprite pixel to a scene pixel: a bigger animal is a bigger drawing.
   A sprite may carry parts (the deer's four legs): `drawSprite` draws them where dab places
@@ -86,15 +86,15 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   bird, drone) as functions of time; there is nothing to finish. The trees (always an apple
   tree, plus five of birch, rowan, oak, maple, cherry, plum, spruce, pine) are generated from
   `mood.seed`, so each friday grows its own wood and a reload keeps it. Trees are at the room's
-  scale (40 px to the metre, the desk's) and grow as trees do (`wood/growth.ts`): a tree's
+  scale (40 px to the metre, the desk's) and grow as trees do (korpi `plants`, `growth`): a tree's
   whole life is laid down once from its seed, stems gaining height and girth year by year,
   branches sprouting from each year's growth, the crown rising and what it leaves below dying
-  and dropping (`wood/shedding.ts`); `planAt` reads a plan off it at any age. The first wood
+  and dropping (`shedding`); `planAt` reads a plan off it at any age. The first wood
   comes in five years old in a few minutes, then grows a year a friday year, past the top of
   the room. Each slot (`wood/stand.ts`) keeps a tree for good: one lives its kind's years (a
   few friday hours), dies in a spring and stands dead, goes over (its root plate with it) and
   rots into the floor while a sapling of another kind comes up; an apple tree's slot regrows
-  an apple tree. Old wood grows bracket fungi by its kind (`wood/conks.ts`): perennial conks
+  an apple tree. Old wood grows bracket fungi by its kind (`conks`): perennial conks
   (tinder fungus and chaga on birch, red-belted on conifers, false tinder, the plum's cushion)
   come in the last third of a tree's life, grow a band a year and stay on it dead and down;
   the sulphur shelf on old oak and the birch polypore on dead birch come in their season and
@@ -104,7 +104,7 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
   early (`mood.knocks`), and a tap on the back wall knocks out the block there (`mood.pokes`,
   baked into the masonry as a blow), the two things on friday that answer the player; both
-  are kept through a reload. Flowers come up on the floor (`wood/flowers.ts`, each kind on its
+  are kept through a reload. Flowers come up on the floor (korpi `flowers`, each kind on its
   own calendar, the ones that close at night closing; `wood/meadow.ts`): coltsfoot,
   dandelion and fireweed on the open floor after the blast, oxeye and harebell once it has
   settled, and wood anemone, lily of the valley and wood sorrel as the crowns close over; a
@@ -117,18 +117,18 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   solar charger comes up out of the box on the desk (`office/charger.ts`), its panel turning
   to the sun by day, and the drone sleeps on it every night. The wind
   (`wood/wind.ts`) is a function of time too: a mean by season, gusts that cross the room
-  from the upwind side. Every tree moves by one simulation (`wood/sway.ts`): its wood is a
+  from the upwind side. Every tree moves by one simulation (korpi `sway`): its wood is a
   rig of pieces hung off their parents, each turning about its base against its width cubed,
   and clumps, fruit and the owl ride the piece they hang on. The soft plants (shrubs,
-  climbers, flowers, grass; `wood/sprawl.ts`) move by their own rules (`wood/rustle.ts`): no skeleton,
+  climbers, flowers, grass; korpi `sprawl`) move by their own rules (`rustle`): no skeleton,
   each stem a whippy rod (a climber's clings to the wall), waves running across them, leaves
   turning over in a stiff wind. Climbers grow by reaching, not swelling; the hop dies back each
   winter. Both answer the wind's history through the same damped spring (`springOf`), and
-  both are painted once into pixel lists and re-posed each frame (`wood/posed.ts`). The
+  both are painted once into pixel lists and re-posed each frame (korpi `posed`). The
   spider swings on its thread by the same spring, at a pendulum's pace for the thread's
   length. Leaves and snow ride the wind's integral (`driftOf`); grass, the
   window's rain and a sound bed follow it. The back wall is masonry (`@anarkisti/korpi/masonry`, the
-  room's side and its drawing in `wood/wall.ts` and `wood/stones.ts`): cement blocks laid in courses under plaster,
+  room's side in `wood/wall.ts`; korpi's painter paints it, each stone at its own depth): cement blocks laid in courses under plaster,
   baked once per seed into a timeline; the plaster comes off in patches over the years
   (soonest beside a gap) and shows the blocks. A block stands while its centre of mass is over its bed (or mortar holds it
   a little past, or the arch over a gap leans on it); the roof comes down at the blast and in
@@ -143,12 +143,22 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   stand in front of the furniture, the rest behind it. The gaps and the window look out on one world (`wood/outside.ts`), ruined
   at the blast and healing over the years. Friday has days (`wood/daylight.ts`, a minute
   each): the season sets how long the sun is up and how high it climbs, how dark the night
-  gets; the moon crosses the nights through its phases. Night shades the wood as well as the
-  room; the outside keeps its own light, and fireflies, the clock and the signs on the wall
-  stay lit. Friday is a screensaver, so it holds the screen awake while it runs
+  gets; the moon crosses the nights through its phases. Light is the world's, one pass a frame
+  (korpi `light`): the room under its cover darkens with the day and further at night, the
+  outside is in the open sky's light, and what lights itself (the clock, the signs, the AIs'
+  lights and runes, the charger, fireflies) glows; the clock and the fireflies light what is
+  near them. The ruin's grime is paint, not light. Friday is a screensaver, so it holds the screen awake while it runs
   (`wakeLock.ts`).
-- **Scene pieces draw themselves.** A tree, a sprite, the calendar, pixel text: a draw function
-  over a canvas context and plain values, no DOM. That is what lets the workbench show them
+- **The office is one scene raster.** `paintOffice` paints every part through a korpi pen into
+  one 320x180 raster with a depth per pixel, lights it once and presents it once. Everything is
+  at its true depth, metres out from the back wall (`office/depth.ts`: the room's view and one
+  table, `Z`): the wall at 0, what hangs on it at 0.02, the AIs' faces at 0.35, the desk's front
+  at 0.4; what lies flat on the floor (`onFloor`) at its row's depth, what stands on it
+  (`standing`, `footAt`) at its foot's, nothing under the floor. So what is nearer covers what is
+  farther whatever order things are painted in; only what is translucent goes last. The world
+  beyond the wall is behind it.
+- **Scene pieces draw themselves.** A tree, a sprite, the calendar, pixel text: a paint
+  function over a pen and plain values, no DOM. That is what lets the workbench show them
   alone; keep new pieces that way.
 - **The cassette canvas animates only while something moves.** The factory canvas runs every
   frame while mounted: the line keeps running between shifts, which is the point.

@@ -15,6 +15,7 @@ import {
   windDir,
 } from "@anarkisti/korpi/motion";
 
+import { prefersReducedMotion } from "$lib/keys";
 import { smooth } from "$lib/scene/pixel";
 
 import { SCENE_W } from "../engine";
@@ -45,6 +46,24 @@ export const fridayAir = (seed: number): Air => {
   const air = airOf({ seed, mean: meanAt, span: { x0: 0, x1: SCENE_W / PX_M }, front: 2 });
   airs.set(seed, air);
   return air;
+};
+
+export type Wind = (t: number, x: number) => number;
+
+const felt = new Map<string, Wind>();
+
+/** Friday's wind as what grows feels it: strength at a time and a world x, m. Asked for less
+ *  motion, it stirs rather than tosses. One function a seed, so a pose asked again is the same. */
+export const plantWind = (seed: number): Wind => {
+  const calm = prefersReducedMotion() ? 0.3 : 1;
+  const key = `${seed}|${calm}`;
+  const known = felt.get(key);
+  if (known) return known;
+  const air = fridayAir(seed);
+  const wind: Wind = calm === 1 ? air.wind : (t, x) => air.wind(t, x) * calm;
+  felt.set(key, wind);
+  if (felt.size > 16) felt.delete(felt.keys().next().value as string);
+  return wind;
 };
 
 /** The wind at `x` (scene px) across the room, `since` seconds into friday. */

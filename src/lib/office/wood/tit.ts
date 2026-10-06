@@ -5,7 +5,9 @@
 // lid. The crow landing by the jar sends them off early. Drawn in rects, facing right in a
 // 10 x 8 box.
 
-import { rect } from "$lib/scene/pixel";
+import { flipped, type Pen, shifted } from "@anarkisti/korpi/paint";
+
+import { fill } from "$lib/scene/pen";
 import { daylight } from "$lib/scene/sky";
 
 import { SCENE_W } from "../engine";
@@ -48,7 +50,7 @@ export type Dress = { fluff?: boolean; open?: boolean; young?: boolean };
  * phase; `null` folds the wing along the back and puts the bird on its feet.
  */
 export const drawBird = (
-  ctx: CanvasRenderingContext2D,
+  pen: Pen,
   x: number,
   y: number,
   flap: number | null,
@@ -57,10 +59,10 @@ export const drawBird = (
   dress: Dress = {},
 ) => {
   const BIRD = dress.young ? YOUNG : TIT;
-  ctx.save();
-  ctx.translate(Math.round(x) + (face < 0 ? 10 : 0), Math.round(y));
-  ctx.scale(face, 1);
-  const px = (c: string, dx: number, dy: number, w = 1, h = 1) => rect(ctx, c, dx, dy, w, h);
+  // The box's corner at (x, y); facing left, mirrored across its middle.
+  const at = shifted(pen, { dx: Math.round(x), dy: Math.round(y) });
+  const box = face < 0 ? flipped(at, 5) : at;
+  const px = (c: string, dx: number, dy: number, w = 1, h = 1) => fill(box, c, dx, dy, w, h);
   px(BIRD.tail, 0, 4, 2, 1);
   px(BIRD.tail, 0, 5);
   if (dress.fluff) {
@@ -105,7 +107,6 @@ export const drawBird = (
       px(i >= 4 ? BIRD.wingTip : BIRD.wing, Math.round(wx), Math.round(wy), 2, 1);
     }
   }
-  ctx.restore();
 };
 
 /** The bird's visit, one cycle every 26 s: in, perch on the jar, get fed, peck, off. */

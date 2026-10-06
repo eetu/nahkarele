@@ -4,11 +4,13 @@
 // grass, and keep going back to the nest, where in high summer the chicks gape for them; they
 // roost there at night, and by early autumn they have gone south. All by friday's clock.
 
-import { hash, rect, smooth } from "$lib/scene/pixel";
+import { fill, type Pen } from "$lib/scene/pen";
+import { hash, smooth } from "$lib/scene/pixel";
 import { daylight } from "$lib/scene/sky";
-import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
+import { frameOf, paintSprite, type Sprite } from "$lib/sprites/sprite";
 import swallowSprite from "$lib/sprites/swallow.json";
 
+import { at as depthAt, Z } from "../depth";
 import { FLOOR_Y } from "../engine";
 import type { Pt } from "./posed";
 import { SEASON_S, seasonAt, SEASONS_FROM } from "./seasons";
@@ -72,13 +74,14 @@ const visitAt = (i: number, t: number) => {
   return { start, at: t - start };
 };
 
-type Seen = { feet: Pt; face: 1 | -1; frame: number };
+/** Where a swallow is, and how far out from the wall, m. */
+type Seen = { feet: Pt; z: number; face: 1 | -1; frame: number };
 
 /** Where swallow `i` is and what it is doing, if it is here and not inside the nest. */
 const swallowAt = (i: number, since: number): Seen | null => {
   if (!here(i, since)) return null;
   // By night they roost: one on the rim, the other down in the cup.
-  if (!byDay(since)) return i === 0 ? { feet: NEST, face: -1, frame: 4 } : null;
+  if (!byDay(since)) return i === 0 ? { feet: NEST, z: Z.nesting, face: -1, frame: 4 } : null;
   const { start, at } = visitAt(i, since);
   const step = (t: number) => {
     const a = loop(i, t);
@@ -89,7 +92,7 @@ const swallowAt = (i: number, since: number): Seen | null => {
     const { at: p, face } = step(t);
     const gliding = (t * 1.3 + i * 0.4) % 1 > 0.62;
     const frame = gliding ? 3 : frameOf(SWALLOW, "fly", t * 14 + i);
-    return { feet: { x: p.x, y: p.y }, face, frame };
+    return { feet: { x: p.x, y: p.y }, z: Z.swallows, face, frame };
   };
   // The nest's visits wait for the nest.
   if (built(since) < 1 || at < 0 || at >= 3) return flight(since);
@@ -98,22 +101,24 @@ const swallowAt = (i: number, since: number): Seen | null => {
     const q = at;
     return {
       feet: { x: from.x + (NEST.x - from.x) * q, y: from.y + (NEST.y - from.y) * q },
+      z: Z.swallows + (Z.nesting - Z.swallows) * q,
       face: NEST.x >= from.x ? 1 : -1,
       frame: frameOf(SWALLOW, "fly", since * 14),
     };
   }
-  if (at < 2) return { feet: NEST, face: -1, frame: 4 };
+  if (at < 2) return { feet: NEST, z: Z.nesting, face: -1, frame: 4 };
   const to = loop(i, start + 3);
   const q = at - 2;
   return {
     feet: { x: NEST.x + (to.x - NEST.x) * q, y: NEST.y + (to.y - NEST.y) * q },
+    z: Z.nesting + (Z.swallows - Z.nesting) * q,
     face: to.x >= NEST.x ? 1 : -1,
     frame: frameOf(SWALLOW, "fly", since * 14),
   };
 };
 
 /** The nest as far as it is built, and the chicks in it. */
-const drawNest = (ctx: CanvasRenderingContext2D, since: number) => {
+const drawNest = (pen: Pen, since: number) => {
   const done = Math.floor(built(since) * CUP.length);
   if (done <= 0) return;
   // A parent on the rim sets the chicks gaping.
@@ -121,21 +126,21 @@ const drawNest = (ctx: CanvasRenderingContext2D, since: number) => {
   if (chicks(since) && done === CUP.length) {
     for (const [k, x] of [45, 47, 49].entries()) {
       const up = fed || Math.floor(since * 1.5 + k) % 3 === 0 ? 1 : 0;
-      rect(ctx, "#2a2a36", x - 0.5, 27 - up, 2, 2);
-      if (fed) rect(ctx, "#f0c840", x - 0.5, 26 - up, 2, 1);
+      fill(pen, "#2a2a36", x - 0.5, 27 - up, 2, 2);
+      if (fed) fill(pen, "#f0c840", x - 0.5, 26 - up, 2, 1);
     }
   }
-  CUP.slice(0, done).forEach((p, k) => rect(ctx, MUD[Math.floor(hash(k, 81) * 3)], p.x, p.y));
+  CUP.slice(0, done).forEach((p, k) => fill(pen, MUD[Math.floor(hash(k, 81) * 3)], p.x, p.y));
 };
 
-/** The swallows and their nest. Drawn with the air: they cross in front of everything. */
-export const drawSwallows = (ctx: CanvasRenderingContext2D, since: number) => {
-  drawNest(ctx, since);
+/** The swallows, out over the room or at the nest, and the nest on AI #1. */
+export const drawSwallows = (pen: Pen, since: number) => {
+  drawNest(depthAt(pen, Z.nest), since);
   for (const i of [0, 1]) {
     const s = swallowAt(i, since);
     if (!s) continue;
     const left = s.face > 0 ? s.feet.x - FEET.x : s.feet.x - (SWALLOW.w - 1 - FEET.x);
-    drawSprite(ctx, SWALLOW, left, s.feet.y - FEET.y, {
+    paintSprite(depthAt(pen, s.z), SWALLOW, left, s.feet.y - FEET.y, {
       frame: s.frame,
       flip: s.face < 0 ? "h" : undefined,
     });

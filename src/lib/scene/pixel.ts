@@ -1,4 +1,4 @@
-// Pixel helpers for every scene: one rect, a stable hash, easing.
+// Pixel helpers for every scene: one rect, a stable hash and a shuffle by it, easing.
 
 /**
  * A unit hash of a few integers: the same every frame, so nothing reshuffles on redraw. FNV to
@@ -14,6 +14,16 @@ export const hash = (...n: number[]): number => {
   h = Math.imul(h, 0xc2b2ae35);
   h ^= h >>> 16;
   return (h >>> 0) / 4294967296;
+};
+
+/** `items` in an order the seed picks, by `salt`. */
+export const shuffled = <T>(items: readonly T[], seed: number, salt: number): T[] => {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(hash(seed, i, salt) * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 };
 
 /** A filled rect on whole scene pixels: a pixel by default. */

@@ -1,5 +1,6 @@
 // Sprites drawn the way dab draws them: `@anarkisti/dab/core` reads the format (the walk an
-// assembly is drawn in, a grid's frame as pixels); this keeps each grid's frame as a canvas,
+// assembly is drawn in, a grid's frame as pixels). The rooms paint them through a pen
+// (`@anarkisti/korpi/sprites`, runs of a colour); a canvas gets each grid's frame as a canvas,
 // made once. Edit the JSON files in dab.
 
 import {
@@ -11,6 +12,8 @@ import {
   type SpriteBody,
   type SpriteFile,
 } from "@anarkisti/dab/core";
+import type { Pen } from "@anarkisti/korpi/paint";
+import { spritesOf } from "@anarkisti/korpi/sprites";
 
 export type { Flip, Part };
 export type Body = SpriteBody;
@@ -58,6 +61,21 @@ const bakeGrid = (key: string, s: Body, frame = 0, variant?: string, flip?: Flip
 /** A sprite's own grid at one frame, without its parts. */
 export const bake = (s: Sprite, frame = 0, variant?: string, flip?: Flip): HTMLCanvasElement =>
   bakeGrid(s.name, s, frame, variant, flip);
+
+const sprites = spritesOf({ max: 512 });
+
+/**
+ * A sprite and its parts through a pen, its own grid's top-left at (x, y): what the rooms paint
+ * into their scene raster. `w` squeezes it across to that many pixels about its middle (a
+ * token turning).
+ */
+export const paintSprite = (
+  pen: Pen,
+  s: Sprite,
+  x: number,
+  y: number,
+  opts: { frame?: number; variant?: string; flip?: Flip; w?: number } = {},
+) => sprites.paint(pen, s, x, y, opts);
 
 /** A sprite and its parts. `variant` is matched by name at every part, as dab does. */
 export const drawSprite = (

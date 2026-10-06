@@ -3,9 +3,12 @@
  * starts, a short grey day, and night long before it ends. Shared by every room.
  */
 
+import { canvasPen, disc, ellipse, line, lit, masked, type Pen } from "@anarkisti/korpi/paint";
+import { bandsFor, paintBands } from "@anarkisti/korpi/sky/paint";
+
 import { prefersReducedMotion } from "$lib/keys";
 
-import { rect } from "./pixel";
+import { colourOf, fill, fillFaded } from "./pen";
 
 export type Weather = "clear" | "snow" | "rain" | "storm";
 
@@ -25,9 +28,9 @@ export type WindowExtras = {
   cracked?: boolean;
   /** Seconds since a blast on the horizon, or null. */
   blast?: number | null;
-  /** What the window looks out on, painted in scene coordinates in place of its own sky, sun
-   *  and town; it still has its weather and its cracks. */
-  scenery?: (ctx: CanvasRenderingContext2D) => void;
+  /** The glass shows the world around it: what is painted behind it, not its own sky, sun
+   *  and town, and the weather falling in front of it, not its own; it keeps its cracks. */
+  open?: boolean;
 };
 
 type Key = { at: number; top: string; low: string };
@@ -129,42 +132,45 @@ const STARS = [
 ];
 
 /** A mushroom cloud rising off the horizon over `age` seconds. */
-const drawBlast = (ctx: CanvasRenderingContext2D, g: Glass, age: number) => {
+const paintBlast = (pen: Pen, g: Glass, age: number) => {
   const cx = g.x + g.w * 0.55;
   const ground = g.y + g.h;
   const rise = Math.min(1, age / 2.6);
   const top = ground - rise * g.h * 0.8;
   const glow = Math.max(0, 1 - age / 4);
   // Stem.
-  ctx.fillStyle = mix("#f4c25a", "#9a8c84", Math.min(1, Math.max(0, (age - 1) / 4)));
   const stem = 2 + rise * 3;
-  ctx.fillRect(Math.round(cx - stem / 2), Math.round(top + 4), Math.round(stem), ground - top);
+  fill(
+    pen,
+    mix("#f4c25a", "#9a8c84", Math.min(1, Math.max(0, (age - 1) / 4))),
+    Math.round(cx - stem / 2),
+    Math.round(top + 4),
+    Math.round(stem),
+    ground - top,
+  );
   // Cap, rolling outward as it climbs.
   const r = 3 + rise * g.w * 0.26;
-  const cap = (dx: number, dy: number, rr: number, colour: string) => {
-    ctx.fillStyle = colour;
-    ctx.beginPath();
-    ctx.ellipse(cx + dx, top + dy, rr, rr * 0.6, 0, 0, Math.PI * 2);
-    ctx.fill();
-  };
+  const cap = (dx: number, dy: number, rr: number, colour: string) =>
+    ellipse(pen, colourOf(colour), cx + dx, top + dy, rr, rr * 0.6);
   const cool = (s: number) => Math.min(1, Math.max(0, (age - 1) / s));
   cap(0, 0, r, mix("#ffd27a", "#a8988c", cool(4)));
   cap(-r * 0.4, -r * 0.2, r * 0.6, mix("#fff0c0", "#c0b2a6", cool(3.5)));
   cap(r * 0.45, -r * 0.1, r * 0.55, mix("#f79a3a", "#9a8a80", cool(4.5)));
   // Ground ring.
-  ctx.fillStyle = mix("#f78f08", "#6a605c", Math.min(1, age / 2));
-  ctx.fillRect(Math.round(cx - r), ground - 2, Math.round(r * 2), 2);
-  if (glow > 0) {
-    ctx.globalAlpha = glow * 0.35;
-    ctx.fillStyle = "#ffd98a";
-    ctx.fillRect(g.x, g.y, g.w, g.h);
-    ctx.globalAlpha = 1;
-  }
+  fill(
+    pen,
+    mix("#f78f08", "#6a605c", Math.min(1, age / 2)),
+    Math.round(cx - r),
+    ground - 2,
+    Math.round(r * 2),
+    2,
+  );
+  fillFaded(pen, "#ffd98a", glow * 0.35, g.x, g.y, g.w, g.h);
 };
 
-const drawCracks = (ctx: CanvasRenderingContext2D, g: Glass) => {
-  ctx.strokeStyle = "rgba(230, 236, 244, 0.75)";
-  ctx.lineWidth = 1;
+const CRACK = "rgba(230, 236, 244, 0.75)";
+
+const paintCracks = (pen: Pen, g: Glass) => {
   const at = (fx: number, fy: number): [number, number] => [g.x + g.w * fx, g.y + g.h * fy];
   const lines: [number, number][][] = [
     [at(0.62, 0.35), at(0.78, 0.1), at(0.84, 0)],
@@ -174,45 +180,53 @@ const drawCracks = (ctx: CanvasRenderingContext2D, g: Glass) => {
     [at(0.62, 0.35), at(0.48, 0.12), at(0.42, 0)],
     [at(0.7, 0.2), at(0.6, 0.18), at(0.52, 0.3), at(0.56, 0.48), at(0.72, 0.5), at(0.78, 0.34)],
   ];
+  // A crack is one line: where two of its strokes meet, the corner is drawn once.
+  const seen = new Set<number>();
+  const once: Pen = {
+    fill: (c, x, y, w, h, d) => {
+      const k = Math.round(y) * 4096 + Math.round(x);
+      if (seen.has(k)) return;
+      seen.add(k);
+      pen.fill(c, x, y, w, h, d);
+    },
+    span: pen.span,
+  };
   for (const l of lines) {
-    ctx.beginPath();
-    ctx.moveTo(Math.round(l[0][0]) + 0.5, Math.round(l[0][1]) + 0.5);
-    for (const [px, py] of l.slice(1)) ctx.lineTo(Math.round(px) + 0.5, Math.round(py) + 0.5);
-    ctx.stroke();
+    for (let i = 1; i < l.length; i++) {
+      const [ax, ay] = l[i - 1].map(Math.round);
+      const [bx, by] = l[i].map(Math.round);
+      line(once, colourOf(CRACK), ax, ay, bx, by);
+    }
   }
 };
 
 /**
  * The sky itself over `g`: its colours for the time of day and the weather, top to bottom in
- * `bands` steps, a lightning flash, stars on a clear night. What a window shows before the town
- * and the weather; what a hole in a wall shows, too.
+ * steps that blend (korpi's `paintBands`, a step every 6 px unless `bands` is given), a
+ * lightning flash, stars on a clear night. What a window shows before the town and the weather;
+ * what a hole in a wall shows, too.
  */
-export const drawOpenSky = (ctx: CanvasRenderingContext2D, sky: SkyInput, g: Glass, bands = 2) => {
+export const paintOpenSky = (pen: Pen, sky: SkyInput, g: Glass, bands = bandsFor(g.h)) => {
   const p = sky.progress;
   const grey = sky.weather === "clear" ? 0 : sky.weather === "storm" ? 1 : 0.8;
   const lit = flash(sky);
   const { x, y, w, h } = g;
   const colours = skyAt(p, grey);
-  for (let i = 0; i < bands; i++) {
-    const top = Math.round((h * i) / bands);
-    const next = Math.round((h * (i + 1)) / bands);
-    rect(ctx, mix(colours.top, colours.low, i / (bands - 1)), x, y + top, w, next - top);
-  }
-  if (lit) {
-    ctx.globalAlpha = 0.7 * lit;
-    rect(ctx, "#e8ecf4", x, y, w, h);
-    ctx.globalAlpha = 1;
-  }
+  paintBands(pen, g, colourOf(colours.top), colourOf(colours.low), bands, true, 0);
+  if (lit) fillFaded(pen, "#e8ecf4", 0.7 * lit, x, y, w, h);
   if (!grey && daylight(p) === 0) {
     for (const [fx, fy] of STARS) {
-      if (Math.floor(sky.t * 2 + fx * 50) % 7 !== 0)
-        rect(ctx, "#cfd8e8", x + fx * w, y + fy * h, 1, 1);
+      if (Math.floor(sky.t * 2 + fx * 50) % 7 !== 0) fill(pen, "#cfd8e8", x + fx * w, y + fy * h);
     }
   }
 };
 
-export const drawWindow = (
-  ctx: CanvasRenderingContext2D,
+/**
+ * A window onto `sky` through glass `g` in a frame: its own sky, sun, town and weather, or with
+ * `open` the world's (friday's, beyond the wall and falling through the room), and any cracks.
+ */
+export const paintWindow = (
+  pen: Pen,
   sky: SkyInput,
   g: Glass,
   frame: string,
@@ -223,32 +237,38 @@ export const drawWindow = (
   const grey = weather === "clear" ? 0 : weather === "storm" ? 1 : 0.8;
   const day = daylight(p);
   const { x, y, w, h } = g;
+  const open = extras.open === true;
 
-  rect(ctx, frame, x - 2, y - 2, w + 4, h + 4);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(x, y, w, h);
-  ctx.clip();
+  // The frame round the glass; the glass itself left for what is seen through it.
+  fill(pen, frame, x - 2, y - 2, w + 4, 2);
+  fill(pen, frame, x - 2, y + h, w + 4, 2);
+  fill(pen, frame, x - 2, y, 2, h);
+  fill(pen, frame, x + w, y, 2, h);
+  const glass = masked(pen, (px, py) => px >= x && px < x + w && py >= y && py < y + h);
 
-  if (extras.scenery) extras.scenery(ctx);
-  else drawOpenSky(ctx, sky, g);
-  // A low winter sun that barely clears the rooftops.
-  if (!extras.scenery && !grey && p > 0.18 && p < 0.7) {
-    const q = (p - 0.18) / 0.52;
-    ctx.fillStyle = "#f6d27a";
-    ctx.beginPath();
-    ctx.arc(x + 4 + q * (w - 8), y + h - 14 - Math.sin(q * Math.PI) * 14, 3, 0, Math.PI * 2);
-    ctx.fill();
+  if (!open) {
+    paintOpenSky(glass, sky, g);
+    // A low winter sun that barely clears the rooftops.
+    if (!grey && p > 0.18 && p < 0.7) {
+      const q = (p - 0.18) / 0.52;
+      disc(
+        glass,
+        colourOf("#f6d27a"),
+        x + 4 + q * (w - 8),
+        y + h - 14 - Math.sin(q * Math.PI) * 14,
+        3,
+      );
+    }
   }
 
-  if (extras.blast != null && extras.blast >= 0) drawBlast(ctx, g, extras.blast);
+  if (extras.blast != null && extras.blast >= 0) paintBlast(glass, g, extras.blast);
 
   const ruined = extras.cracked === true;
   const town = ruined ? mix("#1c1f24", "#4e565e", day) : mix("#262e3a", "#7a8a95", day);
   TOWN.forEach(([fx, fy, fw, fh], i) => {
-    if (extras.scenery) return;
+    if (open) return;
     if (!ruined) {
-      rect(ctx, town, x + fx * w, y + fy * h, fw * w, fh * h + 1);
+      fill(glass, town, x + fx * w, y + fy * h, fw * w, fh * h + 1);
       return;
     }
     // What the blast left: stumps at a third to two thirds of their height, tops bitten off.
@@ -257,31 +277,29 @@ export const drawWindow = (
     for (let px = 0; px < fw * w; px++) {
       const hash = ((Math.imul(i * 131 + px * 17, 2654435761) >>> 0) % 100) / 100;
       const stump = fh * h * keep * (0.6 + 0.4 * hash);
-      rect(ctx, town, x + fx * w + px, base - stump, 1, stump);
+      fill(glass, town, x + fx * w + px, base - stump, 1, stump);
     }
   });
   // No lights in a town that is no longer there.
-  if (day < 0.5 && extras.blast == null && !ruined) {
-    ctx.globalAlpha = 1 - day * 2;
-    for (const [fx, fy] of LIT) rect(ctx, "#f2c230", x + fx * w, y + fy * h, 1, 1);
-    ctx.globalAlpha = 1;
+  if (day < 0.5 && extras.blast == null && !ruined && !open) {
+    const lights = lit(glass);
+    for (const [fx, fy] of LIT) fillFaded(lights, "#f2c230", 1 - day * 2, x + fx * w, y + fy * h);
   }
 
-  if (weather === "snow") {
+  if (weather === "snow" && !open) {
     const wind = sky.wind ?? 0;
     for (let i = 0; i < 24; i++) {
       const fall = (i * 13 + sky.t * (10 + (i % 4) * 3)) % h;
       const along = i * 37 + Math.sin(sky.t * 1.3 + i) * 3 + fall * wind * 0.8;
-      rect(ctx, "#eef2f6", x + (((along % w) + w) % w), y + fall, 1, 1);
+      fill(glass, "#eef2f6", x + (((along % w) + w) % w), y + fall);
     }
   }
-  if (weather === "rain" || weather === "storm") {
+  if ((weather === "rain" || weather === "storm") && !open) {
     // Each drop has its own column, speed and length; the wind leans them all.
     const storm = weather === "storm";
     const n = Math.round((storm ? 34 : 20) * (w / 56));
     const lean = sky.wind === undefined ? (storm ? 0.45 : 0.2) : -sky.wind * 0.45;
-    ctx.fillStyle = storm ? "#c4cfdc" : "#a9b8c8";
-    ctx.globalAlpha = 0.7;
+    const drop = storm ? "#c4cfdc" : "#a9b8c8";
     for (let i = 0; i < n; i++) {
       const hash = Math.imul(i + 1, 2654435761) >>> 0;
       const speed = 70 + (hash % 50);
@@ -291,14 +309,21 @@ export const drawWindow = (
       for (let k = 0; k < len; k++) {
         const py = y + fall - len + k;
         const px = x + ((col - (fall + k) * lean + w * 4) % (w + 12)) - 6;
-        ctx.fillRect(Math.round(px), Math.round(py), 1, 1);
+        fillFaded(glass, drop, 0.7, px, py);
       }
     }
-    ctx.globalAlpha = 1;
   }
-  if (extras.cracked) drawCracks(ctx, g);
-  ctx.restore();
+  if (extras.cracked) paintCracks(glass, g);
 
-  rect(ctx, frame, x + Math.floor(w / 2) - 1, y, 2, h);
-  rect(ctx, frame, x, y + Math.floor(h / 2) - 1, w, 2);
+  fill(pen, frame, x + Math.floor(w / 2) - 1, y, 2, h);
+  fill(pen, frame, x, y + Math.floor(h / 2) - 1, w, 2);
 };
+
+/** A window on a canvas, as the factory hangs one. */
+export const drawWindow = (
+  ctx: CanvasRenderingContext2D,
+  sky: SkyInput,
+  g: Glass,
+  frame: string,
+  extras: WindowExtras = {},
+) => paintWindow(canvasPen(ctx), sky, g, frame, extras);

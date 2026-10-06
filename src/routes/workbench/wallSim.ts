@@ -1,11 +1,11 @@
 // The wall simulator: a masonry wall coming down, to watch, poke and tune. Its clock runs at a
 // chosen rate from the `since` slider; a tap knocks a block out or brings roof down there, at
-// that moment, recorded as a blow in the spec and baked in (scrub back before it and it never
-// happened); the sliders retune the pace and re-bake at once. Overlays show how each block
-// stands, how exposed it is, when it goes.
+// that moment, recorded as input and baked in (scrub back before it and it never happened);
+// the sliders retune the pace and re-bake at once. Overlays show how each block stands, how
+// exposed it is, when it goes. korpi's masonry painter paints it, through the room's view.
 
+import { type Input, lru, mix, rgb, type Rgba } from "@anarkisti/korpi/core";
 import {
-  bake,
   type Body,
   classesAt,
   CRACK_S,
@@ -14,9 +14,7 @@ import {
   gapsOf,
   halfDepth,
   halfHeight,
-  hangOn,
   heightOver,
-  type Knock,
   layBond,
   lying,
   moving,
@@ -24,25 +22,47 @@ import {
   type Pace,
   pieceOf,
   releasedBy,
-  type Ruin,
   type Spec,
   stateAt,
+  type Wall,
+  wallOf,
   warningAt,
 } from "@anarkisti/korpi/masonry";
+import {
+  frameOf,
+  paintStone,
+  WALL_PALETTE,
+  type WallPainter,
+  wallPainter,
+} from "@anarkisti/korpi/masonry/paint";
+import { line, shifted } from "@anarkisti/korpi/paint";
+import { floor } from "@anarkisti/korpi/shapes";
+import { obliqueView } from "@anarkisti/korpi/view";
 
+import { PX_M, SLOPE } from "$lib/office/depth";
 import { WALL } from "$lib/office/draw";
 import { SCENE_H, SCENE_W } from "$lib/office/engine";
-import { type Face, faceOf, K, nearOf, paintStone } from "$lib/office/wood/stones";
+import { mossColour } from "$lib/office/wood/moss";
 import { specOf } from "$lib/office/wood/wall";
-import { rect } from "$lib/scene/pixel";
-import { drawPixelText } from "$lib/scene/pixelfont";
+import { paintText } from "$lib/scene/pixelfont";
 
 import { clock as hms, px, share } from "./show";
-import type { Param, Unit, Values } from "./units";
+import type { Param, Stage, Unit, Values } from "./units";
 
 /** The office's back wall, as the room lays it: the window an insert, the clock, the pay
  *  readout, the calendar and the signs hung on it. */
 const SPEC: Spec = specOf(WALL);
+
+/** The room's view, its horizon the wall's ground row; the wall's face from the top of the
+ *  scene, so a cell of the wall is a scene px. */
+const VIEW = obliqueView({
+  w: SCENE_W,
+  h: SCENE_H,
+  pxPerM: PX_M,
+  k: SLOPE,
+  horizon: SPEC.ground,
+});
+const AT = { x: 0, y: SPEC.ground / PX_M, z: 0 };
 
 /** Ways of building it: course height, a piece's length and the wall's thickness, px. Bricks
  *  come away brick by brick, rubble stone by stone, from a wall 50 cm thick. */
@@ -52,20 +72,6 @@ const BUILDS = {
   rubble: { course: 12, unit: 18, thickness: 20, brittle: 0.25 },
 } as const;
 type Build = keyof typeof BUILDS;
-
-const specs = new Map<string, Spec>();
-/** The wall as built and coated in the controls, the same object for the same choice. */
-const specFor = (v: Values): Spec => {
-  const bond = String(v.wall) as Build;
-  const plaster = Boolean(v.plaster);
-  const key = `${bond}|${plaster}`;
-  let spec = specs.get(key);
-  if (!spec) {
-    spec = { ...SPEC, bond, plaster, ...BUILDS[bond] };
-    specs.set(key, spec);
-  }
-  return spec;
-};
 
 /** How fast its clock runs against the bench's (which space pauses). */
 const RATES: Record<string, number> = {
@@ -208,29 +214,27 @@ const paceOf = (v: Values): Pace => ({
   glue: Number(v.glue),
 });
 
-/** The taps given, per seed, in time order. */
-const taps = new Map<number, Knock[]>();
+/** The taps given, per seed, in time order: recorded input, at points on the wall's face. */
+const taps = new Map<number, Input[]>();
 const tapsOf = (seed: number) => {
   const known = taps.get(seed) ?? [];
   taps.set(seed, known);
   return known;
 };
 
-/** Bakes by seed, taps and tuning, the latest few kept, with how long each took. */
-const bakes = new Map<string, { ruin: Ruin; ms: number }>();
-const ruinFor = (v: Values) => {
+/** Walls by seed, build, tuning and taps, the newest few kept, each with its painter. */
+const walls = lru<string, { wall: Wall; painter: WallPainter }>(16);
+const wallFor = (v: Values) => {
   const seed = Number(v.seed);
-  const knocks = tapsOf(seed);
+  const build = String(v.wall) as Build;
   const pace = paceOf(v);
-  const key = `${seed}|${v.wall}|${v.plaster}|${JSON.stringify(pace)}|${JSON.stringify(knocks)}`;
-  const known = bakes.get(key);
-  if (known) return known;
-  const t0 = performance.now();
-  const ruin = bake({ ...specFor(v), knocks: [...knocks] }, seed, pace);
-  const made = { ruin, ms: performance.now() - t0 };
-  bakes.set(key, made);
-  if (bakes.size > 16) bakes.delete(bakes.keys().next().value as string);
-  return made;
+  const inputs = tapsOf(seed);
+  const key = `${seed}|${build}|${v.plaster}|${JSON.stringify(pace)}|${JSON.stringify(inputs)}`;
+  return walls.get(key, () => {
+    const spec = { ...SPEC, ...BUILDS[build], bond: build, plaster: Boolean(v.plaster) };
+    const wall = wallOf({ spec, seed, at: AT, pace, inputs: [...inputs] });
+    return { wall, painter: wallPainter(wall) };
+  });
 };
 
 /** The simulator's clock: from the `since` slider, at the chosen rate on the bench's clock,
@@ -247,245 +251,139 @@ const sinceOf = (v: Values, t: number) => {
   return clock.base + (t - clock.t0) * clock.rate;
 };
 
-const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
-const mix = (a: number[], b: number[], k: number) => a.map((v, i) => v + (b[i] - v) * k);
-
-const CLASS: Record<string, string> = {
-  bedded: "#b9c0c4",
-  glued: "#e0a040",
-  pinned: "#9a70d0",
-  drop: "#e04040",
-  topple: "#e04040",
+const SKY = rgb("#9cc4e4");
+const DADO = rgb("#8d969c");
+const GRASS = rgb("#4f7f33");
+const GLASS = rgb("#5d7f9c");
+const FRAME = rgb("#3a3f45");
+const EDGE = rgb("#3c3c46");
+const CRACKED = rgb("#d08020");
+const SHAKING = rgb("#ff3020");
+const ARCHED = rgb("#7fd88f");
+const UNARCHED = rgb("#f0a0a0");
+const COURSES = [rgb("#b4bbc0"), rgb("#c6ccd0")];
+const CLASS: Record<string, Rgba> = {
+  bedded: rgb("#b9c0c4"),
+  glued: rgb("#e0a040"),
+  pinned: rgb("#9a70d0"),
+  drop: rgb("#e04040"),
+  topple: rgb("#e04040"),
 };
+/** `c` at `a` of 255. */
+const alphaOf = (c: Rgba, a: number): Rgba => ((c & 0xffffff) | (a << 24)) >>> 0;
 
-/** The canvases a tile draws through, by name: one for each layer (what falls behind the
- *  wall, the wall, the room) and each tile of a grid of seeds, which all draw in one frame.
- *  One canvas drawn, refilled and drawn again in a frame leaves the browser to keep the first
- *  contents for the first draw; Safari draws lazily and shows the second contents twice. */
-type Layer = { canvas: HTMLCanvasElement; image: ImageData; pixels: Uint32Array };
-const layers = new Map<string, Layer>();
-const layerOf = (name: string, w: number, h: number): Layer => {
-  let it = layers.get(name);
-  if (!it || it.image.width !== w || it.image.height !== h) {
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const image = new ImageData(w, h);
-    it = { canvas, image, pixels: new Uint32Array(image.data.buffer) };
-  }
-  // The latest last, so after many seeds the longest unused goes.
-  layers.delete(name);
-  layers.set(name, it);
-  if (layers.size > 64) layers.delete(layers.keys().next().value as string);
-  return it;
-};
-/** `image` onto layer `name`, ready to draw. */
-const shown = (name: string, image: ImageData) => {
-  const { canvas } = layerOf(name, image.width, image.height);
-  canvas.getContext("2d")?.putImageData(image, 0, 0);
-  return canvas;
-};
-
-const faces = new WeakMap<Ruin, Map<number, { face: Face; back?: Face; bed?: Face }>>();
-/** A stone's faces: inside as the wall's face was when it left (plaster or masonry), outside
- *  bare masonry, but for blocks, rendered. Kept by ruin and by when it left, which matters
- *  only under plaster. */
-const facesOf = (r: Ruin, body: Body) => {
-  let known = faces.get(r);
-  if (!known) {
-    known = new Map();
-    faces.set(r, known);
-  }
-  const at = r.skin ? body.start : 0;
-  let made = known.get(at);
-  if (!made) {
-    made = {
-      face: faceOf(r.bond, r.skin, at),
-      back: r.spec.bond && r.spec.bond !== "block" ? faceOf(r.bond, null, 0) : undefined,
-      bed: r.skin ? faceOf(r.bond, null, 0) : undefined,
-    };
-    known.set(at, made);
-  }
-  return made;
-};
-
-const draw = (ctx: CanvasRenderingContext2D, v: Values, t: number) => {
+const draw = ({ pen, scene }: Stage, v: Values, t: number) => {
   const since = sinceOf(v, t);
-  const { ruin: r, ms } = ruinFor(v);
+  const { wall, painter } = wallFor(v);
+  const r = wall.ruin;
   const { bond } = r;
-  const tile = Number(v.seed);
   const { w: W, h: H } = SPEC;
   const show = String(v.show);
-  // The room around the wall: sky behind it, the dado, the floor.
-  ctx.fillStyle = "#9cc4e4";
-  ctx.fillRect(0, 0, SCENE_W, SCENE_H);
-  ctx.fillStyle = "#8d969c";
-  ctx.fillRect(0, H, SCENE_W, SPEC.ground - H);
-  ctx.fillStyle = "#4f7f33";
-  ctx.fillRect(0, SPEC.ground, SCENE_W, SCENE_H - SPEC.ground);
+  const at = frameOf(VIEW, wall.placement);
+  const face = at.d0;
+  // The room around the wall: sky far behind it, the dado under it, the floor before it.
+  pen.fill(SKY, 0, 0, SCENE_W, SCENE_H, 1e3);
+  pen.fill(DADO, at.ox, at.oy + H, W, SPEC.ground - H, face);
+  const deep = (SCENE_H - SPEC.ground) / (SLOPE * PX_M) + 1;
+  floor(pen, VIEW, { x0: 0, x1: W / PX_M, z0: 0, z1: deep }, GRASS);
 
   const state = stateAt(r, since);
-  const classes = classesAt(r, since);
-  const warn = new Map(warningAt(r, since).map((w) => [w.i, w.shake]));
-  const { gaps, gapOf } = gapsOf(bond, state);
-  const img = new ImageData(W, H);
-  const put = (q: number, rgb: number[]) => img.data.set([...rgb.map(Math.round), 255], q * 4);
-  const sky = hex("#9cc4e4");
-  const nc = bond.edges.length - 1;
-  const look = faceOf(bond, r.skin, since);
-  const words = new Uint32Array(img.data.buffer);
-  for (const b of bond.blocks) {
-    const up = state.standing[b.i] === 1;
-    let fill = hex(b.course % 2 ? "#c6ccd0" : "#b4bbc0");
-    if (show === "look") {
-      const cracked = warn.get(b.i);
-      for (const q of b.px) {
-        if (!up) continue;
-        const x = q % W;
-        const y = (q - x) / W;
-        const rim =
-          cracked !== undefined &&
-          (bond.owner[q - 1] !== b.i ||
-            bond.owner[q + 1] !== b.i ||
-            bond.owner[q - W] !== b.i ||
-            bond.owner[q + W] !== b.i);
-        words[q] = rim ? (cracked ? 0xff2030ff : 0xff2080d0) : look(x, y, false);
-      }
+  // The window in its opening, just behind the face, and what hangs on the wall outlined:
+  // where they are, on the wall or coming down upright in front of it.
+  for (const { name } of [...SPEC.inserts, ...SPEC.hangs]) {
+    const { on, rect: f } = wall.hung(name, since);
+    const glass = name === "window";
+    const it = shifted(pen, {
+      dx: at.ox,
+      dy: at.oy,
+      dd: on ? face + (glass ? 1e-4 : -1e-3) : face - 0.05,
+    });
+    const [x0, y0] = [Math.round(f.x), Math.round(f.y)];
+    const [x1, y1] = [x0 + f.w - 1, y0 + f.h - 1];
+    if (glass) {
+      it.fill(FRAME, x0, y0, f.w, f.h);
+      it.fill(GLASS, x0 + 1, y0 + 1, f.w - 2, f.h - 2);
       continue;
     }
-    if (show === "classes") fill = hex(CLASS[classes[b.i] ?? "bedded"]);
-    else if (show === "hazard" && up) {
-      const m = exposureOf(bond, b.i, state, classes, r.pace);
-      fill = mix(hex("#3060c0"), hex("#e03020"), Math.min(1, Math.log1p(m) / Math.log1p(12)));
-    } else if (show === "order") {
-      const at = r.releaseAt[b.i];
-      const k = Number.isFinite(at) ? Math.min(1, Math.log1p(at / 60) / Math.log1p(720)) : 1;
-      fill = mix(hex("#e04030"), hex("#f0f0e0"), k);
-    }
-    for (const q of b.px) {
-      const x = q % W;
-      const y = (q - x) / W;
+    line(it, FRAME, x0, y0, x1, y0);
+    line(it, FRAME, x0, y1, x1, y1);
+    line(it, FRAME, x0, y0, x0, y1);
+    line(it, FRAME, x1, y0, x1, y1);
+  }
+  painter.paint(scene, VIEW, since);
+
+  if (show !== "look") {
+    // Each block flat in what is shown, its outline darker, or cracked while it is about to
+    // go; in `classes`, a gap tinted by whether the wall arches over it. Over the face, under
+    // what hangs on it.
+    const over = shifted(pen, { dx: at.ox, dy: at.oy, dd: face - 5e-4 });
+    const classes = classesAt(r, since);
+    const warn = new Map(warningAt(r, since).map((w) => [w.i, w.shake]));
+    const { gaps, gapOf } = gapsOf(bond, state);
+    const nc = bond.edges.length - 1;
+    for (const b of bond.blocks) {
+      const up = state.standing[b.i] === 1;
       if (!up) {
-        // Gone: the sky, tinted by whether the wall arches over the gap here.
-        if (show === "classes") {
+        if (show !== "classes") continue;
+        for (const q of b.px) {
+          const x = q % W;
           const g = gapOf[Math.min(nc - 1, b.course) * W + x];
-          const tint = g >= 0 ? (gaps[g].arched ? hex("#7fd88f") : hex("#f0a0a0")) : sky;
-          img.data.set([...mix(sky, tint, 0.6).map(Math.round), 110], q * 4);
+          const tint = g >= 0 ? (gaps[g].arched ? ARCHED : UNARCHED) : SKY;
+          over.fill(alphaOf(mix(SKY, tint, 0.6), 110), x, (q - x) / W);
         }
         continue;
       }
-      const edge =
-        x === 0 ||
-        x === W - 1 ||
-        y === 0 ||
-        y === H - 1 ||
-        bond.owner[q - 1] !== b.i ||
-        bond.owner[q + 1] !== b.i ||
-        bond.owner[q - W] !== b.i ||
-        bond.owner[q + W] !== b.i;
-      const cracked = warn.has(b.i);
-      put(
-        q,
-        edge
-          ? cracked
-            ? hex(warn.get(b.i) ? "#ff3020" : "#d08020")
-            : mix(fill, [60, 60, 70], 0.45)
-          : fill,
-      );
-    }
-  }
-  // The window, while it is in.
-  SPEC.inserts.forEach(({ rect }, k) => {
-    for (let y = rect.y; y < rect.y + rect.h; y++) {
-      for (let x = rect.x; x < rect.x + rect.w; x++) {
-        const q = y * W + x;
-        if (state.inserts[k])
-          put(
-            q,
-            x === rect.x || y === rect.y || x === rect.x + rect.w - 1 || y === rect.y + rect.h - 1
-              ? hex("#3a3f45")
-              : hex("#5d7f9c"),
-          );
+      let c = COURSES[b.course % 2];
+      if (show === "classes") c = CLASS[classes[b.i] ?? "bedded"];
+      else if (show === "hazard") {
+        const m = exposureOf(bond, b.i, state, classes, r.pace);
+        c = mix(rgb("#3060c0"), rgb("#e03020"), Math.min(1, Math.log1p(m) / Math.log1p(12)));
+      } else if (show === "order") {
+        const went = r.releaseAt[b.i];
+        const k = Number.isFinite(went) ? Math.min(1, Math.log1p(went / 60) / Math.log1p(720)) : 1;
+        c = mix(rgb("#e04030"), rgb("#f0f0e0"), k);
+      }
+      const shake = warn.get(b.i);
+      const rim = shake === undefined ? mix(c, EDGE, 0.45) : shake ? SHAKING : CRACKED;
+      for (const q of b.px) {
+        const x = q % W;
+        const y = (q - x) / W;
+        const edge =
+          x === 0 ||
+          x === W - 1 ||
+          y === 0 ||
+          y === H - 1 ||
+          bond.owner[q - 1] !== b.i ||
+          bond.owner[q + 1] !== b.i ||
+          bond.owner[q - W] !== b.i ||
+          bond.owner[q + W] !== b.i;
+        over.fill(edge ? rim : c, x, y);
       }
     }
-  });
-  // What falls behind the wall shows in its gaps; then the wall over it; then the room.
-  // Farthest first, so what overlaps stays put from frame to frame.
-  const inFlight = moving(r, since).sort((a, b) => a.pose.z - b.pose.z || a.body.id - b.body.id);
-  const back = new ImageData(W, H);
-  const backNear = nearOf("sim-back", W * H);
-  const backPx = new Uint32Array(back.data.buffer);
-  for (const m of inFlight) {
-    paintStone(backPx, W, H, 0, m.body, m.pose, {
-      ...facesOf(r, m.body),
-      sink: 0,
-      moss: 0,
-      since,
-      ground: H,
-      depth: "back",
-      near: backNear,
-    });
   }
-  ctx.drawImage(shown(`back${tile}`, back), 0, 0);
-  ctx.drawImage(shown(`wall${tile}`, img), 0, 0);
-  // The hung things, outlined, while they hang.
-  for (const { name, rect: f } of SPEC.hangs) {
-    if (!hangOn(r, name, since)) continue;
-    ctx.strokeStyle = "#3a3f45";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(f.x + 0.5, f.y + 0.5, f.w - 1, f.h - 1);
-  }
-  const room = layerOf(`room${tile}`, SCENE_W, SCENE_H);
-  room.pixels.fill(0);
-  const near = nearOf("sim-room", SCENE_W * SCENE_H);
-  const down = lying(r, since);
-  for (const l of down) {
-    paintStone(room.pixels, SCENE_W, SCENE_H, 0, l.body, l.pose, {
-      ...facesOf(r, l.body),
-      sink: l.sink,
-      moss: 0,
-      since,
-      ground: SCENE_H,
-      floor: SPEC.ground,
-      near,
-    });
-  }
-  for (const m of inFlight) {
-    paintStone(room.pixels, SCENE_W, SCENE_H, 0, m.body, m.pose, {
-      ...facesOf(r, m.body),
-      sink: 0,
-      moss: 0,
-      since,
-      ground: SCENE_H,
-      floor: SPEC.ground,
-      depth: "front",
-      near,
-    });
-  }
-  room.canvas.getContext("2d")?.putImageData(room.image, 0, 0);
-  ctx.drawImage(room.canvas, 0, 0);
+
+  // Over everything, as on a glass in front of it: the heap's height, and the readout.
+  const top = shifted(pen, { dx: at.ox, dy: at.oy, dd: -1e3 });
   if (show === "pile") {
     // The heap's height along the wall, nearest the wall and at its toe.
-    for (const [z0, z1, c] of [
+    for (const [z0, z1, hex] of [
       [0, 6, "#ffe040"],
       [14, 28, "#ff8040"],
     ] as const) {
       for (let x = 0; x < W; x += 2) {
-        const h = heightOver(r.pile, x, x + 1, z0, z1, since);
-        if (h > 0) rect(ctx, c, x, SPEC.ground - h + K * z0, 2, 1);
+        const high = heightOver(r.pile, x, x + 1, z0, z1, since);
+        if (high > 0) top.fill(rgb(hex), x, Math.round(SPEC.ground - high + at.k * z0), 2, 1);
       }
     }
   }
-
-  // The readout, on the dado.
   const standing = state.standing.reduce((s, x) => s + x, 0);
   const lines = [
     `${hms(since)}  ${String(v.rate).replace("×", "x")}  seed ${v.seed}`,
     `standing ${standing}/${bond.blocks.length}  released ${releasedBy(r, since)}  window ${state.inserts[0] ? "in" : "out"}`,
-    `bake ${ms.toFixed(0)}ms  taps ${tapsOf(Number(v.seed)).length}  cracked ${warn.size} (${CRACK_S}s ahead)`,
-    `falling ${inFlight.length}  lying ${down.length}  thuds ${r.cues.filter((c) => c.t <= since).length}`,
+    `bake ${wall.inspect().bakeMs.toFixed(0)}ms  taps ${tapsOf(Number(v.seed)).length}  cracked ${warningAt(r, since).length} (${CRACK_S}s ahead)`,
+    `falling ${moving(r, since).length}  lying ${lying(r, since).length}  thuds ${r.cues.filter((c) => c.t <= since).length}`,
   ];
-  lines.forEach((line, i) => drawPixelText(ctx, line, 4, H + 6 + i * 10, "#20262c"));
+  lines.forEach((text, i) => paintText(top, text, 4, H + 6 + i * 10, "#20262c"));
 };
 
 export const wallSim: Unit = {
@@ -545,8 +443,10 @@ export const wallSim: Unit = {
       return;
     }
     if (at.y >= SPEC.h) return;
-    const since = sinceOf(v, t);
-    tapsOf(seed).push({ t: since, x: at.x, y: at.y, kind: how === "roof" ? "roof" : "block" });
+    // The point on the wall's face under the tap.
+    const p = VIEW.unproject(at.x, at.y, -AT.z);
+    const kind = how === "roof" ? "roof" : "block";
+    tapsOf(seed).push({ t: sinceOf(v, t), p, kind, source: "bench" });
     tapsOf(seed).sort((a, b) => a.t - b.t);
   },
 };
@@ -638,31 +538,26 @@ export const stoneUnit: Unit = {
     },
   ],
   size: () => ({ w: STONE.w, h: STONE.h }),
-  draw: (ctx, v) => {
-    ctx.fillStyle = "#8d969c";
-    ctx.fillRect(0, 0, STONE.w, STONE.ground);
-    ctx.fillStyle = "#4f7f33";
-    ctx.fillRect(0, STONE.ground, STONE.w, STONE.h - STONE.ground);
+  draw: ({ pen, scene }, v) => {
+    pen.fill(DADO, 0, 0, STONE.w, STONE.ground, 10);
+    pen.fill(GRASS, 0, STONE.ground, STONE.w, STONE.h - STONE.ground, 10);
     const body = stoneOf(v);
     const phi = Number(v.phi);
     const theta = Number(v.theta);
     const z = 8;
     const pose = {
       x: STONE.w / 2,
-      y: STONE.ground - halfHeight(body.w, body.h, body.T, phi, theta) - K * z,
+      y: STONE.ground - halfHeight(body.w, body.h, body.T, phi, theta) - SLOPE * z,
       z,
       phi,
       theta,
     };
-    const stoneTile = layerOf(`stone${v.seed}`, STONE.w, STONE.h);
-    stoneTile.pixels.fill(0);
-    paintStone(stoneTile.pixels, STONE.w, STONE.h, 0, body, pose, {
+    paintStone(scene, { ox: 0, oy: 0, d0: 0, k: SLOPE, pxPerM: PX_M }, body, pose, {
+      palette: WALL_PALETTE,
       sink: Number(v.sink),
       moss: Number(v.moss),
-      since: 0,
-      ground: STONE.ground + Math.round(K * (z + halfDepth(body.h, body.T, phi))),
+      mossColour: (x, y, up) => mossColour(x, y, up, 0),
+      ground: STONE.ground + Math.round(SLOPE * (z + halfDepth(body.h, body.T, phi))),
     });
-    stoneTile.canvas.getContext("2d")?.putImageData(stoneTile.image, 0, 0);
-    ctx.drawImage(stoneTile.canvas, 0, 0);
   },
 };

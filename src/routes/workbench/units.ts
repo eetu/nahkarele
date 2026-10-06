@@ -2,47 +2,60 @@
 // interface, so it can be looked at alone, at any setting, side by side with its variants.
 // An adapter here only sets the stage; the drawing is the unit's own code from $lib.
 
-import { sfx } from "$lib/audio/sfx.svelte";
-import { BOX, drawCharger, PAD as DOCK } from "$lib/office/charger";
-import { FLOOR_Y, SCENE_H, SCENE_W } from "$lib/office/engine";
+import { type Pen, type Raster, shifted } from "@anarkisti/korpi/paint";
 import {
+  annual,
+  type Arch,
+  archOf,
   type Climber,
   type ClimberPlan,
   CLIMBERS,
-  paintClimberParts,
-  planClimber,
-} from "$lib/office/wood/climbers";
-import {
-  annual,
+  closes,
   conkKey,
   type ConkKind,
   CONKS,
   conksOn,
-  drawConk,
-  tallOf,
-} from "$lib/office/wood/conks";
-import {
-  closes,
   type Flower,
   type FlowerPlan,
   FLOWERS,
-  paintFlowerParts,
+  FRUIT,
+  fruitAt,
+  type GrassPlan,
+  lifespanOf,
+  type Plan,
+  planAt,
+  planClimber,
   planFlowers,
-} from "$lib/office/wood/flowers";
-import { type GrassPlan, paintGrassParts, planGrass } from "$lib/office/wood/grass";
-import { archOf, fruitAt, lifespanOf, planAt } from "$lib/office/wood/growth";
-import { drawSpider } from "$lib/office/wood/life";
-import { drawFlowers } from "$lib/office/wood/meadow";
-import { drawPosed, sheetScope } from "$lib/office/wood/posed";
-import { rustleOf } from "$lib/office/wood/rustle";
-import { lookAt, SEASON_S, SEASONS_FROM } from "$lib/office/wood/seasons";
-import {
-  paintShrubParts,
+  planGrass,
   planShrub,
+  poseOf,
+  rustleOf,
   type Shrub,
   type ShrubPlan,
   SHRUBS,
-} from "$lib/office/wood/shrubs";
+  SPECIES,
+  type Species,
+  tallOf,
+} from "@anarkisti/korpi/plants";
+import {
+  drawConk,
+  paintClimberParts,
+  paintFlowerParts,
+  paintFruit,
+  paintGrassParts,
+  paintShrubParts,
+  paintTreeParts,
+  posePx,
+} from "@anarkisti/korpi/plants/paint";
+
+import { sfx } from "$lib/audio/sfx.svelte";
+import { BOX, drawCharger, PAD as DOCK } from "$lib/office/charger";
+import { PX_M } from "$lib/office/depth";
+import { FLOOR_Y, SCENE_H, SCENE_W } from "$lib/office/engine";
+import { drawSpider } from "$lib/office/wood/life";
+import { drawFlowers } from "$lib/office/wood/meadow";
+import { drawPosed } from "$lib/office/wood/posed";
+import { lookAt, SEASON_S, SEASONS_FROM } from "$lib/office/wood/seasons";
 import {
   appleTreeAt,
   drawApples,
@@ -50,20 +63,13 @@ import {
   type Knocks,
   shakeApple,
 } from "$lib/office/wood/stand";
-import { poseOf } from "$lib/office/wood/sway";
-import {
-  FRUIT,
-  paintFruit,
-  paintTreeParts,
-  type Plan,
-  SPECIES,
-  type Species,
-} from "$lib/office/wood/trees";
 import { drawGround } from "$lib/office/wood/weather";
-import { CALENDAR, drawCalendar } from "$lib/scene/calendar";
-import { drawPixelText, pixelTextWidth } from "$lib/scene/pixelfont";
+import { CALENDAR, paintCalendar } from "$lib/scene/calendar";
+import { fill, fillFaded } from "$lib/scene/pen";
+import { smooth } from "$lib/scene/pixel";
+import { paintText, pixelTextWidth } from "$lib/scene/pixelfont";
 import droneSprite from "$lib/sprites/drone.json";
-import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
+import { frameOf, paintSprite, type Sprite } from "$lib/sprites/sprite";
 
 import { clock, px, share, years } from "./show";
 import { stoneUnit, wallSim } from "./wallSim";
@@ -92,6 +98,9 @@ export type Param = {
 
 export type Values = Record<string, number | string>;
 
+/** What a unit paints with, and into: a raster of its `size`, in scene px. */
+export type Stage = { pen: Pen; scene: Raster };
+
 export type Unit = {
   name: string;
   /** What it shows, in a line, and what a tap on it does. */
@@ -103,7 +112,7 @@ export type Unit = {
   /** Scene px of one rendering. */
   size: (v: Values) => { w: number; h: number };
   /** Draw at the origin, `t` seconds into the bench's clock. */
-  draw: (ctx: CanvasRenderingContext2D, v: Values, t: number) => void;
+  draw: (stage: Stage, v: Values, t: number) => void;
   /** Redrawn every frame, on the bench's clock. */
   animated?: boolean;
   /** A click or tap on the rendering, at a scene point. */
@@ -136,11 +145,9 @@ const WIND: Param[] = [
 const SEASON_WIND = [...SEASON, ...WIND];
 
 /** The office wall and a strip of floor, so a tree stands where it would. */
-const office = (ctx: CanvasRenderingContext2D, w: number, h: number, floor: number) => {
-  ctx.fillStyle = "#8d969c";
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = "#4f7f33";
-  ctx.fillRect(0, floor, w, h - floor);
+const office = (pen: Pen, w: number, h: number, floor: number) => {
+  fill(pen, "#8d969c", 0, 0, w, h);
+  fill(pen, "#4f7f33", 0, floor, w, h - floor);
 };
 
 /** The bench's wind: `wind`, steady (stirring a little, as friday's does) or with a gust
@@ -152,18 +159,32 @@ const blowing = (v: Values, time: number) =>
     0.08 * Math.sin(1.6 * time + 1.1) +
     (str(v, "gusts") === "gusty" ? 0.8 * Math.max(0, Math.sin(time * 0.8)) ** 3 : 0));
 
+/** The bench's wind (`blowing`) as what grows feels it: the same everywhere across the tile. */
+const windOf = (v: Values) => (time: number) => blowing(v, time);
+
+/** `pen` moved to a plant's root at (x, y) on the tile: it paints in its own pixels. */
+const rooted = (pen: Pen, x: number, y: number) => shifted(pen, { dx: x, dy: y });
+
+/** How far over the bench's foot a tree is rooted, px: as far as in the room. */
+const ROOT_UP = 27;
+/** Where a tree stands across the bench, px. */
+const TREE_X = 130;
+
 /** The bench's trees at an age, with that year's fruit, so a moving tree is planned once. */
-const plans = new Map<string, Plan>();
+const plans = new Map<string, { arch: Arch; plan: Plan }>();
 const planFor = (seed: number, species: Species, age: number, tall: boolean) => {
   const key = `${seed}|${species}|${age}|${tall}`;
-  let plan = plans.get(key);
-  if (!plan) {
+  let known = plans.get(key);
+  if (!known) {
     const h = tall ? TALL_H : SCENE_H;
-    const base = planAt(archOf(seed, { x: 130, y: h - 27 }, species, 41), age, false);
-    plan = { ...base, fruit: fruitAt(base, 0, FRUIT[species] ?? 0, age) };
-    plans.set(key, plan);
+    const arch = archOf(seed, species, 41);
+    const base = planAt(arch, age);
+    // Fruit from 0.15 m up to 0.2 m under the bench's top, as in the room.
+    const band = [6 / PX_M, (h - ROOT_UP - 8) / PX_M] as const;
+    known = { arch, plan: { ...base, fruit: fruitAt(base, 0, FRUIT[species] ?? 0, age, band) } };
+    plans.set(key, known);
   }
-  return plan;
+  return known;
 };
 /** A bench tall enough to see a grown tree whole. */
 const TALL_H = 640;
@@ -205,27 +226,21 @@ const tree: Unit = {
     ...SEASON_WIND,
   ],
   size: (v) => ({ w: 260, h: str(v, "room") === "whole" ? TALL_H : SCENE_H }),
-  draw: (ctx, v, t) => {
+  draw: ({ pen }, v, t) => {
     const tall = str(v, "room") === "whole";
     const h = tall ? TALL_H : SCENE_H;
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
-    office(ctx, 260, h, h - 29);
-    if (look.snow > 0) {
-      ctx.globalAlpha = look.snow;
-      ctx.fillStyle = "#f4f7fa";
-      ctx.fillRect(0, h - 29, 260, 9);
-      ctx.globalAlpha = 1;
-    }
+    office(pen, 260, h, h - 29);
+    fillFaded(pen, "#f4f7fa", look.snow, 0, h - 29, 260, 9);
     const seed = num(v, "seed");
     const species = str(v, "species") as Species;
     const age = num(v, "age");
     // It dies at its kind's middling age: older than that, it stands dead, conks and all.
     const died = Math.round(lifespanOf(species, 0.5));
     const dead = age > died ? Math.min(1, (age - died) / 1.5) : 0;
-    const plan = planFor(seed, species, Math.min(age, died), tall);
+    const { arch, plan } = planFor(seed, species, Math.min(age, died), tall);
     const seen = dead ? { ...look, dead } : look;
-    const arch = archOf(seed, { x: 130, y: h - 27 }, species, 41);
     const through = (k + num(v, "through")) / 4;
     const conks = conksOn(arch, plan, {
       age: Math.floor(age) + through,
@@ -234,16 +249,17 @@ const tree: Unit = {
       phase: through,
       snow: look.snow,
     });
-    const pose = poseOf(plan, 1, seen, t, (_, ago) => blowing(v, t - ago));
+    const pose = posePx(poseOf(plan, 1, seen, t, windOf(v), TREE_X / PX_M), PX_M);
     const key = `${seed}|${species}|${age}|${tall}|${look.k}|${look.p}|${conkKey(conks)}`;
+    const at = rooted(pen, TREE_X, h - ROOT_UP);
     drawPosed(
-      ctx,
+      at,
       `tree${seed}`,
       key,
-      (rec, part) => paintTreeParts(rec, plan, 1, seen, part, conks),
+      (rec, part) => paintTreeParts(rec, plan, 1, seen, part, conks, PX_M),
       pose,
     );
-    if (!dead) paintFruit(ctx, plan, 1, look, pose.fruit);
+    if (!dead) paintFruit(at, plan, 1, look, pose.fruit, PX_M);
   },
 };
 
@@ -289,20 +305,18 @@ const conk: Unit = {
     { kind: "toggle", key: "snow", hint: "a cap of snow (chaga takes none)" },
   ],
   size: () => ({ w: 40, h: 36 }),
-  draw: (ctx, v) => {
-    office(ctx, 40, 36, 32);
+  draw: ({ pen }, v) => {
+    office(pen, 40, 36, 32);
     // A trunk 8 px across, its bark plain.
-    ctx.fillStyle = "#6a5848";
-    ctx.fillRect(16, 0, 8, 32);
-    ctx.fillStyle = "#857060";
-    ctx.fillRect(16, 0, 1, 32);
+    fill(pen, "#6a5848", 16, 0, 8, 32);
+    fill(pen, "#857060", 16, 0, 1, 32);
     const kind = str(v, "kind") as ConkKind;
     const side = str(v, "side") === "left" ? -1 : 1;
-    const reach = num(v, "reach");
+    const reach = num(v, "reach") / PX_M;
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
     const phase = (k + num(v, "through")) / 4;
     const withered = annual(kind) ? num(v, "withered") : 0;
-    drawConk(ctx, side > 0 ? 24 : 15, 12, {
+    const shape = {
       kind,
       side,
       reach,
@@ -312,7 +326,8 @@ const conk: Unit = {
       withered,
       snow: num(v, "snow") > 0 && kind !== "chaga",
       seed: num(v, "seed"),
-    });
+    } as const;
+    drawConk(pen, side > 0 ? 24 : 15, 12, shape, PX_M);
   },
 };
 
@@ -356,27 +371,27 @@ const shrub: Unit = {
     ...WIND,
   ],
   size: () => ({ w: 60, h: 50 }),
-  draw: (ctx, v, t) => {
+  draw: ({ pen }, v, t) => {
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
-    office(ctx, 60, 50, 42);
+    office(pen, 60, 50, 42);
     const seed = num(v, "seed");
     const kind = str(v, "kind") as Shrub;
     const key = `${seed}|${num(v, "height")}|${kind}`;
     let plan = shrubPlans.get(key);
     if (!plan) {
-      plan = planShrub(seed, { x: 30, y: 44 }, num(v, "height"), kind);
+      plan = planShrub(seed, num(v, "height") / PX_M, kind);
       shrubPlans.set(key, plan);
     }
     const g = num(v, "growth");
-    const pose = rustleOf(plan, g, look, t, (_, ago) => blowing(v, t - ago));
+    const pose = posePx(rustleOf(plan, g, look, t, windOf(v), 30 / PX_M), PX_M);
     const painted = `${key}|${g}|${look.k}|${look.p}`;
     const it = plan;
     drawPosed(
-      ctx,
+      rooted(pen, 30, 44),
       `shrub${seed}`,
       painted,
-      (rec, part) => paintShrubParts(rec, it, g, look, part),
+      (rec, part) => paintShrubParts(rec, it, g, look, part, PX_M),
       pose,
     );
   },
@@ -415,31 +430,34 @@ const climber: Unit = {
     ...WIND,
   ],
   size: () => ({ w: 60, h: 150 }),
-  draw: (ctx, v, t) => {
+  draw: ({ pen }, v, t) => {
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
-    office(ctx, 60, 150, 144);
+    office(pen, 60, 150, 144);
     const seed = num(v, "seed");
     const kind = str(v, "kind") as Climber;
     const key = `${seed}|${num(v, "height")}|${kind}`;
     let plan = climberPlans.get(key);
     if (!plan) {
-      plan = planClimber(seed, { x: 30, y: 144 }, num(v, "height"), kind);
+      plan = planClimber(seed, num(v, "height") / PX_M, kind);
       climberPlans.set(key, plan);
     }
     const reach = num(v, "reach");
-    const pose = rustleOf(plan, 1, look, t, (_, ago) => blowing(v, t - ago));
+    const pose = posePx(rustleOf(plan, 1, look, t, windOf(v), 30 / PX_M), PX_M);
     const it = plan;
     drawPosed(
-      ctx,
+      rooted(pen, 30, 144),
       `climber${seed}`,
       `${key}|${reach}|${look.k}|${look.p}`,
-      (rec, part) => paintClimberParts(rec, it, reach, look, part),
+      (rec, part) => paintClimberParts(rec, it, reach, look, part, PX_M),
       pose,
     );
   },
 };
 const climberPlans = new Map<string, ClimberPlan>();
+
+/** Where the grass bench's three tufts come up, px; the patch is rooted at the first. */
+const BENCH_TUFTS = [14, 30, 46].map((x, i) => ({ x, y: 18 + (i % 2) * 3 }));
 
 /** A patch of grass, three tufts, waving as on friday. */
 const grass: Unit = {
@@ -461,32 +479,32 @@ const grass: Unit = {
     ...SEASON_WIND,
   ],
   size: () => ({ w: 60, h: 24 }),
-  draw: (ctx, v, t) => {
+  draw: ({ pen }, v, t) => {
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
-    office(ctx, 60, 24, 4);
-    if (look.snow > 0) {
-      ctx.globalAlpha = look.snow;
-      ctx.fillStyle = "#f4f7fa";
-      ctx.fillRect(0, 4, 60, 20);
-      ctx.globalAlpha = 1;
-    }
+    office(pen, 60, 24, 4);
+    fillFaded(pen, "#f4f7fa", look.snow, 0, 4, 60, 20);
     const seed = num(v, "seed");
+    const [root] = BENCH_TUFTS;
     let plan = grassPlans.get(seed);
     if (!plan) {
-      const tufts = [14, 30, 46].map((x, i) => ({ x, y: 18 + (i % 2) * 3, delay: 0 }));
-      plan = planGrass(seed, tufts);
+      const tufts = BENCH_TUFTS.map((p) => ({
+        x: (p.x - root.x) / PX_M,
+        y: (root.y - p.y) / PX_M,
+      }));
+      plan = planGrass(seed, tufts, 1 / PX_M);
       grassPlans.set(seed, plan);
     }
-    // A tuft's growth by its clock: a full tuft is GROW_S seconds old.
-    const since = num(v, "growth") * 30;
-    const pose = rustleOf(plan, 1, look, t, (_, ago) => blowing(v, t - ago));
+    // Each tuft come up as far as `growth` has it, eased as in the room.
+    const growth = num(v, "growth");
+    const grown = BENCH_TUFTS.map(() => smooth(growth));
+    const pose = posePx(rustleOf(plan, 1, look, t, windOf(v), root.x / PX_M), PX_M);
     const it = plan;
     drawPosed(
-      ctx,
+      rooted(pen, root.x, root.y),
       `grass${seed}`,
-      `${seed}|${since}|${look.k}|${look.p}`,
-      (rec, part) => paintGrassParts(rec, it, since, look, part),
+      `${seed}|${growth}|${look.k}|${look.p}`,
+      (rec, part) => paintGrassParts(rec, it, grown, look, part, PX_M),
       pose,
     );
   },
@@ -536,33 +554,28 @@ const flower: Unit = {
     ...WIND,
   ],
   size: () => ({ w: 40, h: 64 }),
-  draw: (ctx, v, t) => {
+  draw: ({ pen }, v, t) => {
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
-    office(ctx, 40, 64, 56);
-    if (look.snow > 0) {
-      ctx.globalAlpha = look.snow;
-      ctx.fillStyle = "#f4f7fa";
-      ctx.fillRect(0, 56, 40, 8);
-      ctx.globalAlpha = 1;
-    }
+    office(pen, 40, 64, 56);
+    fillFaded(pen, "#f4f7fa", look.snow, 0, 56, 40, 8);
     const seed = num(v, "seed");
     const kind = str(v, "kind") as Flower;
     const key = `${seed}|${kind}|${num(v, "room")}`;
     let plan = flowerPlans.get(key);
     if (!plan) {
-      plan = planFlowers(seed, kind, { x: 20, y: 60 }, num(v, "room"));
+      plan = planFlowers(seed, kind, num(v, "room") / PX_M);
       flowerPlans.set(key, plan);
     }
     const g = num(v, "growth");
     const shut = num(v, "night") > 0 && closes(kind);
-    const pose = rustleOf(plan, g, look, t, (_, ago) => blowing(v, t - ago));
+    const pose = posePx(rustleOf(plan, g, look, t, windOf(v), 20 / PX_M), PX_M);
     const it = plan;
     drawPosed(
-      ctx,
+      rooted(pen, 20, 60),
       `flower${seed}`,
       `${key}|${g}|${look.k}|${look.p}|${shut}`,
-      (rec, part) => paintFlowerParts(rec, it, g, look, shut, part),
+      (rec, part) => paintFlowerParts(rec, it, g, look, shut, part, PX_M),
       pose,
     );
   },
@@ -594,10 +607,10 @@ const spider: Unit = {
     ...WIND,
   ],
   size: () => ({ w: 60, h: 80 }),
-  draw: (ctx, v, t) => {
-    office(ctx, 60, 80, 76);
+  draw: ({ pen }, v, t) => {
+    office(pen, 60, 80, 76);
     const len = num(v, "length") + (num(v, "climbs") ? Math.sin(t * 0.6) * 12 : 0);
-    drawSpider(ctx, 30, 0, len, t, (ago) => blowing(v, t - ago));
+    drawSpider(pen, 30, 0, len, t, (ago) => blowing(v, t - ago));
   },
 };
 
@@ -632,22 +645,15 @@ const wood: Unit = {
   ],
   size: () => ({ w: SCENE_W, h: SCENE_H }),
   animated: true,
-  draw: (ctx, v, t) => {
+  draw: ({ pen }, v, t) => {
     const since = num(v, "since") + t;
     const seed = num(v, "seed");
     const knocks = knocksOf(seed);
-    office(ctx, SCENE_W, SCENE_H, FLOOR_Y);
-    // Sheets of its own: the tiles of a grid of seeds all draw in one frame.
-    sheetScope(`wood${seed}:`);
-    drawTrees(ctx, since, seed, knocks, false);
-    drawTrees(ctx, since, seed, knocks, true);
-    sheetScope("");
-    drawGround(ctx, since);
-    sheetScope(`wood${seed}:`);
-    drawFlowers(ctx, since, seed);
-    sheetScope("");
-    drawApples(ctx, since, seed, knocks, false);
-    drawApples(ctx, since, seed, knocks, true);
+    office(pen, SCENE_W, SCENE_H, FLOOR_Y);
+    drawGround(pen, since);
+    drawTrees(pen, since, seed, knocks);
+    drawFlowers(pen, since, seed);
+    drawApples(pen, since, seed, knocks);
   },
   tap: (v, t, at) => {
     const since = num(v, "since") + t;
@@ -709,19 +715,19 @@ const sprite: Unit = {
     return { w: n * (s.w + PAD) + PAD, h: s.h + PAD * 2 };
   },
   animated: true,
-  draw: (ctx, v, t) => {
+  draw: ({ pen }, v, t) => {
     const s = SPRITES[str(v, "sprite")];
     const variant = str(v, "variant") === OWN ? undefined : str(v, "variant");
     const animation = str(v, "animation");
     if (animation === ALL_FRAMES) {
       s.frames.forEach((_, i) =>
-        drawSprite(ctx, s, PAD + i * (s.w + PAD), PAD, { frame: i, variant }),
+        paintSprite(pen, s, PAD + i * (s.w + PAD), PAD, { frame: i, variant }),
       );
       return;
     }
     // A stale animation name (another sprite was picked) falls back to frame 0.
     const frame = s.animations?.[animation] ? frameOf(s, animation, t * num(v, "fps")) : 0;
-    drawSprite(ctx, s, PAD, PAD, { frame, variant });
+    paintSprite(pen, s, PAD, PAD, { frame, variant });
   },
 };
 
@@ -741,11 +747,10 @@ const calendar: Unit = {
     },
   ],
   size: () => ({ w: CALENDAR.w + 8, h: CALENDAR.h + 10 }),
-  draw: (ctx, v) => {
-    ctx.fillStyle = "#b9c0c4";
-    ctx.fillRect(0, 0, CALENDAR.w + 8, CALENDAR.h + 10);
+  draw: ({ pen }, v) => {
+    fill(pen, "#b9c0c4", 0, 0, CALENDAR.w + 8, CALENDAR.h + 10);
     const count = num(v, "count");
-    drawCalendar(ctx, 4, 6, str(v, "day"), count < 0 ? null : count);
+    paintCalendar(pen, 4, 6, str(v, "day"), count < 0 ? null : count);
   },
 };
 
@@ -769,12 +774,11 @@ const text: Unit = {
     w: pixelTextWidth(str(v, "text"), num(v, "scale")) + 6,
     h: 7 * num(v, "scale") + 6,
   }),
-  draw: (ctx, v) => {
+  draw: ({ pen }, v) => {
     const { ink, ground } = INKS[str(v, "ink")];
     const { w, h } = text.size(v);
-    ctx.fillStyle = ground;
-    ctx.fillRect(0, 0, w, h);
-    drawPixelText(ctx, str(v, "text"), 3, 3, ink, { scale: num(v, "scale") });
+    fill(pen, ground, 0, 0, w, h);
+    paintText(pen, str(v, "text"), 3, 3, ink, { scale: num(v, "scale") });
   },
 };
 
@@ -805,24 +809,21 @@ const charger: Unit = {
     { kind: "toggle", key: "docked", hint: "the drone asleep on it" },
   ],
   size: () => ({ w: 44, h: 36 }),
-  draw: (ctx, v, t) => {
+  draw: ({ pen }, v, t) => {
     const { tilt, up } = SUNS[str(v, "sun")];
     const docked = num(v, "docked");
-    ctx.fillStyle = up ? "#b9c0c4" : "#4a5058";
-    ctx.fillRect(0, 0, 44, 36);
-    ctx.save();
-    ctx.translate(-(BOX.x - 15), -(BOX.y - 28));
-    ctx.fillStyle = "#8a6a4a";
-    ctx.fillRect(BOX.x - 15, BOX.y + BOX.h, 44, 4);
-    drawCharger(ctx, num(v, "open"), tilt, up, docked, t);
+    fill(pen, up ? "#b9c0c4" : "#4a5058", 0, 0, 44, 36);
+    // The desk's end, its box at the tile's middle.
+    const desk = shifted(pen, { dx: -(BOX.x - 15), dy: -(BOX.y - 28) });
+    fill(desk, "#8a6a4a", BOX.x - 15, BOX.y + BOX.h, 44, 4);
+    drawCharger(desk, num(v, "open"), tilt, up, docked, t);
     const frame = frameOf(
       droneSprite as Sprite,
       docked ? "charge" : "hover",
       docked ? t * 2 : t * 16,
     );
     const y = docked ? DOCK.y : DOCK.y - 14 + Math.sin(t * 3) * 1.5;
-    drawSprite(ctx, droneSprite as Sprite, DOCK.x - 7, Math.round(y), { frame });
-    ctx.restore();
+    paintSprite(desk, droneSprite as Sprite, DOCK.x - 7, Math.round(y), { frame });
   },
 };
 

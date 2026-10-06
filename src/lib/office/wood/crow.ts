@@ -4,17 +4,20 @@
 // lands on the desk by the jar, which sends the tit off its seeds. Like everything on friday a
 // function of the clock and the seed: each visit is worked out whole from its number.
 
+import { drawApple } from "@anarkisti/korpi/plants/paint";
+
+import type { Pen } from "$lib/scene/pen";
 import { hash } from "$lib/scene/pixel";
 import { daylight } from "$lib/scene/sky";
 import crowSprite from "$lib/sprites/crow.json";
-import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
+import { frameOf, paintSprite, type Sprite } from "$lib/sprites/sprite";
 
+import { at, floorZ, footAt, Z } from "../depth";
 import { FLOOR_Y, SCENE_W } from "../engine";
 import type { Pt } from "./posed";
 import { SEASON_S, SEASONS_FROM } from "./seasons";
-import { applesDown, type Knocks, planOf, standing } from "./stand";
+import { applesDown, type Knocks, sceneOf, standFor, standing } from "./stand";
 import { birdAt, cycleAt } from "./tit";
-import { drawApple } from "./trees";
 import { climbTo, type Setting } from "./wall";
 import { windowAt } from "./weather";
 
@@ -35,6 +38,8 @@ const DESK_SPOT = { x: 170, y: 118 };
 const FLOOR_LANE = FLOOR_Y + 7;
 /** Where along the wall it may sit, if the wall still stands there. */
 const WALL_SPOTS = [34, 62, 96, 118, 204, 226, 252, 292];
+/** How far in front of its tree it sits on a branch, m. */
+const PERCH_DZ = 0.01;
 
 type Kind = "jar" | "apples" | "perch" | "floor";
 
@@ -45,8 +50,9 @@ type Visit = {
   leave: number;
   /** Which way it faces as it lands, and flies on out. */
   face: 1 | -1;
-  /** Where its feet are, set down. */
+  /** Where its feet are, set down, and how far out from the wall, m. */
   at: Pt;
+  z: number;
   from: Pt;
   to: Pt;
   /** When it caws, s into friday. */
@@ -88,10 +94,11 @@ const plan = (n: number, seed: number, setting: Setting, knocks: Knocks): Visit 
   const h = (salt: number) => hash(seed, n, salt);
   const start = startOf(n, seed);
   if (!byDay(start)) return null;
-  const flyIn = (at: Pt, face: 1 | -1) => ({
+  const flyIn = (at: Pt, z: number, face: 1 | -1) => ({
     from: { x: face > 0 ? -30 : SCENE_W + 30, y: 6 + h(63) * 24 },
     to: { x: face > 0 ? SCENE_W + 30 : -30, y: h(64) * 16 - 10 },
     at,
+    z,
     face,
   });
   const jar = jarLanding(n, seed);
@@ -101,7 +108,7 @@ const plan = (n: number, seed: number, setting: Setting, knocks: Knocks): Visit 
       land: jar,
       leave: jar + 6,
       caws: [jar + 1],
-      ...flyIn(DESK_SPOT, -1),
+      ...flyIn(DESK_SPOT, Z.deskCrow, -1),
     };
   }
   const land = start + FLY_S;
@@ -118,25 +125,28 @@ const plan = (n: number, seed: number, setting: Setting, knocks: Knocks): Visit 
       leave: land + 8,
       caws: [],
       apple: { key: a.key, j: a.j, x: a.x, takes: h(68) < 0.55 },
-      ...flyIn(at, face),
+      ...flyIn(at, floorZ(at.y), face),
     };
   }
   if (pick < 0.7) {
-    // On what is left of the wall, or else on a branch.
+    // On what is left of the wall, or else on a branch, a hair in front of its tree.
     const x = WALL_SPOTS[Math.floor(h(69) * WALL_SPOTS.length)];
     const top = climbTo(x, 0, land, seed, setting);
     const branch = standing(seed, land)
-      .map((l) => planOf(l, land).perch)
+      .map((l) => {
+        const perch = standFor(seed).planOf(l, land).perch;
+        return perch && { at: sceneOf(l, perch), z: l.z + PERCH_DZ };
+      })
       .find((p) => p !== null);
     // A broken edge in view: a wall still whole runs up out of the room.
-    const at = top >= 16 && top < 80 ? { x, y: top - 1 } : branch;
-    if (at) {
+    const on = top >= 16 && top < 80 ? { at: { x, y: top - 1 }, z: Z.hung } : branch;
+    if (on) {
       return {
         kind: "perch",
         land,
         leave: land + 7,
         caws: [land + 1.4, land + 3, land + 4.6],
-        ...flyIn(at, face),
+        ...flyIn(on.at, on.z, face),
       };
     }
   }
@@ -146,7 +156,7 @@ const plan = (n: number, seed: number, setting: Setting, knocks: Knocks): Visit 
     land,
     leave: land + 14,
     caws: h(71) < 0.4 ? [land + 9] : [],
-    ...flyIn(at, face),
+    ...flyIn(at, floorZ(at.y), face),
   };
 };
 
@@ -172,19 +182,31 @@ export const crowAtJar = (seed: number, since: number) => {
 
 type Pose = {
   feet: Pt;
+  /** How far out from the wall, m, and whether that is standing on the floor. */
+  z: number;
+  floor: boolean;
   face: 1 | -1;
   frame: number;
-  where: "floor" | "desk" | "air";
   carrying: boolean;
 };
 
-const cawing = (v: Visit, t: number) => v.caws.some((c) => t >= c - 0.1 && t < c + 0.45);
+/** A run of `CROW` played once over `s` seconds, `t` s in. */
+const once = (name: string, t: number, s: number) =>
+  frameOf(CROW, name, (t / s) * (CROW.animations?.[name]?.length ?? 1));
+
+/** The crow's frame `t` s into friday if it is cawing then: the caw run over the call, its beak
+ *  open for the 0.34 s kraa. */
+const cawAt = (v: Visit, t: number): number | null => {
+  const c = v.caws.find((c) => t >= c - 0.1 && t < c + 0.45);
+  return c === undefined ? null : once("caw", t - c + 0.1, 0.55);
+};
 
 /** Where the crow is and what it is doing `since` s into friday, if it is about. */
 const poseAt = (since: number, seed: number, setting: Setting, knocks: Knocks): Pose | null => {
   const v = visitAt(since, seed, setting, knocks);
   if (!v) return null;
   const carrying = !!v.apple?.takes;
+  // In the air it comes in from out over the room and goes back out there.
   if (since < v.land) {
     const q = 1 - (v.land - since) / FLY_S;
     const e = 1 - (1 - q) ** 2;
@@ -193,9 +215,10 @@ const poseAt = (since: number, seed: number, setting: Setting, knocks: Knocks): 
         x: v.from.x + (v.at.x - v.from.x) * e,
         y: v.from.y + (v.at.y - v.from.y) * e - Math.sin(q * Math.PI) * 8,
       },
+      z: Z.fliers + (v.z - Z.fliers) * e,
+      floor: false,
       face: v.face,
       frame: frameOf(CROW, "fly", since * 9),
-      where: "air",
       carrying: false,
     };
   }
@@ -205,9 +228,10 @@ const poseAt = (since: number, seed: number, setting: Setting, knocks: Knocks): 
     const from = { ...v.at, x: v.at.x + (v.kind === "apples" ? v.face * 7 : 0) };
     return {
       feet: { x: from.x + (v.to.x - from.x) * e, y: from.y + (v.to.y - from.y) * e },
+      z: v.z + (Z.fliers - v.z) * e,
+      floor: false,
       face: v.face,
       frame: frameOf(CROW, "fly", since * 9),
-      where: "air",
       carrying,
     };
   }
@@ -217,17 +241,12 @@ const poseAt = (since: number, seed: number, setting: Setting, knocks: Knocks): 
     // To the apple, then at it.
     const walk = Math.min(1, t / 1);
     const x = v.at.x + v.face * 7 * walk;
-    const frame = walk < 1 ? frameOf(CROW, "walk", t * 4) : Math.floor(t * 2) % 2 ? 3 : 0;
-    return { feet: { x, y: v.at.y }, face: v.face, frame, where: "floor", carrying: false };
+    const frame = walk < 1 ? frameOf(CROW, "walk", t * 4) : frameOf(CROW, "peck", (t - 1) * 4);
+    return { feet: { x, y: v.at.y }, z: v.z, floor: true, face: v.face, frame, carrying: false };
   }
-  const frame = cawing(v, since) ? 4 : v.kind === "jar" && t > 2.6 && t < 3.6 ? 3 : 0;
-  return {
-    feet: v.at,
-    face: v.face,
-    frame,
-    where: v.kind === "jar" ? "desk" : "air",
-    carrying: false,
-  };
+  const frame =
+    cawAt(v, since) ?? (v.kind === "jar" && t > 2.6 && t < 3.6 ? once("peck", t - 2.6, 1) : 0);
+  return { feet: v.at, z: v.z, floor: false, face: v.face, frame, carrying: false };
 };
 
 /** Strutting the floor: a few steps, a peck, a look round, mostly onward. */
@@ -243,32 +262,36 @@ const strut = (v: Visit, t: number, seed: number): Pose => {
     x = Math.max(20, Math.min(SCENE_W - 20, x + dir * STRIDE_PX_S * walked));
     face = dir;
     frame =
-      into < 1.4 ? frameOf(CROW, "walk", into * 4) : into < 2 ? 3 : cawing(v, v.land + t) ? 4 : 0;
+      into < 1.4
+        ? frameOf(CROW, "walk", into * 4)
+        : into < 2
+          ? once("peck", into - 1.4, 0.6)
+          : (cawAt(v, v.land + t) ?? 0);
   }
-  return { feet: { x, y: v.at.y }, face, frame, where: "floor", carrying: false };
+  return { feet: { x, y: v.at.y }, z: v.z, floor: true, face, frame, carrying: false };
 };
 
-/** The crow, if it is in the part of the room being drawn: on the `floor`, on the `desk`, or
- *  in the `air` (flying, or sitting up high). */
+/** The crow, if it is about, where it is: on the floor, the desk, the wall or a branch, or in
+ *  the air. */
 export const drawCrow = (
-  ctx: CanvasRenderingContext2D,
+  pen: Pen,
   since: number,
   seed: number,
   setting: Setting,
   knocks: Knocks,
-  where: Pose["where"],
 ) => {
   const p = poseAt(since, seed, setting, knocks);
-  if (!p || p.where !== where) return;
+  if (!p) return;
+  const into = p.floor ? footAt(pen, p.feet.y) : at(pen, p.z);
   const left = p.face > 0 ? p.feet.x - FEET.x : p.feet.x - (CROW.w - 1 - FEET.x);
-  drawSprite(ctx, CROW, left, p.feet.y - FEET.y, {
+  paintSprite(into, CROW, left, p.feet.y - FEET.y, {
     frame: p.frame,
     flip: p.face < 0 ? "h" : undefined,
   });
   // The apple it took, in its beak.
   if (p.carrying) {
     const beak = p.face > 0 ? left + CROW.w - 1 : left;
-    drawApple(ctx, beak, p.feet.y - FEET.y + 8, 2, true, 1);
+    drawApple(into, beak, p.feet.y - FEET.y + 8, 2, true, 1);
   }
 };
 

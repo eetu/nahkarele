@@ -1,134 +1,105 @@
-// Friday's trees shed what they have outgrown. A branch the rising crown has left below dies,
-// hangs on a while (`growth.ts`), and comes down: it falls turning, lands at its tree's foot,
-// settles flat, lies a few minutes and sinks into the moss. Like everything else here, a
-// function of friday's clock: when each branch goes is known from the seed.
+// Friday's trees shed what they have outgrown (korpi's `sticksOf`): a branch the rising crown
+// has left below dies, hangs on a while, and comes down, turning as it falls, lands at its
+// tree's foot, settles flat, lies a few minutes and sinks into the moss. This is the room's
+// side of it: where on the floor a stick comes to rest, and a stick painted.
 
-import { hash, rect } from "$lib/scene/pixel";
+import type { Pen } from "@anarkisti/korpi/paint";
+import {
+  type Life,
+  type Shedding,
+  type Stick,
+  stickAt,
+  stickCues,
+  sticksAt,
+} from "@anarkisti/korpi/plants";
 
-import { FLOOR_Y, G } from "../engine";
-import { shedOf } from "./growth";
-import type { Pt } from "./posed";
+import { fill } from "$lib/scene/pen";
+
+import { PX_M, ROOM_VIEW, standing } from "../depth";
 import { SEASONS_FROM } from "./seasons";
-import { ageAt, inLane, type Life, livesTo, timeOf } from "./stand";
+import { inLane, livesTo, ROOT_Y, standFor } from "./stand";
 
-/** Gravity, scene px/s², as for the wall's pieces. */
 /** A fallen branch lies this long, s, sinking into the moss over the last of it. */
 const LIES_S = 300;
 const SINKS_S = 90;
 const DEADWOOD = ["#8c877e", "#7a756c", "#9a958b"];
 
-type Stick = {
-  /** When it lets go, and when it lands, s into friday. */
-  at: number;
-  lands: number;
-  /** Its shape about its middle, and where its middle starts. */
-  pts: Pt[];
-  from: Pt;
-  w: number;
-  /** Where it comes down, the floor y it rests on, how it turns on the way, how it lies. */
-  drift: number;
-  floor: number;
-  spin: number;
-  lie: number;
-};
+/**
+ * Where a stick comes to rest, m toward the viewer from its tree's root: behind the furniture at
+ * the wall's foot, from two rows back to the root's row; in front, anywhere from the root's row
+ * to eight rows nearer. Half a row either side of those, so each row is as likely.
+ */
+const BACK_LANE = [-0.25, 0.05] as const;
+const FRONT_LANE = [-0.05, 0.85] as const;
 
-const sticks = new WeakMap<Life, Stick[]>();
+const sheddings = new WeakMap<Life, Shedding>();
 
-/** The branches `life` drops while it stands and the year turns, as sticks. */
-const sticksOf = (life: Life): Stick[] => {
-  const known = sticks.get(life);
+/** What `seed`'s `life` drops while it stands and the year turns. */
+const sheddingOf = (seed: number, life: Life): Shedding => {
+  const known = sheddings.get(life);
   if (known) return known;
-  const death = ageAt(life, life.dies);
-  const out: Stick[] = [];
-  shedOf(life.arch).forEach((shed, i) => {
-    const at = timeOf(life, shed.age);
+  const stand = standFor(seed);
+  const spec: Shedding = {
+    arch: life.arch,
+    timeOf: (age) => stand.timeOf(life, age),
+    dies: stand.ageAt(life, life.dies),
     // What goes while the wood grows in, years in minutes, just goes.
-    if (shed.age >= death || at < SEASONS_FROM) return;
-    const n = shed.pts.length;
-    const from = {
-      x: shed.pts.reduce((s, p) => s + p.x, 0) / n,
-      y: shed.pts.reduce((s, p) => s + p.y, 0) / n,
-    };
-    const first = shed.pts[0];
-    const last = shed.pts[n - 1];
-    const h = (salt: number) => hash(life.arch.seed, i, salt);
-    // Behind the furniture it rests at the wall's foot; in front, anywhere on the near floor.
-    const floor = inLane(life, true)
-      ? FLOOR_Y + 3 + Math.floor(h(1) * 9)
-      : FLOOR_Y + 1 + Math.floor(h(1) * 3);
-    const lands = at + Math.sqrt((2 * Math.max(1, floor - from.y)) / G);
-    out.push({
-      at,
-      lands,
-      pts: shed.pts.map((p) => ({ x: p.x - from.x, y: p.y - from.y })),
-      from,
-      w: shed.w,
-      drift: (h(2) - 0.5) * 16,
-      floor,
-      spin: (h(3) - 0.5) * 7,
-      lie: -Math.atan2(last.y - first.y, last.x - first.x),
-    });
-  });
-  sticks.set(life, out);
-  return out;
+    after: SEASONS_FROM,
+    // A quarter metre over the room's top.
+    reach: (ROOT_Y + 10) / PX_M,
+    lane: inLane(life, true) ? FRONT_LANE : BACK_LANE,
+    lies: LIES_S,
+    sinks: SINKS_S,
+  };
+  sheddings.set(life, spec);
+  return spec;
 };
 
-/** Every stick of `seed`'s wood in the air or on the ground at `since`. */
-const around = (seed: number, since: number) =>
-  livesTo(seed, since).flatMap((life) =>
-    sticksOf(life)
-      .filter((s) => s.at <= since && since < s.lands + LIES_S)
-      .map((stick) => ({ life, stick })),
-  );
-
-/** One stick, `t` s after it let go. */
-const drawStick = (ctx: CanvasRenderingContext2D, s: Stick, t: number) => {
-  const fall = s.lands - s.at;
-  const down = t >= fall;
-  const angle = down ? s.lie : s.spin * t;
+/** One stick of `life`'s at `t`: falling, turning and drifting, then lying flat and sinking. */
+const drawStick = (pen: Pen, life: Life, spec: Shedding, s: Stick, t: number) => {
+  const at = stickAt(spec, s, t);
+  const into = standing(pen, life.z + (at.down ? s.z : at.z));
+  const where = (y: number, z: number) => ROOM_VIEW.project({ x: life.x + at.x, y, z: life.z + z });
+  // Turned as seen: + clockwise.
+  const angle = -at.angle;
   const c = Math.cos(angle);
   const n = Math.sin(angle);
-  const x = s.from.x + s.drift * Math.min(t, fall);
-  const lying = t - fall;
-  const sink = down ? Math.max(0, (lying - (LIES_S - SINKS_S)) / SINKS_S) * 3 : 0;
-  const y = down ? s.floor - 1 + sink : s.from.y + 0.5 * G * t * t;
-  for (let k = 0; k < s.pts.length; k++) {
-    const p = s.pts[k];
-    const q = s.pts[Math.min(s.pts.length - 1, k + 1)];
+  const sink = at.sink * PX_M;
+  // Down, it lies on the floor of its row, a pixel above it, sinking.
+  const floor = Math.round(where(0, s.z).sy) - 1;
+  const mid = at.down ? { sx: where(0, s.z).sx, sy: floor + sink } : where(at.y, at.z);
+  const pts = s.pts.map((p) => ({ x: p.x * PX_M, y: -p.y * PX_M }));
+  const w = Math.round(s.w * PX_M);
+  for (let k = 0; k < pts.length; k++) {
+    const p = pts[k];
+    const q = pts[Math.min(pts.length - 1, k + 1)];
     const steps = Math.max(1, Math.ceil(Math.hypot(q.x - p.x, q.y - p.y)));
     for (let j = 0; j < steps; j++) {
       const u = j / steps;
       const px = p.x + (q.x - p.x) * u;
       const py = p.y + (q.y - p.y) * u;
       // Down, it lies flat: no part of it below the floor it rests on.
-      const ry = down ? Math.min(0, px * n + py * c) * 0.15 : px * n + py * c;
-      const sx = Math.round(x + px * c - py * n);
-      const sy = Math.round(y + ry);
-      if (down && sy > s.floor - 1 + Math.floor(sink)) continue;
-      rect(ctx, DEADWOOD[(k + j) % 3], sx, sy, k < s.pts.length / 3 ? s.w : 1, 1);
+      const ry = at.down ? Math.min(0, px * n + py * c) * 0.15 : px * n + py * c;
+      const sx = Math.round(mid.sx + px * c - py * n);
+      const sy = Math.round(mid.sy + ry);
+      if (at.down && sy > floor + Math.floor(sink)) continue;
+      fill(into, DEADWOOD[(k + j) % 3], sx, sy, k < pts.length / 3 ? w : 1, 1);
     }
   }
 };
 
-/** The branches coming down or lying at the feet of one lane's trees, behind the furniture or
- *  in `front` of it. */
-export const drawSticks = (
-  ctx: CanvasRenderingContext2D,
-  since: number,
-  seed: number,
-  front: boolean,
-) => {
-  for (const { life, stick } of around(seed, since)) {
-    if (inLane(life, front)) drawStick(ctx, stick, since - stick.at);
+/** The branches coming down or lying at the trees' feet, each at its own depth. */
+export const drawSticks = (pen: Pen, since: number, seed: number) => {
+  for (const life of livesTo(seed, since)) {
+    const spec = sheddingOf(seed, life);
+    for (const s of sticksAt(spec, since)) drawStick(pen, life, spec, s, since);
   }
 };
 
-/** Where branches landed between two moments of friday: for the sound. */
+/** Where branches landed between two moments of friday, scene x: for the sound. */
 export const shedCue = (from: number, to: number, seed: number): number[] => {
   if (to <= from) return [];
   return livesTo(seed, to).flatMap((life) =>
-    sticksOf(life)
-      .filter((s) => s.lands > from && s.lands <= to)
-      .map((s) => s.from.x + s.drift * (s.lands - s.at)),
+    stickCues(sheddingOf(seed, life), from, to).map((c) => (life.x + c.p.x) * PX_M),
   );
 };

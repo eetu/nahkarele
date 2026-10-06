@@ -4,7 +4,8 @@
 // fills the box; at dusk the drone comes down onto the box and sleeps the night there, its
 // rotors still, and rises at dawn, as the birds do. All of it read off friday's clock.
 
-import { rect, smooth } from "$lib/scene/pixel";
+import { fill, type Pen } from "$lib/scene/pen";
+import { smooth } from "$lib/scene/pixel";
 import { daylight } from "$lib/scene/sky";
 
 import { dayAt } from "./wood/daylight";
@@ -69,15 +70,15 @@ export const tiltAt = (since: number) => {
 };
 
 /** The box as the working week has it: three lights on its top. */
-export const drawBox = (ctx: CanvasRenderingContext2D) => {
-  rect(ctx, C.box, BOX.x, BOX.y, BOX.w, BOX.h);
-  for (let i = 0; i < 3; i++) rect(ctx, C.lit, BOX.x + 2 + i * 4, BOX.y + 1, 2, 2);
+export const drawBox = (pen: Pen) => {
+  fill(pen, C.box, BOX.x, BOX.y, BOX.w, BOX.h);
+  for (let i = 0; i < 3; i++) fill(pen, C.lit, BOX.x + 2 + i * 4, BOX.y + 1, 2, 2);
 };
 
 /** Its light: amber while the sun fills it, green while the drone takes it, flashing as the
  *  charger comes out. */
 export const drawChargerLight = (
-  ctx: CanvasRenderingContext2D,
+  pen: Pen,
   open: number,
   sunUp: boolean,
   docked: number,
@@ -86,26 +87,26 @@ export const drawChargerLight = (
   if (open <= 0) return;
   const on = open < 1 ? Math.floor(t * 8) % 2 === 0 : docked > 0.5 || Math.floor(t * 1.5) % 2;
   if (!on) return;
-  rect(ctx, docked > 0.5 ? C.full : sunUp ? C.sun : C.full, BOX.x + 2, BOX.y + 1, 2, 2);
+  fill(pen, docked > 0.5 ? C.full : sunUp ? C.sun : C.full, BOX.x + 2, BOX.y + 1, 2, 2);
 };
 
 /** The box with the charger `open` of the way out of it, its panel tilted `tilt` px. */
 export const drawCharger = (
-  ctx: CanvasRenderingContext2D,
+  pen: Pen,
   open: number,
   tilt: number,
   sunUp: boolean,
   docked: number,
   t: number,
 ) => {
-  drawBox(ctx);
+  drawBox(pen);
   if (open <= 0) return;
   // The mast comes up out of the back of the box, then the panel unfolds from its top over
   // the box.
   const tall = Math.round(MAST * smooth(Math.min(1, open / 0.6)));
   const wide = Math.round(PANEL * smooth(Math.max(0, (open - 0.55) / 0.45)));
   const mx = BOX.x + BOX.w - 2;
-  rect(ctx, C.mast, mx, BOX.y - tall, 1, tall);
+  fill(pen, C.mast, mx, BOX.y - tall, 1, tall);
   if (wide > 0) {
     const top = BOX.y - tall;
     for (let i = 0; i < wide; i++) {
@@ -113,17 +114,17 @@ export const drawCharger = (
       const x = mx - i;
       const y = top - Math.round((tilt * i) / (PANEL - 1));
       const cell = i % 3 === 2 || i === wide - 1 ? C.grid : C.cell;
-      rect(ctx, cell, x, y - 2, 1, 2);
-      rect(ctx, C.frame, x, y, 1, 1);
+      fill(pen, cell, x, y - 2, 1, 2);
+      fill(pen, C.frame, x, y, 1, 1);
     }
   }
-  drawChargerLight(ctx, open, sunUp, docked, t);
+  drawChargerLight(pen, open, sunUp, docked, t);
 };
 
 /** The charger as friday has it `since` seconds in. */
-export const drawChargerAt = (ctx: CanvasRenderingContext2D, since: number) =>
-  drawCharger(ctx, openAt(since), tiltAt(since), dayAt(since).sun !== null, dockAt(since), since);
+export const drawChargerAt = (pen: Pen, since: number) =>
+  drawCharger(pen, openAt(since), tiltAt(since), dayAt(since).sun !== null, dockAt(since), since);
 
-/** Only its light, for drawing over the night. */
-export const drawChargerLightAt = (ctx: CanvasRenderingContext2D, since: number) =>
-  drawChargerLight(ctx, openAt(since), dayAt(since).sun !== null, dockAt(since), since);
+/** Only its light, for a glowing pen. */
+export const drawChargerLightAt = (pen: Pen, since: number) =>
+  drawChargerLight(pen, openAt(since), dayAt(since).sun !== null, dockAt(since), since);

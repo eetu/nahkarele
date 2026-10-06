@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { clear, presenter, type Raster, raster, rasterPen } from "@anarkisti/korpi/paint";
+
   import type { Unit, Values } from "./units";
 
   type Props = { unit: Unit; values: Values; t: number; zoom: number; label?: string };
@@ -9,6 +11,11 @@
   const size = $derived(unit.size(values));
   /** Bumped by a tap, so a paused tile still shows what the tap did. */
   let taps = $state(0);
+
+  /** What the unit paints into, made again when its size changes; shown as painted, by day. */
+  let scene: Raster | null = null;
+  const shows = presenter();
+  $effect(() => () => shows.dispose());
 
   const onTap = (e: PointerEvent) => {
     if (!unit.tap || !canvas) return;
@@ -23,13 +30,16 @@
   $effect(() => {
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
+    const [w, h] = [Math.ceil(size.w), Math.ceil(size.h)];
+    if (!scene || scene.w !== w || scene.h !== h) scene = raster(w, h);
     const k = zoom * (window.devicePixelRatio || 1);
-    canvas.width = size.w * k;
-    canvas.height = size.h * k;
-    ctx.setTransform(k, 0, 0, k, 0, 0);
-    ctx.imageSmoothingEnabled = false;
+    canvas.width = w * k;
+    canvas.height = h * k;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     void taps;
-    unit.draw(ctx, values, t);
+    clear(scene);
+    unit.draw({ pen: rasterPen(scene), scene }, values, t);
+    shows.present(ctx, scene, 0, 0, k);
   });
 </script>
 

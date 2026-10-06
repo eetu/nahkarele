@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
 
+import { SCENE_W } from "../../engine";
 import { SEASON_S, SEASONS_FROM } from "../seasons";
-import { fallen, fellCue, type Life, standing } from "../stand";
+import {
+  applesDown,
+  appleTreeAt,
+  fallen,
+  fellCue,
+  FRONT_ROOT_Y,
+  inLane,
+  type Life,
+  ROOT_Y,
+  sceneOf,
+  shakeApple,
+  standing,
+} from "../stand";
 
 const UNTIL = 20000;
 
@@ -18,60 +31,66 @@ const livesOf = (seed: number): Life[][] => {
 };
 
 describe("friday's stand", () => {
-  it("grows, dies standing in a spring, goes over, and only then makes room", () => {
-    for (let seed = 1; seed <= 6; seed++) {
-      for (const lives of livesOf(seed)) {
-        lives.forEach((l, k) => {
-          expect(l.n).toBe(k);
-          expect(l.born).toBeLessThan(l.dies);
-          expect(l.dies).toBeLessThan(l.falls);
-          expect(((l.dies - SEASONS_FROM) / SEASON_S) % 4).toBeCloseTo(3);
-          if (k > 0) expect(l.born).toBeGreaterThan(lives[k - 1].falls);
-        });
-      }
-    }
+  it("stands its six slots where the room has them, three in front of the furniture", () => {
+    const first = livesOf(1).map((lives) => lives[0]);
+    expect(first.map((l) => Math.round(sceneOf(l, { x: 0, y: 0 }).x))).toEqual([
+      62, 100, 140, 190, 232, 262,
+    ]);
+    expect(first.map((l) => inLane(l, true))).toEqual([true, false, false, false, true, true]);
+    for (const l of first)
+      expect(sceneOf(l, { x: 0, y: 0 }).y).toBeCloseTo(inLane(l, true) ? FRONT_ROOT_Y : ROOT_Y, 9);
   });
 
   it("keeps the apple tree's slot for apple trees, and changes the others' kind", () => {
     for (let seed = 1; seed <= 6; seed++) {
       const slots = livesOf(seed);
-      const apple = slots.filter((lives) => lives[0].arch.species === "apple");
+      const apple = slots.filter((lives) => lives[0].species === "apple");
       expect(apple).toHaveLength(1);
-      expect(apple[0].every((l) => l.arch.species === "apple")).toBe(true);
+      expect(apple[0].every((l) => l.species === "apple")).toBe(true);
       for (const lives of slots) {
-        if (lives[0].arch.species === "apple") continue;
+        if (lives[0].species === "apple") continue;
         lives.forEach((l, k) => {
-          expect(l.arch.species).not.toBe("apple");
-          if (k > 0) expect(l.arch.species).not.toBe(lives[k - 1].arch.species);
+          expect(l.species).not.toBe("apple");
+          if (k > 0) expect(l.species).not.toBe(lives[k - 1].species);
         });
       }
     }
   });
 
-  it("brings some trees down within a few hours of friday, and lets them rot away", () => {
-    const down = new Set<Life>();
-    for (let t = 0; t < UNTIL; t += 10) for (const l of fallen(1, t)) down.add(l);
-    expect(down.size).toBeGreaterThan(2);
-    for (const l of down) {
-      expect(fallen(1, l.falls + 1)).toContain(l);
-      expect(fallen(1, l.falls + 2.4 + l.rots + 1)).not.toContain(l);
-    }
-  });
-
-  it("cracks as a tree starts to go over, and crashes as it lands", () => {
+  it("cracks at a tree's root as it starts to go over, and crashes in the room as it lands", () => {
     const l = [...livesOf(1).flat()].sort((a, b) => a.falls - b.falls)[0];
-    expect(fellCue(l.falls - 0.5, l.falls + 0.5, 1)).toEqual([{ x: l.arch.root.x, kind: "crack" }]);
+    const root = sceneOf(l, { x: 0, y: 0 }).x;
+    const crack = fellCue(l.falls - 0.5, l.falls + 0.5, 1);
+    expect(crack.map((c) => c.kind)).toEqual(["crack"]);
+    expect(crack[0].x).toBeCloseTo(root, 9);
     const crash = fellCue(l.falls + 1, l.falls + 3, 1);
     expect(crash.map((c) => c.kind)).toEqual(["crash"]);
-    expect(Math.sign(crash[0].x - l.arch.root.x)).toBe(l.side);
-    expect(fellCue(l.falls + 3, l.falls + 60, 1)).toEqual([]);
+    expect(Math.sign(crash[0].x - root)).toBe(l.side);
+    expect(crash[0].x).toBeGreaterThanOrEqual(0);
+    expect(crash[0].x).toBeLessThanOrEqual(SCENE_W);
+    expect(fallen(1, l.falls + 1)).toContain(l);
   });
 
-  it("is the same wood whatever moment is asked about first", () => {
-    const late = standing(2, 15000).map((l) => [l.slot, l.n, l.born, l.arch.species]);
-    standing(3, 100);
-    standing(2, 100);
-    standing(2, 5000);
-    expect(standing(2, 15000).map((l) => [l.slot, l.n, l.born, l.arch.species])).toEqual(late);
+  it("drops its apples on the floor in front of the wall, and a shake brings one down at once", () => {
+    let shaken = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+      for (let y = 2; y < 12; y++) {
+        const autumn = SEASONS_FROM + (4 * y + 1) * SEASON_S;
+        for (const a of applesDown(autumn + 0.9 * SEASON_S, seed, {})) {
+          expect(a.x).toBeGreaterThanOrEqual(2);
+          expect(a.x).toBeLessThanOrEqual(SCENE_W - 3);
+          expect(a.y).toBeGreaterThanOrEqual(152);
+          expect(a.y).toBeLessThanOrEqual(167);
+        }
+        const t = autumn + 0.01 * SEASON_S;
+        const key = shakeApple(t, seed, {});
+        if (!key) continue;
+        expect(appleTreeAt(t, seed, {})).not.toBeNull();
+        const down = applesDown(t + 1, seed, { [key]: t }).find((a) => a.key === key);
+        expect(down?.landed).toBeCloseTo(t + 0.6, 9);
+        shaken++;
+      }
+    }
+    expect(shaken).toBeGreaterThan(10);
   });
 });

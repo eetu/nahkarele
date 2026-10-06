@@ -1,20 +1,25 @@
 // What lives in the wood: bugs, a deer, a rabbit, a fox, a hedgehog in the autumn litter,
-// butterflies, an owl, fireflies. Each comes and goes by the clock.
+// butterflies, an owl, fireflies. Each comes and goes by the clock, and is painted where it is:
+// on the floor at the depth of its feet, on the wall, on its tree's branch, or in the air.
+
+import { flipped, type Pen, shifted } from "@anarkisti/korpi/paint";
+import { drawApple } from "@anarkisti/korpi/plants/paint";
 
 import { prefersReducedMotion } from "$lib/keys";
-import { hash, ramp, rect } from "$lib/scene/pixel";
+import { fadedPen, fill, fillFaded } from "$lib/scene/pen";
+import { hash, ramp } from "$lib/scene/pixel";
 import butterfly from "$lib/sprites/butterfly.json";
 import deer from "$lib/sprites/deer.json";
 import fox from "$lib/sprites/fox.json";
 import hedgehog from "$lib/sprites/hedgehog.json";
 import owl from "$lib/sprites/owl.json";
 import rabbit from "$lib/sprites/rabbit.json";
-import { drawSprite, frameOf, type Sprite } from "$lib/sprites/sprite";
+import { frameOf, paintSprite, type Sprite } from "$lib/sprites/sprite";
 
+import { at, footAt, Z } from "../depth";
 import { FLOOR_Y, G, SCENE_W } from "../engine";
 import { type Season, seasonAt, snowCover } from "./seasons";
-import { hedgehogApple, type Knocks, planOf, poseAt, standing } from "./stand";
-import { drawApple } from "./trees";
+import { hedgehogApple, type Knocks, movedPx, poseAt, sceneOf, standFor, standing } from "./stand";
 import { feltBy, historyOf, springOf, windAt } from "./wind";
 
 const S = {
@@ -29,8 +34,16 @@ const S = {
 /** How high up the wall a climber at `x` can get on its way to `y`: no higher than it stands. */
 export type Climb = (x: number, y: number) => number;
 
-/** Things that move in once nobody is looking: ants, ladybugs, a snail. */
-const drawCritters = (ctx: CanvasRenderingContext2D, since: number, climb: Climb) => {
+/** `pen` with its origin at (x, y), the top-left of a `w` px wide animal; facing left
+ *  (`face` -1), mirrored across the animal's middle. */
+const facing = (pen: Pen, x: number, y: number, w: number, face: 1 | -1): Pen => {
+  const at = shifted(pen, { dx: x, dy: y });
+  return face < 0 ? flipped(at, w / 2) : at;
+};
+
+/** Things that move in once nobody is looking: ants and ladybugs on the floor, a snail on the
+ *  wall. */
+const drawCritters = (pen: Pen, since: number, climb: Climb) => {
   const step = Math.floor(since * 8);
   // The floor's small life goes under as the snow comes, and back out as it melts.
   const bare = Math.max(0, 1 - snowCover(since) * 1.6);
@@ -43,28 +56,31 @@ const drawCritters = (ctx: CanvasRenderingContext2D, since: number, climb: Climb
     const along = (((since * speed + i * 53) % span) + span) % span;
     const x = Math.round(dir > 0 ? along - 10 : SCENE_W + 10 - along);
     const y = FLOOR_Y + 3 + ((i * 7) % 24);
-    rect(ctx, "#15120f", x, y, 3, 1);
+    const ant = footAt(pen, y + 1);
+    fill(ant, "#15120f", x, y, 3, 1);
     const legs = (step + i) % 2;
-    rect(ctx, "#15120f", x + legs, y + 1, 1, 1);
-    rect(ctx, "#15120f", x + 2 - legs, y - 1, 1, 1);
+    fill(ant, "#15120f", x + legs, y + 1, 1, 1);
+    fill(ant, "#15120f", x + 2 - legs, y - 1, 1, 1);
   }
   // Ladybugs, dawdling on the moss.
   for (let i = 0; i < Math.floor(Math.min(4, Math.floor((since - 20) / 12)) * bare); i++) {
     const x = Math.round(40 + i * 70 + Math.sin(since * 0.25 + i * 2) * 26);
     const y = Math.round(FLOOR_Y + 6 + i * 5 + Math.sin(since * 0.4 + i) * 3);
-    rect(ctx, "#d0342c", x, y, 3, 2);
-    rect(ctx, "#15120f", x + 1, y, 1, 2);
-    rect(ctx, "#15120f", x + (Math.sin(since * 0.25 + i * 2) > 0 ? 3 : -1), y, 1, 1);
+    const bug = footAt(pen, y + 1);
+    fill(bug, "#d0342c", x, y, 3, 2);
+    fill(bug, "#15120f", x + 1, y, 1, 2);
+    fill(bug, "#15120f", x + (Math.sin(since * 0.25 + i * 2) > 0 ? 3 : -1), y, 1, 1);
   }
   // A snail, climbing the wall by the window at snail speed, as far as there is wall to climb.
   if (since > 15) {
     const x = 96;
     const want = Math.round(Math.max(64, FLOOR_Y - 4 - (since - 15) * 0.8));
     const y = Math.max(want, climb(x + 1, want - 1) + 1);
-    rect(ctx, "#8a6a4a", x, y, 3, 3);
-    rect(ctx, "#5e4726", x + 1, y + 1, 1, 1);
-    rect(ctx, "#c8b89a", x - 1, y + 3, 5, 1);
-    rect(ctx, "#c8b89a", x - 1, y - 1, 1, 1);
+    const snail = at(pen, Z.onWall);
+    fill(snail, "#8a6a4a", x, y, 3, 3);
+    fill(snail, "#5e4726", x + 1, y + 1, 1, 1);
+    fill(snail, "#c8b89a", x - 1, y + 3, 5, 1);
+    fill(snail, "#c8b89a", x - 1, y - 1, 1, 1);
   }
 };
 
@@ -92,7 +108,7 @@ const swingOf = (len: number) => {
  * works its legs.
  */
 export const drawSpider = (
-  ctx: CanvasRenderingContext2D,
+  pen: Pen,
   x0: number,
   top: number,
   len: number,
@@ -106,18 +122,16 @@ export const drawSpider = (
   const dx = Math.max(-reach, Math.min(reach, swing));
   const drop = Math.round(Math.sqrt(length * length - dx * dx));
   const bow = 0.15 * dx;
-  ctx.globalAlpha = 0.6;
   for (let ty = 0; ty < drop; ty++) {
     const u = ty / drop;
-    rect(ctx, "#d8dde2", x0 + dx * u + bow * 4 * u * (1 - u), top + ty);
+    fillFaded(pen, "#d8dde2", 0.6, x0 + dx * u + bow * 4 * u * (1 - u), top + ty);
   }
-  ctx.globalAlpha = 1;
   const x = Math.round(x0 + dx);
   const y = top + drop;
-  rect(ctx, "#15120f", x - 1, y, 3, 2);
+  fill(pen, "#15120f", x - 1, y, 3, 2);
   const kick = Math.floor(t * 8) % 2;
-  rect(ctx, "#15120f", x - 2, y + kick, 1, 1);
-  rect(ctx, "#15120f", x + 2, y + 1 - kick, 1, 1);
+  fill(pen, "#15120f", x - 2, y + kick, 1, 1);
+  fill(pen, "#15120f", x + 2, y + 1 - kick, 1, 1);
 };
 
 /** How long the room's spider lets its thread out, px, and how far it climbs up and down it. */
@@ -125,24 +139,28 @@ const SPIDER_LEN = 34;
 const SPIDER_CLIMB = 12;
 
 /** The room's spider, from the ceiling once things have moved in, in friday's wind. */
-const drawRoomSpider = (ctx: CanvasRenderingContext2D, since: number, seed: number) => {
+const drawRoomSpider = (pen: Pen, since: number, seed: number) => {
   if (since <= 25) return;
   const calm = prefersReducedMotion() ? 0.3 : 1;
   const len = SPIDER_LEN + Math.sin(since * 0.6) * SPIDER_CLIMB;
-  drawSpider(ctx, SPIDER_X, 0, len, since, (ago) => windAt(since - ago, seed, SPIDER_X) * calm);
+  const wind = (ago: number) => windAt(since - ago, seed, SPIDER_X) * calm;
+  drawSpider(at(pen, Z.spider), SPIDER_X, 0, len, since, wind);
 };
 
 /**
- * Once the moss is in, a deer wanders through every so often: in from one side, two
- * stops to graze, out the other. Each visit's direction and pace come from its index.
+ * Once the moss is in, a roe buck wanders through every so often: in from one side, two
+ * stops to graze, out the other. Each visit's direction and pace come from its index. From
+ * mid-autumn to mid-spring it is grey-brown, its antlers in velvet.
  */
 const DEER_FROM = 40;
 const DEER_CYCLE = 75;
 const DEER_SPEED = 16;
 /** Scene px the deer covers in one pass through its walk frames. */
 const DEER_STRIDE = 22;
+/** The row its hooves are on: well out on the floor. */
+const DEER_FOOT = FLOOR_Y + 25;
 
-export const drawDeer = (ctx: CanvasRenderingContext2D, since: number) => {
+export const drawDeer = (pen: Pen, since: number) => {
   if (since < DEER_FROM) return;
   const n = Math.floor((since - DEER_FROM) / DEER_CYCLE);
   const c = (since - DEER_FROM) % DEER_CYCLE;
@@ -180,11 +198,10 @@ export const drawDeer = (ctx: CanvasRenderingContext2D, since: number) => {
   const frame = grazing
     ? frameOf(S.deer, "graze", since * 3)
     : frameOf(S.deer, "walk", (along / DEER_STRIDE) * (S.deer.animations?.walk.length ?? 1));
-  ctx.save();
-  ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 26 - S.deer.h);
-  ctx.scale(face, 1);
-  drawSprite(ctx, S.deer, 0, 0, { frame });
-  ctx.restore();
+  const at = facing(footAt(pen, DEER_FOOT), Math.round(x), DEER_FOOT + 1 - S.deer.h, w, face);
+  const { k, p } = seasonAt(since);
+  const grey = k === 2 || (k === 1 && p > 0.4) || (k === 3 && p < 0.6);
+  paintSprite(at, S.deer, 0, 0, { frame, variant: grey ? "winter" : undefined });
 };
 
 // --- Butterflies ----------------------------------------------------------------------
@@ -194,12 +211,7 @@ const BUTTERFLIES_FROM = 70;
 const FLOWER_X = [58, 104, 218, 262];
 const WINGS = [undefined, "white", "blue", "violet"];
 
-const drawButterflies = (
-  ctx: CanvasRenderingContext2D,
-  since: number,
-  season: Season,
-  seed: number,
-) => {
+const drawButterflies = (pen: Pen, since: number, season: Season, seed: number) => {
   // Summer, and late spring.
   const on = season.k === 0 ? 1 : season.k === 3 ? ramp(season.p, 0.5, 0.8) : 0;
   const n = Math.round(Math.min(5, Math.floor((since - BUTTERFLIES_FROM) / 18)) * on);
@@ -208,7 +220,7 @@ const drawButterflies = (
     const x0 = ax + Math.sin(since * 0.35 + i) * 18 + Math.sin(since * 0.9 + i * 2) * 4;
     const x = x0 + windAt(since, seed, x0) * 10;
     const y = FLOOR_Y - 52 + Math.sin(since * 0.5 + i * 1.7) * 22 + Math.sin(since * 2.1 + i) * 2;
-    drawSprite(ctx, S.butterfly, x, y, {
+    paintSprite(at(pen, Z.fliers), S.butterfly, x, y, {
       frame: frameOf(S.butterfly, "flap", since * 9 + i),
       variant: WINGS[i % WINGS.length],
     });
@@ -243,6 +255,8 @@ const FOX_SPEED = 44;
 /** How far a trot cycle carries the fox, px: what a paw on the ground sweeps through its
  *  stance in the sprite, so the paws stay put while it passes over them. */
 const FOX_STRIDE = 16.8;
+/** The row its paws are on. */
+const FOX_FOOT = FLOOR_Y + 5;
 
 /** The fox's place this moment and how far it has come, or null while it is away. */
 const foxAt = (since: number): { x: number; along: number; face: 1 | -1 } | null => {
@@ -256,16 +270,13 @@ const foxAt = (since: number): { x: number; along: number; face: 1 | -1 } | null
   return { x: face > 0 ? v.x : SCENE_W - v.x - w, along: v.x, face };
 };
 
-const drawFox = (ctx: CanvasRenderingContext2D, since: number) => {
+const drawFox = (pen: Pen, since: number) => {
   const f = foxAt(since);
   if (!f) return;
   const w = S.fox.w;
-  ctx.save();
-  ctx.translate(Math.round(f.x) + (f.face < 0 ? w : 0), FLOOR_Y + 6 - S.fox.h);
-  ctx.scale(f.face, 1);
+  const body = facing(footAt(pen, FOX_FOOT), Math.round(f.x), FOX_FOOT + 1 - S.fox.h, w, f.face);
   const trot = S.fox.animations?.trot.length ?? 1;
-  drawSprite(ctx, S.fox, 0, 0, { frame: frameOf(S.fox, "trot", (f.along / FOX_STRIDE) * trot) });
-  ctx.restore();
+  paintSprite(body, S.fox, 0, 0, { frame: frameOf(S.fox, "trot", (f.along / FOX_STRIDE) * trot) });
 };
 
 // --- The rabbit -----------------------------------------------------------------------
@@ -278,8 +289,10 @@ const HOP = 9;
 const LEAP = 3;
 /** Grass tufts worth stopping at. */
 const TUFT_X = [72, 138, 214, 252];
+/** The row its feet come down on, hopping or not: just out from the wall. */
+const RABBIT_FOOT = FLOOR_Y + 3;
 
-const drawRabbit = (ctx: CanvasRenderingContext2D, since: number, season: Season) => {
+const drawRabbit = (pen: Pen, since: number, season: Season) => {
   // It keeps out of the fox's way.
   if (since < RABBIT_FROM || foxAt(since)) return;
   const n = Math.floor((since - RABBIT_FROM) / RABBIT_CYCLE);
@@ -297,30 +310,28 @@ const drawRabbit = (ctx: CanvasRenderingContext2D, since: number, season: Season
     ? frameOf(S.rabbit, "nibble", since * 3)
     : frameOf(S.rabbit, air > 1 ? "hop" : "sit", 0);
   const white = season.k === 2 ? season.p > 0.2 : season.k === 3 && season.p < 0.2;
-  ctx.save();
-  ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 4 - S.rabbit.h - air);
-  ctx.scale(face, 1);
-  drawSprite(ctx, S.rabbit, 0, 0, { frame, variant: white ? "winter" : undefined });
-  ctx.restore();
+  const top = RABBIT_FOOT + 1 - S.rabbit.h - air;
+  const body = facing(footAt(pen, RABBIT_FOOT), Math.round(x), top, w, face);
+  paintSprite(body, S.rabbit, 0, 0, { frame, variant: white ? "winter" : undefined });
 };
 
 // --- The hedgehog ---------------------------------------------------------------------
 
+/** The row its feet are on. */
+const HEDGEHOG_FOOT = FLOOR_Y + 7;
+
 /** Shuffles about the leaf litter in autumn; asleep somewhere the rest of the year. */
-const drawHedgehog = (ctx: CanvasRenderingContext2D, since: number, season: Season) => {
+const drawHedgehog = (pen: Pen, since: number, season: Season) => {
   const on =
     season.k === 1 ? ramp(season.p, 0.4, 0.5) : season.k === 2 ? 1 - ramp(season.p, 0, 0.08) : 0;
   if (on <= 0) return;
   const w = S.hedgehog.w;
   const x = 60 + 190 * (0.5 + 0.5 * Math.sin(since * 0.05));
   const face: 1 | -1 = Math.cos(since * 0.05) > 0 ? 1 : -1;
-  ctx.save();
-  ctx.globalAlpha = on;
-  ctx.translate(Math.round(x) + (face < 0 ? w : 0), FLOOR_Y + 8 - S.hedgehog.h);
-  ctx.scale(face, 1);
-  drawSprite(ctx, S.hedgehog, 0, 0, { frame: frameOf(S.hedgehog, "shuffle", since * 3) });
-  if (hedgehogApple(since)) drawApple(ctx, 4, -1, 2, true, 1);
-  ctx.restore();
+  const into = fadedPen(footAt(pen, HEDGEHOG_FOOT), on);
+  const body = facing(into, Math.round(x), HEDGEHOG_FOOT + 1 - S.hedgehog.h, w, face);
+  paintSprite(body, S.hedgehog, 0, 0, { frame: frameOf(S.hedgehog, "shuffle", since * 3) });
+  if (hedgehogApple(since)) drawApple(body, 4, -1, 2, true, 1);
 };
 
 // --- The owl --------------------------------------------------------------------------
@@ -331,10 +342,13 @@ const OWL_FROM = 200;
 const OWL_TREE = 4;
 const HOOT_CYCLE = 23;
 const HOOT_S = 1.2;
+/** How far in front of its tree it sits, m. */
+const OWL_DZ = 0.01;
 
 /** The owl's tree: its own while that has a branch in the room to sit on, else the tallest
  *  that has. */
 const owlTree = (seed: number, since: number) => {
+  const { planOf } = standFor(seed);
   const perched = standing(seed, since).filter((l) => planOf(l, since).perch);
   return (
     perched.find((l) => l.slot === OWL_TREE) ??
@@ -343,19 +357,22 @@ const owlTree = (seed: number, since: number) => {
   );
 };
 
-const drawOwl = (ctx: CanvasRenderingContext2D, since: number, seed: number, knocks: Knocks) => {
+const drawOwl = (pen: Pen, since: number, seed: number, knocks: Knocks) => {
   const tree = since < OWL_FROM ? null : owlTree(seed, since);
   if (!tree) return;
-  const branch = planOf(tree, since).perch;
+  const branch = standFor(seed).planOf(tree, since).perch;
   if (!branch) return;
-  const moved = poseAt(tree, since, seed, knocks).perch;
-  const perch = { x: Math.round(branch.x + moved.x), y: Math.round(branch.y + moved.y) };
+  const spot = sceneOf(tree, branch);
+  const moved = movedPx(poseAt(seed, tree, since, knocks).perch);
+  const perch = { x: Math.round(spot.x + moved.x), y: Math.round(spot.y + moved.y) };
   const c = (since - OWL_FROM) % HOOT_CYCLE;
   const frame =
     c < HOOT_S ? frameOf(S.owl, "hoot", (c / HOOT_S) * 3) : frameOf(S.owl, "perch", since * 0.7);
   // It looks about: the head turns now and then.
   const flip = Math.floor(since / 9) % 3 === 0 ? "h" : undefined;
-  drawSprite(ctx, S.owl, perch.x - 4, perch.y - S.owl.h + 1, { frame, flip });
+  // A hair in front of its tree.
+  const into = at(pen, tree.z + OWL_DZ);
+  paintSprite(into, S.owl, perch.x - 4, perch.y - S.owl.h + 1, { frame, flip });
 };
 
 /** What the owl says between two moments of friday, if anything. */
@@ -370,15 +387,17 @@ export const owlCue = (from: number, to: number, seed: number): "hoot" | null =>
 
 const FIREFLIES_FROM = 300;
 
-const drawFireflies = (
-  ctx: CanvasRenderingContext2D,
+/** The fireflies showing `since` s into friday: each one's centre, scene px, and how bright
+ *  it is, 0..1. */
+export const firefliesAt = (
   since: number,
-  season: Season,
   seed: number,
-) => {
+): { x: number; y: number; glow: number }[] => {
   // A summer thing, lingering into early autumn.
+  const season = seasonAt(since);
   const on = season.k === 0 ? 1 : season.k === 1 ? 1 - ramp(season.p, 0, 0.3) : 0;
-  if (on <= 0) return;
+  if (on <= 0) return [];
+  const out: { x: number; y: number; glow: number }[] = [];
   const n = Math.min(12, Math.floor((since - FIREFLIES_FROM) / 10));
   for (let i = 0; i < n; i++) {
     const glow = Math.max(0, Math.sin(since * 1.3 + i * 2.1)) ** 4 * on;
@@ -386,42 +405,42 @@ const drawFireflies = (
     const x0 = 20 + hash(i, 1) * (SCENE_W - 40) + Math.sin(since * 0.3 + i) * 12;
     const x = Math.round(x0 + windAt(since, seed, x0) * 6);
     const y = Math.round(40 + hash(i, 2) * (FLOOR_Y - 50) + Math.sin(since * 0.45 + i * 3) * 6);
-    ctx.globalAlpha = glow * 0.35;
-    rect(ctx, "#e8ff7a", x - 2, y - 2, 5, 5);
-    ctx.globalAlpha = glow;
-    rect(ctx, "#f4ffb0", x - 1, y - 1, 2, 2);
+    out.push({ x, y, glow });
   }
-  ctx.globalAlpha = 1;
+  return out;
 };
 
-/** What walks the floor behind the near shrubs, back to front by where its feet are: bugs,
- *  rabbit, fox, hedgehog. The deer walks in front of them (`drawDeer`). */
+const drawFireflies = (pen: Pen, since: number, seed: number) => {
+  const air = at(pen, Z.fireflies);
+  for (const { x, y, glow } of firefliesAt(since, seed)) {
+    fillFaded(air, "#e8ff7a", glow * 0.35, x - 2, y - 2, 5, 5);
+    fillFaded(air, "#f4ffb0", glow, x - 1, y - 1, 2, 2);
+  }
+};
+
+/** The small life, each at its own depth: bugs on the floor and the snail on the wall, the
+ *  spider, the rabbit, the fox, the hedgehog. */
 export const drawSmallLife = (
-  ctx: CanvasRenderingContext2D,
+  pen: Pen,
   since: number,
   seed: number,
   climb: Climb = (_x, y) => y,
 ) => {
   const season = seasonAt(since);
-  drawCritters(ctx, since, climb);
-  drawRoomSpider(ctx, since, seed);
-  drawRabbit(ctx, since, season);
-  drawFox(ctx, since);
-  drawHedgehog(ctx, since, season);
+  drawCritters(pen, since, climb);
+  drawRoomSpider(pen, since, seed);
+  drawRabbit(pen, since, season);
+  drawFox(pen, since);
+  drawHedgehog(pen, since, season);
 };
 
 /** What flies: butterflies, the owl on its branch. */
-export const drawFliers = (
-  ctx: CanvasRenderingContext2D,
-  since: number,
-  seed: number,
-  knocks: Knocks,
-) => {
+export const drawFliers = (pen: Pen, since: number, seed: number, knocks: Knocks) => {
   const season = seasonAt(since);
-  drawButterflies(ctx, since, season, seed);
-  drawOwl(ctx, since, seed, knocks);
+  drawButterflies(pen, since, season, seed);
+  drawOwl(pen, since, seed, knocks);
 };
 
-/** What glows, drawn over the night: the fireflies. */
-export const drawGlowing = (ctx: CanvasRenderingContext2D, since: number, seed: number) =>
-  drawFireflies(ctx, since, seasonAt(since), seed);
+/** What gives its own light, for a glowing pen: the fireflies. */
+export const drawGlowing = (pen: Pen, since: number, seed: number) =>
+  drawFireflies(pen, since, seed);
