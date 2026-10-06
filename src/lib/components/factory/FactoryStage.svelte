@@ -50,13 +50,14 @@
 
   const st = createStagecraft();
 
+  // The controls are live whenever the player is at the station: with no boot to decide, the
+  // press still comes down on the empty belt and the lever still pulls.
   const act = (stampIt: boolean) => {
     if (!staffed || week.away) return;
     const item = decide(week.sim, stampIt);
-    if (!item) return;
     if (stampIt) {
       st.plungeAt = week.sim.t;
-      st.plungeId = item.id;
+      st.plungeId = item?.id ?? null;
       sfx.stamp();
     } else {
       st.pullAt = week.sim.t;
@@ -275,7 +276,7 @@
       <!-- Mouse clicks don't take focus, so Enter and Space keep meaning pass and stamp. -->
       <button
         class="stamp"
-        disabled={!ready}
+        disabled={week.away}
         aria-label="stamp"
         onmousedown={(e) => e.preventDefault()}
         onclick={() => act(true)}
@@ -284,7 +285,7 @@
       </button>
       <button
         class="pass"
-        disabled={!ready}
+        disabled={week.away}
         aria-label="pass"
         onmousedown={(e) => e.preventDefault()}
         onclick={() => act(false)}
