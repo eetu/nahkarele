@@ -7,8 +7,8 @@ software specialist at a desk between AI #1 and AI #2, approving messages the AI
 regardless, until a brain in a jar takes the desk. A static SvelteKit SPA served by nginx. Siblings: `../logo` (same container
 shape), `../dice` (same SvelteKit stack), `eetu/scene` (origin of `src/lib/tape/cassette.ts`),
 `../korpi` (`@anarkisti/korpi`, the world kit friday's pieces are moving into) and `../dab`
-(`@anarkisti/dab`: the sprite editor, and `/core`, which reads the sprites), both linked with
-`portal:` until they are published.
+(`@anarkisti/dab`: the sprite editor, and `/core`, which reads the sprites), both from npm;
+`yarn link ../korpi` (or `../dab/cli`) works on one alongside.
 
 ## Layout
 

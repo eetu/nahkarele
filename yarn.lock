@@ -5,18 +5,19 @@ __metadata:
   version: 10
   cacheKey: 10c0
 
-"@anarkisti/dab@portal:../dab/cli::locator=nahkarele%40workspace%3A.":
-  version: 0.0.0-use.local
-  resolution: "@anarkisti/dab@portal:../dab/cli::locator=nahkarele%40workspace%3A."
+"@anarkisti/dab@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "@anarkisti/dab@npm:0.2.0"
   peerDependencies:
     vite: ">=6"
   peerDependenciesMeta:
     vite:
       optional: true
   bin:
-    dab: ./dist/dab.js
+    dab: dist/dab.js
+  checksum: 10c0/10cf5c9b0414e0ddc8c65df1f402a8f28d131c66ec01fe5f1d6319be79144b0d5d4a01f6332bdadb1ce0d5cda261dfb5eaf9e3ae6d958b4279de5496a6c6caf1
   languageName: node
-  linkType: soft
+  linkType: hard
 
 "@anarkisti/eslint-config@npm:^1.1.0":
   version: 1.1.0
@@ -43,13 +44,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@anarkisti/korpi@portal:../korpi::locator=nahkarele%40workspace%3A.":
-  version: 0.0.0-use.local
-  resolution: "@anarkisti/korpi@portal:../korpi::locator=nahkarele%40workspace%3A."
+"@anarkisti/korpi@npm:^0.1.0":
+  version: 0.1.0
+  resolution: "@anarkisti/korpi@npm:0.1.0"
   dependencies:
     "@glowbox/lcd": "npm:^1.12.0"
+  peerDependencies:
+    "@anarkisti/dab": ^0.2.0
+  peerDependenciesMeta:
+    "@anarkisti/dab":
+      optional: true
+  checksum: 10c0/332af50de8fbe564a10d4a5a14fb9a2e2a73e1629893869214f29ef42a11e05f638b444a979c22087cbdad0cd64d5692c0fbb63babb685f3d88d94c273eb29c4
   languageName: node
-  linkType: soft
+  linkType: hard
 
 "@cacheable/memory@npm:^2.2.0":
   version: 2.2.0
@@ -1932,9 +1939,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "nahkarele@workspace:."
   dependencies:
-    "@anarkisti/dab": "portal:../dab/cli"
+    "@anarkisti/dab": "npm:^0.2.0"
     "@anarkisti/eslint-config": "npm:^1.1.0"
-    "@anarkisti/korpi": "portal:../korpi"
+    "@anarkisti/korpi": "npm:^0.1.0"
     "@fontsource/inter": "npm:^5.3.0"
     "@fontsource/pixelify-sans": "npm:^5.3.0"
     "@fontsource/space-grotesk": "npm:^5.3.0"
