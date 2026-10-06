@@ -188,6 +188,7 @@ then scrub, retune or switch the wall to bricks, rubble or plaster). A unit is a
 re-sings each line on held notes and writes `static/tape/orientation.mp3` + `tape.json` cues.
 Link card: `yarn dev`, then `SITE=http://localhost:5173 node scripts/gen-og.mjs` (borrows a
 playwright install, see the script) captures both rooms into `static/og.jpg`.
+Open work is in GitHub issues here; korpi's is in its pinned roadmap, eetu/korpi#11.
 
 ## Out of scope
 
