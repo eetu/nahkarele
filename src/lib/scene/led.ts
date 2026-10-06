@@ -56,10 +56,10 @@ export const drawLedClock = (
   // A dead segment still shows faintly in the dark: the face's own red, barely lit.
   const ghost = lit(pen, 48);
   const h = box.h - 2;
-  const s = h >= 14 ? 2 : 1;
+  const s = 1;
   const w = Math.round(h / 2);
-  const gap = s;
-  const colon = s;
+  const gap = 2;
+  const colon = 1;
   let x = box.x + Math.floor((box.w - (4 * w + colon + 4 * gap)) / 2);
   const y = box.y + 1;
   const dead = value === "";
