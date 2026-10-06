@@ -87,7 +87,8 @@ describe("the wall in the room", () => {
   const near = (d: number, z: number) => Math.abs(d + z) < 1e-6;
 
   it("puts its face at the wall, and each stone at its own depth, in the room or outside", () => {
-    const seen = { face: 0, room: 0, outside: 0 };
+    // Counted, then asserted once: an expect per pixel of a hundred frames is most of the time.
+    const seen = { face: 0, room: 0, outside: 0, glowing: 0, under: 0 };
     for (const seed of [1, 2, 3]) {
       // The blast and its first minutes: much falling onto much lying.
       for (let since = 1; since < 240; since += 7.3) {
@@ -98,19 +99,21 @@ describe("the wall in the room", () => {
         for (let i = 0; i < scene.px.length; i++) {
           if (!scene.px[i]) continue;
           const d = scene.depth[i];
-          const row = Math.floor(i / SCENE_W);
           // Nothing it paints gives light of its own.
-          expect(scene.glow[i]).toBe(0);
+          if (scene.glow[i]) seen.glowing++;
           if (near(d, 0)) seen.face++;
           else if (d < 0) {
             seen.room++;
             // What lies in the room is out on the floor, never under it.
+            const row = Math.floor(i / SCENE_W);
             const p = ROOM_VIEW.unproject((i % SCENE_W) + 0.5, row + 0.5, d);
-            expect(p.y).toBeGreaterThan(-0.05);
+            if (p.y <= -0.05) seen.under++;
           } else seen.outside++;
         }
       }
     }
+    expect(seen.glowing).toBe(0);
+    expect(seen.under).toBe(0);
     expect(seen.face).toBeGreaterThan(0);
     expect(seen.room).toBeGreaterThan(0);
     expect(seen.outside).toBeGreaterThan(0);
