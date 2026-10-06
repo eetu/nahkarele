@@ -76,6 +76,12 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   decides, correctly) or sends office tokens AI to AI; the stage runs time 3×. Whatever is
   handled away is `automated`, outside the grade and the accuracy; a day with no decisions
   of your own grades 4.
+- **Analytics count how far a visit got, nothing more.** When nginx injects Liwan
+  (`docker/40-liwan-tracker.sh`), `track()` (`src/lib/track.ts`) reports through that same
+  module, each name once a visit: `tehdas:start`, `tehdas:day1`–`5`, `tehdas:week`;
+  `specialist:start`, `specialist:day1`–`4`, `specialist:friday`, `specialist:friday-back`.
+  Liwan's bounce rate counts page views only, so a week played on one page is a bounce; these
+  tell the two apart. Without the tracker nothing is sent.
 - **Engines are pure and stepped by the frame loop** (`step(state, dt)`); the week stores are
   the only reactive layer, copying a few numbers into `hud`. Keep rules in the engine so
   vitest covers them without a DOM.

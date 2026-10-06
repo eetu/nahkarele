@@ -1,5 +1,6 @@
 import { sfx } from "$lib/audio/sfx.svelte";
 import { clockAt } from "$lib/scene/sky";
+import { track } from "$lib/track";
 
 import { DAYS } from "./days";
 import {
@@ -93,6 +94,7 @@ class Week {
     this.sim = createFactory(this.current, Math.floor(Math.random() * 2 ** 31));
     this.screen = "shift";
     this.sync();
+    track("tehdas:start");
   };
 
   /** Called by the frame loop after each step. */
@@ -119,6 +121,7 @@ class Week {
     this.screen = "review";
     if (this.away) sfx.flush();
     this.away = false;
+    track(`tehdas:day${this.day + 1}`);
   };
 
   next = () => {
@@ -129,6 +132,7 @@ class Week {
       return;
     }
     this.screen = "week";
+    track("tehdas:week");
     const avg = Math.round(this.average * 10) / 10;
     if (this.best === null || avg > this.best) {
       this.best = avg;

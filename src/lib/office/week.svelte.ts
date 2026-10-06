@@ -1,6 +1,7 @@
 import type { Knock } from "@anarkisti/korpi/masonry";
 
 import { sfx } from "$lib/audio/sfx.svelte";
+import { track } from "$lib/track";
 
 import { OFFICE_DAYS } from "./days";
 import type { Mood } from "./draw";
@@ -143,11 +144,13 @@ class OfficeWeek {
       this.mood.after = true;
       this.mood.seed = woodSeed(this.fridayAt);
       this.screen = "loop";
+      track("specialist:friday");
       return;
     }
     this.sim = createOffice(this.current, seed());
     this.diff = { read: 0, total: 0 };
     this.screen = "shift";
+    track("specialist:start");
   };
 
   /** Called by the frame loop. */
@@ -215,6 +218,7 @@ class OfficeWeek {
     this.screen = "review";
     if (this.away) sfx.flush();
     this.away = false;
+    track(`specialist:day${this.day + 1}`);
   };
 
   next = () => {
@@ -279,6 +283,7 @@ class OfficeWeek {
       ...loadTaps(),
     };
     this.screen = "loop";
+    track("specialist:friday-back");
   };
 
   private fresh = () => {
