@@ -327,10 +327,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@glowbox/seven-segment@npm:^1.12.0":
-  version: 1.12.0
-  resolution: "@glowbox/seven-segment@npm:1.12.0"
-  checksum: 10c0/f00e6cbe663e93ec25b941da223825457022160bf025163b056df30a69f7a992a853acfaa1bd2ddbc3345af0f5e95f4cf0c3b705b041cef308277a7e77b5497e
+"@glowbox/seven-segment@npm:^1.13.0":
+  version: 1.13.0
+  resolution: "@glowbox/seven-segment@npm:1.13.0"
+  checksum: 10c0/49b6d227bd05dc5fb0c62a8f8ae6aa4fa3baf92e8629025e437729e9a1d583a4064d0c2b8ff8b227c4886ac50bc3f86e17d072d0305b3dcbb35ab96a302b6449
   languageName: node
   linkType: hard
 
@@ -1947,7 +1947,7 @@ __metadata:
     "@fontsource/space-grotesk": "npm:^5.3.0"
     "@glowbox/lcd": "npm:^1.12.0"
     "@glowbox/nixie": "npm:^1.12.0"
-    "@glowbox/seven-segment": "npm:^1.12.0"
+    "@glowbox/seven-segment": "npm:^1.13.0"
     "@lucide/svelte": "npm:^1.48.0"
     "@sveltejs/adapter-static": "npm:^3.0.10"
     "@sveltejs/kit": "npm:^2.70.3"
