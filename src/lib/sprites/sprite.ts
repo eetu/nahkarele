@@ -15,6 +15,8 @@ import {
 import type { Pen } from "@anarkisti/korpi/paint";
 import { spritesOf } from "@anarkisti/korpi/sprites";
 
+import { fill } from "$lib/scene/pen";
+
 export type { Flip, Part };
 export type Body = SpriteBody;
 export type Sprite = SpriteFile;
@@ -76,6 +78,15 @@ export const paintSprite = (
   y: number,
   opts: { frame?: number; variant?: string; flip?: Flip; w?: number } = {},
 ) => sprites.paint(pen, s, x, y, opts);
+
+/** Only the cells of `keys` in frame `frame` of `s`'s own grid, its top-left at (x, y): its
+ *  lights, painted again over it with a glowing pen. */
+export const paintKeys = (pen: Pen, s: Sprite, x: number, y: number, keys: string, frame = 0) =>
+  (s.frames[frame] ?? []).forEach((row, dy) =>
+    [...row].forEach((ch, dx) => {
+      if (keys.includes(ch)) fill(pen, s.palette[ch], x + dx, y + dy);
+    }),
+  );
 
 /** A sprite and its parts. `variant` is matched by name at every part, as dab does. */
 export const drawSprite = (

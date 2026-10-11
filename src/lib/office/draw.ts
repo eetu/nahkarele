@@ -16,6 +16,7 @@ import { prefersReducedMotion } from "$lib/keys";
 import { CALENDAR, paintCalendar } from "$lib/scene/calendar";
 import { drawLedClock, LIT as LED } from "$lib/scene/led";
 import { colourOf, fadedPen, fill, fillFaded } from "$lib/scene/pen";
+import { smooth } from "$lib/scene/pixel";
 import { paintText } from "$lib/scene/pixelfont";
 import {
   clockAt,
@@ -34,11 +35,11 @@ import jar from "$lib/sprites/jar.json";
 import screen from "$lib/sprites/screen.json";
 import speaker from "$lib/sprites/speaker.json";
 import specialist from "$lib/sprites/specialist.json";
-import { frameOf, paintSprite, type Sprite } from "$lib/sprites/sprite";
+import { frameOf, paintKeys, paintSprite, type Sprite } from "$lib/sprites/sprite";
 import token from "$lib/sprites/token.json";
 import wc from "$lib/sprites/wc.json";
 
-import { dockAt, drawBox, drawChargerAt, drawChargerLightAt, PAD } from "./charger";
+import { dockAt, drawBox, drawChargerAt, drawChargerLightAt, PAD, roundAt } from "./charger";
 import { at, covered, FLAT, floorZ, footAt, onFloor, ROOM_VIEW, Z } from "./depth";
 import {
   AI_MOUTH,
@@ -535,20 +536,33 @@ const paintVisitors = (pen: Pen, mood: Mood) => {
   const young = youngAt(since, startled);
   const perched = b?.sit ?? false;
   const c = cycleAt(since);
-  // The drone idles about the room, and drifts over the jar to feed the bird when it lands.
-  const idle = { x: 160 + Math.sin(since * 0.21) * 90, y: 44 + Math.sin(since * 0.37) * 10 };
+  // The drone goes its round of the room, and drifts over the jar to feed the bird when it
+  // lands.
+  const round = (t: number) => ({
+    x: 160 + Math.sin(t * 0.21) * 90,
+    y: 44 + Math.sin(t * 0.37) * 10,
+  });
+  const idle = round(since);
   const feed = perched ? Math.min(1, (c - 3) / 2) : c >= 13 && c < 16 ? 1 - (c - 13) / 3 : 0;
-  // At dusk it comes down onto its charger, and sleeps there, rotors still, till dawn.
+  // At dusk it leaves its round for the charger, over the pad and then down onto it, and
+  // sleeps there, rotors still, till dawn; then up off it, and over to where its round has got.
   const dock = dockAt(since);
-  const fx = idle.x + (163 - idle.x) * feed;
-  const fy = idle.y + (DESK.y - 50 - idle.y) * feed;
-  const dx = fx + (PAD.x - fx) * dock;
-  const dy = fy + (PAD.y - fy) * dock + Math.sin(since * 3) * 1.5 * (1 - dock);
-  // Asleep on its charger, rotors still, its light flashing as it charges.
+  const from =
+    dock > 0 && dock < 1
+      ? round(roundAt(since))
+      : { x: idle.x + (163 - idle.x) * feed, y: idle.y + (DESK.y - 50 - idle.y) * feed };
+  const over = smooth(Math.min(1, dock / 0.6));
+  const down = smooth(Math.max(0, (dock - 0.3) / 0.7));
+  const dx = from.x + (PAD.x - from.x) * over;
+  const dy = from.y + (PAD.y - from.y) * down + Math.sin(since * 3) * 1.5 * (1 - dock);
+  // Asleep on its charger, rotors still, its light flashing as it charges: a light of its own,
+  // whatever the night.
   const frame =
     dock > 0.98 ? frameOf(S.drone, "charge", since * 2) : frameOf(S.drone, "hover", since * 16);
   const drone = at(pen, Z.drone + (Z.onDesk - Z.drone) * dock);
-  paintSprite(drone, S.drone, Math.round(dx) - 7, Math.round(dy), { frame });
+  const [sx, sy] = [Math.round(dx) - 7, Math.round(dy)];
+  paintSprite(drone, S.drone, sx, sy, { frame });
+  paintKeys(lit(drone), S.drone, sx, sy, "G", frame);
   // The tit and its young at the jar, and the seeds dropped for them.
   const jar = at(pen, Z.onDesk);
   if (perched) {

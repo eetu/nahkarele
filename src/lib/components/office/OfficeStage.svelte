@@ -5,6 +5,7 @@
   import { panOf, sfx } from "$lib/audio/sfx.svelte";
   import { fullscreen } from "$lib/fullscreen.svelte";
   import { leaveKey } from "$lib/keys";
+  import { dockCue, PAD } from "$lib/office/charger";
   import { birdCue, crowCaws, paintOffice, pokeOf, signAt, SIGNS, wallCue } from "$lib/office/draw";
   import {
     AI_MOUTH,
@@ -198,6 +199,9 @@
         }
         for (const hit of wallCue(before.since, mood.since, mood)) sfx.crumble(pan(hit.x), hit.big);
         for (const x of shedCue(before.since, mood.since, mood.seed)) sfx.twig(pan(x));
+        const docking = dockCue(before.since, mood.since);
+        if (docking === "land") sfx.land();
+        else if (docking === "rise") sfx.whirr(pan(PAD.x));
         for (const fell of fellCue(before.since, mood.since, mood.seed)) {
           sfx.timber(fell.kind, pan(fell.x));
         }

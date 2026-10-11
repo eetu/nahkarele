@@ -53,10 +53,43 @@ export const opensAt = () => {
 export const openAt = (since: number) => Math.min(1, Math.max(0, (since - opensAt()) / UNFOLD_S));
 
 /** How far down onto the box the drone is, 0 (about the room) to 1 (asleep on it): it goes
- *  as the light goes, once there is somewhere to go. */
+ *  as the light goes, once there is somewhere to go, and is up and away before the sun is
+ *  (sunrise's light is dimmer than the night's last, and would draw it down again). */
 export const dockAt = (since: number) => {
   if (openAt(since) < 1) return 0;
+  const sun = dayAt(since).sun;
+  if (sun && sun.across < 0.5) return 0;
   return 1 - smooth((lightAt(since) - (DUSK - EASE)) / (2 * EASE));
+};
+
+/** How far either way to look for the end of a flight to or from the pad, and in what steps, s. */
+const FLIGHT_S = 20;
+const STEP_S = 0.25;
+
+/**
+ * Where a flight to or from the pad meets the drone's round, as a moment of friday: going
+ * down, when it left the round; coming up, when it is back on it. About the room, `since`.
+ */
+export const roundAt = (since: number) => {
+  const d = dockAt(since);
+  if (d <= 0 || d >= 1) return since;
+  const step = dockAt(since + STEP_S) >= d ? -STEP_S : STEP_S;
+  let t = since;
+  for (let k = 0; k < FLIGHT_S / STEP_S && dockAt(t) > 0; k++) t += step;
+  return t;
+};
+
+/** Down onto the pad and asleep, or awake and lifting off, at this much of the way. */
+const SETTLED = 0.98;
+
+/** What the drone does between two moments of friday that can be heard: touches down on the
+ *  pad, or spins its rotors up to leave it. */
+export const dockCue = (from: number, to: number): "land" | "rise" | null => {
+  if (to <= from) return null;
+  const [a, b] = [dockAt(from), dockAt(to)];
+  if (a < SETTLED && b >= SETTLED) return "land";
+  if (a >= SETTLED && b < SETTLED) return "rise";
+  return null;
 };
 
 /** Where the drone sits on the box: its middle, and its top (it is 7 px tall). */

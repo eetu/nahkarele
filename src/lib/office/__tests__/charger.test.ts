@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { daylight } from "$lib/scene/sky";
 
-import { dockAt, openAt, opensAt, tiltAt } from "../charger";
+import { dockAt, dockCue, openAt, opensAt, roundAt, tiltAt } from "../charger";
 import { dayAt } from "../wood/daylight";
 import { STORM_S } from "../wood/seasons";
 import { windowAt } from "../wood/weather";
@@ -37,6 +37,48 @@ describe("the drone's charger", () => {
     }
     expect(nights).toBeGreaterThan(20);
     expect(days).toBeGreaterThan(20);
+  });
+
+  it("comes down once a night, all the way, and is up and away by sunrise", () => {
+    const from = opensAt() + 3;
+    let flights = 0;
+    let peak = 0;
+    const cues = { land: 0, rise: 0 };
+    for (let t = from; t < from + 4 * 600; t += 0.1) {
+      const d = dockAt(t);
+      if (d > 0) peak = Math.max(peak, d);
+      else if (peak > 0) {
+        // Each spell off its round is a whole night on the pad, never a dip.
+        expect(peak).toBe(1);
+        flights++;
+        peak = 0;
+      }
+      const cue = dockCue(t, t + 0.1);
+      if (cue) cues[cue]++;
+    }
+    expect(flights).toBeGreaterThan(30);
+    // The last night may not be over yet.
+    expect(cues.land - cues.rise).toBeGreaterThanOrEqual(0);
+    expect(cues.land - cues.rise).toBeLessThanOrEqual(1);
+    expect(Math.abs(cues.land - flights)).toBeLessThanOrEqual(1);
+  });
+
+  it("flies to the pad from where it left its round, and back to where the round has got", () => {
+    const from = opensAt() + 3;
+    let checked = 0;
+    for (let t = from; t < from + 2 * 600; t += 0.37) {
+      const d = dockAt(t);
+      if (d <= 0 || d >= 1) {
+        expect(roundAt(t)).toBe(t);
+        continue;
+      }
+      // Off its round between the moment it left and the moment it is back on it.
+      const edge = roundAt(t);
+      expect(dockAt(edge)).toBe(0);
+      expect(Math.abs(edge - t)).toBeLessThan(20);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(10);
   });
 
   it("turns its panel to the sun, and lays it flat at night", () => {
