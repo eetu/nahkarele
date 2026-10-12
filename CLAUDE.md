@@ -60,9 +60,14 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   `xray` is a palette variant. Thursday adds phones; Friday is phones only and a boot is
   `foreign`, always defective.
   A sprite with slices in dab (its grid the front, each slice a voxel further back) is a thing
-  in depth, korpi `model`: the factory draws its gate (a pole tipping up toward the screen) and
+  in depth, korpi `model`: the factory draws its gate (a pole hinged on the belt's back rail,
+  lowered across the belt in front of the boot, lifted to stand against the wall) and
   what falls that way (`factory/models.ts`, a raster laid over the canvas in draw order), lit
   so a face toward the screen keeps its drawn colour. The boot has six voxels of depth.
+  A boot that tips off the belt falls in a physics world of its own (korpi `physics`,
+  `factory/fallen.ts`): an L of two capsules let go spinning, landing, toppling or rocking back
+  onto its sole, until a bot picks it up. It is drawn, not counted: the engine still says where
+  each boot is.
 - **In the office, every message is delivered.** The AIs send tokens on a schedule; they pile
   in the tray (max `DESK_CAPACITY`), overflow or slide onto the floor, and the drone carries
   those to the receiver. An answer only moves the accuracy bonus. Salary is time on shift.

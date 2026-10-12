@@ -23,6 +23,7 @@ import {
   shiftProgress,
   ZONE,
 } from "./engine";
+import { type Fallen, fallenOf } from "./fallen";
 import { lookOf, SPRITES } from "./look";
 import { type Models, modelsOf, solid } from "./models";
 
@@ -49,6 +50,8 @@ export type Stagecraft = {
   fullscreen: boolean | null;
   /** What is drawn in depth: the gate, and what falls. */
   models: Models;
+  /** What has tipped off the belt, falling and lying under gravity. */
+  fallen: Fallen;
 };
 
 export const createStagecraft = (): Stagecraft => ({
@@ -61,6 +64,7 @@ export const createStagecraft = (): Stagecraft => ({
   muted: false,
   fullscreen: null,
   models: modelsOf(),
+  fallen: fallenOf(),
 });
 
 /** Scene rect the nixie clock overlay covers. */
@@ -262,9 +266,15 @@ const drawItems = (ctx: CanvasRenderingContext2D, s: FactoryState, stage: "belt"
   }
 };
 
-/** The gate's pole: its hinge on the bracket, scene px, and how long it hangs. */
-const POLE = { x: GATE_X + ITEM_W / 2 + 2, y: 108, h: BELT_Y - 108 };
-/** Seconds the pole takes to tip up out of the way once a call is made. */
+/**
+ * The gate's pole: hinged on the belt's back rail by the wall (scene px: its middle column, the
+ * hinge's row seen at the back of the belt, the post under it), as long as the belt is deep.
+ * Lowered, it lies across the belt in front of the boot; raised, it stands against the wall.
+ */
+const POLE = { x: GATE_X + ITEM_W / 2 + 2, hinge: 122, length: 16 };
+/** How far down the scene a scene px of depth slides a point, as in korpi's oblique view. */
+const SLOPE = 0.25;
+/** Seconds the pole takes to lift out of the way once a call is made. */
 const GATE_UP_S = 0.15;
 /** Scene px a boot goes past the pole before it swings back down. */
 const GATE_DOWN_PX = 4;
@@ -275,9 +285,9 @@ const eased = (p: number) => {
 };
 
 /**
- * How far the gate's pole has tipped up toward the screen, 0 hanging … 1 out of the way: up
- * from the call that lets a boot go, back down as that boot clears it, so it hangs again before
- * the next one comes; up for as long as the relay is away.
+ * How far the gate's pole has lifted, 0 lowered across the belt … 1 up against the wall: up
+ * from the call that lets a boot go, back down as that boot clears it, so it is down again
+ * before the next one comes; up for as long as the relay is away.
  */
 const gateUp = (s: FactoryState) => {
   if (s.away) return 1;
@@ -292,19 +302,24 @@ const gateUp = (s: FactoryState) => {
   );
 };
 
-/** The barrier that holds the front boot: a pole hung across the belt from its bracket. */
+/**
+ * The barrier that holds the front boot: the pole on its post at the back of the belt, lowered
+ * across it or lifted against the wall. Drawn before the boots, which pass in front of it up.
+ */
 const drawGate = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactoryState) => {
-  rect(ctx, C.steelDark, POLE.x - 1, 104, 2, 4);
-  const a = (gateUp(s) * Math.PI) / 2;
-  const half = POLE.h / 2;
+  rect(ctx, C.steelDark, POLE.x - 1, POLE.hinge, 2, BELT_Y - POLE.hinge);
+  // From upright (0) to lying toward the screen (a quarter turn), its top end leading.
+  const a = ((1 - gateUp(s)) * Math.PI) / 2;
+  const half = POLE.length / 2;
   const look = { sprite: SPRITES.gate, frame: 0 };
   st.models.paint(
     look,
     POLE.x,
-    POLE.y + half * Math.cos(a) + half * 0.25 * Math.sin(a),
-    { tip: -a },
+    POLE.hinge - half * Math.cos(a) + half * SLOPE * Math.sin(a),
+    { tip: a },
     half * Math.sin(a),
   );
+  st.models.present(ctx, "gate");
 };
 
 /** The roll that lays a thing on its side, the way it tips off the belt. */
@@ -338,8 +353,10 @@ const drawDown = (
 const wobble = (p: number) => 0.5 * Math.sin(p * Math.PI);
 
 const drawFloor = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactoryState) => {
+  st.fallen.step(s);
+  st.fallen.paint(s, st.models);
   for (const item of s.items) {
-    if (item.stage !== "floor") continue;
+    if (item.stage !== "floor" || st.fallen.has(item)) continue;
     // Tips over as it falls from the belt.
     const p = Math.min(1, (s.t - item.stageAt) / 0.3);
     const y = BELT_Y - ITEM_W + (153 - BELT_Y + ITEM_W) * p * p;
@@ -348,7 +365,7 @@ const drawFloor = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactoryStat
       tip: wobble(p),
     });
   }
-  st.models.present(ctx);
+  st.models.present(ctx, "floor");
 };
 
 const drawOutCrate = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactoryState) => {
@@ -360,7 +377,7 @@ const drawOutCrate = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactoryS
       tip: wobble(p),
     });
   }
-  st.models.present(ctx);
+  st.models.present(ctx, "crate");
   const { x, y, w, h } = OUT_CRATE;
   rect(ctx, C.crateDark, x, y, w, h);
   rect(ctx, C.crate, x + 1, y + 1, w - 2, h - 2);
@@ -427,8 +444,8 @@ const drawRejects = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactorySt
       st.models.paint(look, x + ITEM_W / 2, y + ITEM_W / 2, { roll: 0.9 * p, tip: 0.7 * p });
     } else drawSprite(ctx, look.sprite, x, y, look);
   }
-  // The gate's pole and what drops into the shredder, before the shredder covers it.
-  st.models.present(ctx);
+  // What drops into the shredder, before the shredder covers it.
+  st.models.present(ctx, "rejects");
 };
 
 /** Rubber crumbs thrown up by the rollers, for as long as a boot is going through. */
@@ -654,10 +671,10 @@ export const drawFactory = (
   drawBelt(ctx, MACHINE_OUT - 4, SCENE_W, offset);
   drawLegs(ctx, [8, 100, 196, 300]);
   if (staffed) drawButtons(ctx, st, s);
+  drawGate(ctx, st, s);
   drawItems(ctx, s, "belt");
   drawItems(ctx, s, "shipped");
   drawPress(ctx, st, s);
-  drawGate(ctx, st, s);
   drawRejects(ctx, st, s);
   drawShredder(ctx, s);
   drawCrumbs(ctx, s);

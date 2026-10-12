@@ -67,14 +67,16 @@ export type Models = {
   /** `look` with its middle at scene pixel `sx`, `sy`, `d` out (scene px; nearer covers),
    *  turned `turn`; a look flipped upside down is rolled half over. */
   paint: (look: Look, sx: number, sy: number, turn?: Turn, d?: number) => void;
-  /** What was painted since the last, onto `ctx`. */
-  present: (ctx: CanvasRenderingContext2D) => void;
+  /** What was painted since the last, onto `ctx`, as the frame's pass `pass`. */
+  present: (ctx: CanvasRenderingContext2D, pass: string) => void;
 };
 
 export const modelsOf = (): Models => {
   const scene = raster(SCENE_W, SCENE_H);
   const pen = rasterPen(scene);
-  const out = presenter();
+  // A canvas of its own for each pass: Safari may draw one canvas onto another only once the
+  // frame is done, so a canvas filled again later in the frame would show that pass instead.
+  const passes = new Map<string, ReturnType<typeof presenter>>();
   let painted = false;
   return {
     paint: (look, sx, sy, turn = {}, d = 0) => {
@@ -85,8 +87,10 @@ export const modelsOf = (): Models => {
       });
       painted = true;
     },
-    present: (ctx) => {
+    present: (ctx, pass) => {
       if (!painted) return;
+      let out = passes.get(pass);
+      if (!out) passes.set(pass, (out = presenter()));
       out.present(ctx, scene);
       clear(scene);
       painted = false;
