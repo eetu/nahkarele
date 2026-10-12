@@ -3,7 +3,8 @@
 // after the blast it is ash and stumps under smoke; year by year the ground greens, the stumps
 // crumble and go under, and a forest comes up along the horizon. With the seasons and the time
 // of day, like the room. It is painted once a frame far behind the wall, and every opening shows
-// its part of it; the sky gives its own light, the land is lit by the open sky's.
+// its part of it; the sky (korpi's, its clouds and storms with it) gives its own light, the land
+// is lit by the open sky's.
 
 import { stream } from "@anarkisti/korpi/core";
 import {
@@ -15,15 +16,31 @@ import {
   shifted,
   stamp,
 } from "@anarkisti/korpi/paint";
+import {
+  cloudCover,
+  cloudsAt,
+  type Day,
+  deckAt,
+  type DeckPass,
+  flashAt,
+  greyOf,
+  type Storm,
+  stormsOf,
+  type StormSpec,
+  strikesAt,
+} from "@anarkisti/korpi/sky";
+import { paintSky } from "@anarkisti/korpi/sky/paint";
 
+import { prefersReducedMotion } from "$lib/keys";
 import { fill, fillFaded } from "$lib/scene/pen";
 import { hash, ramp, smooth } from "$lib/scene/pixel";
-import { daylight, mix, paintOpenSky, type SkyInput } from "$lib/scene/sky";
+import { daylight, mix, type SkyInput } from "$lib/scene/sky";
 
 import { OUTSIDE_Z, SKY_Z } from "../depth";
 import { SCENE_W } from "../engine";
-import { dayAt, type Place } from "./daylight";
-import { seasonAt } from "./seasons";
+import { dayAt } from "./daylight";
+import { FRIDAY, seasonAt, SEASONS_FROM, STORM_S } from "./seasons";
+import { fridayAir } from "./wind";
 
 /** Where the land meets the sky, scene y; the outside is painted down to `DEPTH`. */
 export const HORIZON = 57;
@@ -154,48 +171,6 @@ const paintLand = (pen: Pen, w: World, since: number) => {
 /** The land as last painted, for which key. */
 let land: { key: string; r: Raster } | null = null;
 
-/** How high the sky goes above the horizon for the sun at its highest, scene px. */
-const ZENITH = 46;
-
-/** A place in the sky as a scene point over the outside. */
-const skyPoint = ({ across, up }: Place) => ({
-  x: Math.round(18 + across * (SCENE_W - 36)),
-  y: Math.round(HORIZON - 3 - up * ZENITH),
-});
-
-const paintSun = (pen: Pen, { x, y }: { x: number; y: number }) => {
-  fill(pen, "#f6d27a", x - 1, y - 3, 3, 7);
-  fill(pen, "#f6d27a", x - 3, y - 1, 7, 3);
-  fill(pen, "#f6d27a", x - 2, y - 2, 5, 5);
-  fill(pen, "#fbe6a8", x - 1, y - 1, 2, 2);
-};
-
-/** The moon's seas, a little darker on its lit face: offsets from its middle. */
-const SEAS = [
-  [-1, -1],
-  [1, 0],
-  [0, 1],
-];
-
-/**
- * The moon, `phase` of the way round its month: new at 0, full at 0.5, lit from the right as it
- * waxes and from the left as it wanes. The unlit part shows faintly, as it does.
- */
-const paintMoon = (pen: Pen, { x, y }: { x: number; y: number }, phase: number) => {
-  const r = 3;
-  const turn = Math.cos(2 * Math.PI * phase);
-  for (let dy = -r; dy <= r; dy++) {
-    for (let dx = -r; dx <= r; dx++) {
-      if (dx * dx + dy * dy > r * r + 1) continue;
-      const u = dx / r;
-      const half = Math.sqrt(Math.max(0, 1 - (dy / r) ** 2));
-      const shines = phase < 0.5 ? u > turn * half - 0.05 : u < -turn * half + 0.05;
-      const sea = SEAS.some(([sx, sy]) => sx === dx && sy === dy);
-      fill(pen, !shines ? "#1c2434" : sea ? "#d8d2c0" : "#f6f2e4", x + dx, y + dy);
-    }
-  }
-};
-
 /** Smoke over the ruins after the blast, thinning away over the first minutes. */
 const paintSmoke = (pen: Pen, w: World, since: number, day: number) => {
   const thick = 1 - smooth((since - 30) / 300);
@@ -212,22 +187,70 @@ const paintSmoke = (pen: Pen, w: World, since: number, day: number) => {
   }
 };
 
+/** The sky over the outside, scene px: down to the horizon, where the land takes it. */
+const SKY = { x: 0, y: 0, w: SCENE_W, h: HORIZON };
+/** How wide the sun and the moon are, px. */
+const BODY_PX = 7;
+/** The storm after the blast: overhead as friday begins, going off downwind, gone by now. */
+const BLOWN_S = STORM_S + 30;
+
+const summer = stormsOf(FRIDAY);
+
+/** Friday's storms: the one after the blast, then summer's thunderstorms in their spells. */
+const stormAt = (since: number): Storm | null => {
+  if (since >= SEASONS_FROM) return summer(since);
+  if (since >= BLOWN_S) return null;
+  return { strength: 1 - smooth(ramp(since, STORM_S / 2, BLOWN_S)), along: (since / BLOWN_S) * 10 };
+};
+
+const stormSpec = (seed: number): StormSpec => ({ seed, dir: fridayAir(seed).dir });
+
+/** How much of the sky is cloud, 0..1, and how far a spell's deck has come over and gone: the
+ *  storm's deck as the wood comes in, clearing after its rain; then the year's (korpi's). */
+const cloudOf = (since: number, seed: number): { cover: number; pass: DeckPass } => {
+  const year = cloudCover(FRIDAY, since, { seed });
+  if (since >= SEASONS_FROM) return { cover: year, pass: deckAt(FRIDAY, since) };
+  const gone = smooth(ramp(since, 160, 230));
+  return { cover: 1 - (1 - year) * gone, pass: { come: 1, gone } };
+};
+
+/** The open sky's flash from lightning `since` seconds into friday, 0..1; none for less
+ *  motion. */
+export const lightningAt = (since: number, seed: number) =>
+  prefersReducedMotion() ? 0 : flashAt(stormSpec(seed), stormAt, since);
+
+/** The sky `since` seconds into friday (korpi's): its colours for the time of day and the
+ *  cloud, the stars, the sun and the moon on their arcs, the clouds, a storm's lightning. */
+const paintHeavens = (pen: Pen, sky: SkyInput, since: number, seed: number) => {
+  const { cover, pass } = cloudOf(since, seed);
+  const storm = stormAt(since);
+  const strikes = prefersReducedMotion() ? [] : strikesAt(stormSpec(seed), stormAt, since);
+  // The storm's night before the first dawn.
+  const day: Day =
+    since < STORM_S ? { progress: sky.progress, sun: null, moon: null } : dayAt(since);
+  paintSky(pen, SKY, day, {
+    grey: since < STORM_S ? 1 : greyOf(cover),
+    clouds: cloudsAt({ seed, speed: 2 * fridayAir(seed).dir }, SKY, since, cover, pass),
+    storm: storm?.strength ?? 0,
+    strikes,
+    seed,
+    t: since,
+    body: BODY_PX,
+    d: -SKY_Z,
+  });
+};
+
 /**
  * The outside `since` seconds into friday under `sky`, into `scene` far behind the wall: the sky
- * giving its own light, the sun and the moon on their arcs (cloud hides them), the smoke, and the
- * land, which takes them as they go down behind the ridge.
+ * giving its own light, the smoke, and the land, which takes the sun and the moon as they go
+ * down behind the ridge.
  */
 export const paintOutside = (scene: Raster, sky: SkyInput, since: number, seed: number) => {
   const w = worldOf(seed);
   const day = daylight(sky.progress);
-  const heavens = lit(shifted(rasterPen(scene), { dd: -SKY_Z }));
-  paintOpenSky(heavens, sky, { x: 0, y: 0, w: SCENE_W, h: HORIZON + 8 }, 14);
-  if (sky.weather === "clear") {
-    const { sun, moon } = dayAt(since);
-    if (sun) paintSun(heavens, skyPoint(sun));
-    if (moon) paintMoon(heavens, skyPoint(moon), moon.phase);
-  }
-  paintSmoke(heavens, w, since, day);
+  const heavens = lit(rasterPen(scene));
+  paintHeavens(heavens, sky, since, seed);
+  paintSmoke(shifted(heavens, { dd: -SKY_Z }), w, since, day);
   const { k, p } = seasonAt(since);
   const key = `${seed}|${Math.round(healAt(since) * 40)}|${k}|${Math.round(p * 12)}`;
   if (!land || land.key !== key) {

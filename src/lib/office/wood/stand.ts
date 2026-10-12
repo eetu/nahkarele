@@ -15,7 +15,7 @@ import { standPainterOf, type Taken } from "@anarkisti/korpi/plants/paint";
 import { floorZ, grounded, PX_M, ROOM_VIEW } from "../depth";
 import { FLOOR_Y, SCENE_W } from "../engine";
 import { FRIDAY, SEASON_S, SEASONS_FROM } from "./seasons";
-import { plantWind } from "./wind";
+import { fridayAir, plantWind } from "./wind";
 
 export type { Life, Taken };
 
@@ -101,6 +101,10 @@ const painter = standPainterOf({ pxPerM: PX_M, max: 128 });
 /** The trees, standing and down, each at its root's depth. */
 export const drawTrees = (pen: Pen, since: number, seed: number, knocks: Knocks) =>
   painter.trees(grounded(pen), standFor(seed), ROOM_VIEW, since, plantWind(seed), knocks);
+
+/** The cones and keys lying under the trees, and a maple's keys spinning down on the wind. */
+export const drawSeeds = (pen: Pen, since: number, seed: number) =>
+  painter.seeds(grounded(pen), standFor(seed), ROOM_VIEW, since, fridayAir(seed).drift);
 
 /** The apples, hanging, falling, and lying in the grass where they came down; what was `taken`
  *  stays away. */

@@ -39,7 +39,7 @@ import { frameOf, paintKeys, paintSprite, type Sprite } from "$lib/sprites/sprit
 import token from "$lib/sprites/token.json";
 import wc from "$lib/sprites/wc.json";
 
-import { dockAt, drawBox, drawChargerAt, drawChargerLightAt, PAD, roundAt } from "./charger";
+import { BOX, dockAt, drawBox, drawChargerAt, drawChargerLightAt, PAD, roundAt } from "./charger";
 import { at, covered, FLAT, floorZ, footAt, onFloor, ROOM_VIEW, Z } from "./depth";
 import {
   AI_MOUTH,
@@ -58,7 +58,7 @@ import {
 import { crowAtJar, crowCue } from "./wood/crow";
 import { drawAir, drawGarden, drawGlow, drawLife } from "./wood/garden";
 import { firefliesAt } from "./wood/life";
-import { OUTSIDE_NIGHT, outsideNight, paintOutside } from "./wood/outside";
+import { lightningAt, OUTSIDE_NIGHT, outsideNight, paintOutside } from "./wood/outside";
 import { drawCreeperOver, overgrown } from "./wood/overgrowth";
 import type { Knocks } from "./wood/stand";
 import {
@@ -84,6 +84,7 @@ import {
 } from "./wood/wall";
 import { windowAt } from "./wood/weather";
 import { windAt } from "./wood/wind";
+import { paintFridayWindow } from "./wood/window";
 
 const S = {
   specialist: specialist as Sprite,
@@ -180,6 +181,9 @@ const SLAB = { w: 44, top: 32, bottom: 150, foot: 153 };
 const AI_X = { 1: 6, 2: SCENE_W - 6 - SLAB.w } as const;
 /** The desk: its top at `y`, its front down to `foot`, where it meets the floor (`Z.desk` out). */
 const DESK = { x: 104, w: 112, y: 118, foot: 154 };
+/** Friday's cake on the desk, and its candle's flame (the sprite's top two rows). */
+const CAKE = { x: 137, y: DESK.y - S.cake.h };
+const CANDLE = { x: CAKE.x + 7.5, y: CAKE.y + 1 };
 
 /** What the wall knows of the room: what hangs on it, and what stands in front of it. */
 export const WALL: Setting = {
@@ -259,11 +263,11 @@ const paintRoom = (scene: Raster, pen: Pen, s: OfficeState, mood: Mood, sky: Sky
   if (!mood.after) paintWindow(hung, sky, GLASS, C.frame, { blast: mood.blast });
   else {
     // After the blast the wall comes down piece by piece, and the world outside shows through
-    // the gaps and the window alike.
+    // the gaps and the broken window alike.
     paintOutside(scene, sky, mood.since, mood.seed);
     paintWall(scene, ROOM_VIEW, mood.since, mood.seed, wallOf(mood));
     if (fixtureOf("window", mood).on)
-      paintWindow(hung, sky, GLASS, C.frame, { cracked: true, blast: mood.blast, open: true });
+      paintFridayWindow(wall, FIXTURES.window, mood.since, mood.seed, colourOf(C.frame));
   }
   if (fixtureOf("clock", mood).on) paintHousing(hung, FIXTURES.clock.x, FIXTURES.clock.y, CLOCK);
   if (fixtureOf("pay", mood).on) paintHousing(hung, FIXTURES.pay.x, FIXTURES.pay.y, PAY);
@@ -432,10 +436,10 @@ const paintDesk = (pen: Pen, s: OfficeState, mood: Mood) => {
   if (mood.after) {
     const frame = frameOf(S.jar, "bubble", mood.since * 1.5);
     paintSprite(on, S.jar, 151, y - 20, { frame });
-    // Between the CRT and the jar: as promised.
-    paintSprite(on, S.cake, 137, y - S.cake.h, {
-      frame: frameOf(S.cake, "flicker", mood.since * 6),
-    });
+    // Between the CRT and the jar: as promised. Its candle burns on, a light of its own.
+    const flame = frameOf(S.cake, "flicker", mood.since * 6);
+    paintSprite(on, S.cake, CAKE.x, CAKE.y, { frame: flame });
+    paintKeys(lit(on), S.cake, CAKE.x, CAKE.y, "yo", flame);
   }
 };
 
@@ -585,24 +589,27 @@ const paintVisitors = (pen: Pen, mood: Mood) => {
 /** What the room goes toward at night. */
 const NIGHT = rgb("#0a0f1c");
 const FIREFLY = rgb3(rgb("#e8ff7a"));
+const FLAME = rgb3(rgb("#ffb24a"));
+const CHARGING = rgb3(rgb("#58e070"));
 
 /**
  * The room's light. On working days the room darkens with the shift, the window with it; on
  * friday the world beyond the wall is in the open sky's light, and the room under its cover
  * darkens as the day goes and further at night. The clock and the fireflies light what is
- * near them.
+ * near them; on friday so do the candle and the charger, more as the dark comes.
  */
-const lightOf = (s: OfficeState, mood: Mood, sky: SkyInput): Light => {
-  const room = toward(NIGHT, Math.max(0, roomDarkness(sky)));
+const lightOf = (mood: Mood, sky: SkyInput, bolt: number): Light => {
+  const room = toward(NIGHT, Math.max(0, roomDarkness(sky, bolt)));
   if (!mood.after) return { open: () => room, points: () => clockLight(mood) };
-  const night = (1 - daylight(sky.progress)) * 0.32;
-  const indoors = further(room, NIGHT, night);
+  const dark = 1 - daylight(sky.progress);
+  const indoors = further(room, NIGHT, dark * 0.32);
   return {
     open: () => toward(colourOf(OUTSIDE_NIGHT), outsideNight(sky)),
     sheltered: () => indoors,
     shelter: covered,
     points: () => [
       ...clockLight(mood),
+      ...fridayLamps(mood.since, dark),
       ...firefliesAt(mood.since, mood.seed).map(({ x, y, glow }): PointLight => ({
         p: ROOM_VIEW.unproject(x, y, -Z.fireflies),
         colour: FIREFLY,
@@ -611,6 +618,36 @@ const lightOf = (s: OfficeState, mood: Mood, sky: SkyInput): Light => {
       })),
     ],
   };
+};
+
+/**
+ * Friday's lamps, `dark` (0 day … 1 night) taking them from nothing to full: the cake's candle,
+ * flickering, throwing the CRT's and the jar's shadows and lighting what turns to it (korpi's
+ * `shadows` and `facing`: the one lamp that throws them); the charger's green while the drone
+ * sleeps on it.
+ */
+const fridayLamps = (since: number, dark: number): PointLight[] => {
+  if (dark <= 0) return [];
+  const flicker = 0.85 + 0.1 * Math.sin(since * 13) + 0.05 * Math.sin(since * 31);
+  const lamps: PointLight[] = [
+    {
+      p: ROOM_VIEW.unproject(CANDLE.x, CANDLE.y, -(Z.onDesk + 0.01)),
+      colour: FLAME,
+      level: 0.75 * dark * flicker,
+      radius: 0.9,
+      shadows: true,
+      facing: 0.6,
+    },
+  ];
+  if (dockAt(since) > 0.98) {
+    lamps.push({
+      p: ROOM_VIEW.unproject(BOX.x + 3, BOX.y + 2, -(Z.onDesk + 0.01)),
+      colour: CHARGING,
+      level: 0.35 * dark,
+      radius: 0.3,
+    });
+  }
+  return lamps;
 };
 
 /** The clock's red on the wall round it, while it hangs and shows anything. */
@@ -672,8 +709,9 @@ export const paintOffice = (scene: Raster, s: OfficeState, mood: Mood, signs: Si
     paintDrone(pen, s);
     paintVerdict(pen, s);
   }
-  resolve(scene, ROOM_VIEW, lightOf(s, mood, sky), mood.since);
-  const bolt = flash(sky);
+  // Lightning: friday's storms are korpi's, flashing as they strike.
+  const bolt = mood.after ? lightningAt(mood.since, mood.seed) : flash(sky);
+  resolve(scene, ROOM_VIEW, lightOf(mood, sky, bolt), mood.since);
   const blastFlash = mood.blast !== null ? Math.max(0, 1 - mood.blast / 0.6) : 0;
   const white = Math.max(bolt * 0.18, blastFlash * 0.9);
   if (white > 0) wash(scene, colourOf(mix("#f4f6ff", "#fff4d8", blastFlash)), white);

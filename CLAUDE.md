@@ -23,7 +23,7 @@ src/lib/office/      software specialist: engine (messages, desk, pay), tasks, d
                      overgrowth (cracks, grass, climbers) · meadow (the flowers' spots) ·
                      moss · posed (the soft plants' paintings) ·
                      wall (the back wall coming down; korpi paints it) · outside (the world
-                     behind it) ·
+                     behind it, under korpi's sky) · window (the broken window, korpi's) ·
                      weather · life · tit, crow, swallows (the birds)
 src/lib/audio/       synthesized sound for both rooms, the mute
 src/lib/scene/       shared: the winter window, shift clock, calendar, LED, pixel font, pixel helpers
@@ -106,7 +106,8 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   the sulphur shelf on old oak and the birch polypore on dead birch come in their season and
   wither. Each is painted with the piece of wood it grows on, so it sways, falls and rots
   with it. In dev a shuttle under the room runs friday's clock
-  ahead or back while held, faster the further it is pulled. Apples ripen, fall
+  ahead or back while held, faster the further it is pulled. Cones and a maple's keys come
+  down under old trees, the keys spinning on the wind (korpi `seeds`). Apples ripen, fall
   through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
   early (`mood.knocks`), and a tap on the back wall knocks out the block there (`mood.pokes`,
   baked into the masonry as a blow), the two things on friday that answer the player; both
@@ -145,15 +146,22 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   moss has it and it sinks. What hangs on the wall (window, clock, calendar, signs) goes with
   the block above it, and the signs' buttons follow (the exit sign lands in front of the
   desk); what is on the wall (cracks, climbers, the snail, the sill's snow) goes with the
-  wall. Rain and snow fall through the room in their spells. The trees clear of the desk
+  wall. Rain and snow fall through the room in their spells, each drop and flake at its depth,
+  and lie on the floor and the ledges (korpi `sky`). The window hangs broken (korpi `window`,
+  `wood/window.ts`): a pane gone, the others cracked where the blast struck them, rain running
+  down the glass that is left. The trees clear of the desk
   stand in front of the furniture, the rest behind it. The gaps and the window look out on one world (`wood/outside.ts`), ruined
-  at the blast and healing over the years. Friday has days (`wood/daylight.ts`, a minute
+  at the blast and healing over the years, under korpi's sky: clouds by the season, a spell's
+  deck coming over before its rain, lightning in the storm after the blast and in summer's
+  thunderstorms, flashing the room. Friday has days (`wood/daylight.ts`, a minute
   each): the season sets how long the sun is up and how high it climbs, how dark the night
   gets; the moon crosses the nights through its phases. Light is the world's, one pass a frame
   (korpi `light`): the room under its cover darkens with the day and further at night, the
   outside is in the open sky's light, and what lights itself (the clock, the signs, the AIs'
-  lights and runes, the charger, fireflies) glows; the clock and the fireflies light what is
-  near them. The ruin's grime is paint, not light. Friday is a screensaver, so it holds the screen awake while it runs
+  lights and runes, the charger, the cake's candle, fireflies) glows; the clock, the charger,
+  the candle and the fireflies light what is near them, the candle throwing the jar's and the
+  CRT's shadows (`shadows`, `facing`: the one lamp that does). The ruin's grime is paint, not
+  light. Friday is a screensaver, so it holds the screen awake while it runs
   (`wakeLock.ts`).
 - **The office is one scene raster.** `paintOffice` paints every part through a korpi pen into
   one 320x180 raster with a depth per pixel, lights it once and presents it once. Everything is

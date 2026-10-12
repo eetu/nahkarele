@@ -1,25 +1,31 @@
 // Friday's weather: what the window shows, the litter and snow on the ground and the
-// ledges, and the leaves and flakes that fall through the room on the wind. The year's spells
-// are korpi's; the storm after the blast and its rain are friday's own.
+// ledges, and the leaves, flakes and drops that fall through the room on the wind. The year's
+// spells, the snow and the rain are korpi's; the storm after the blast is friday's own.
 
+import type { Box3 } from "@anarkisti/korpi/core";
 import { clear, type Pen, type Raster, raster, rasterPen } from "@anarkisti/korpi/paint";
 import { crownOf, deciduous } from "@anarkisti/korpi/plants";
 import { autumnOf } from "@anarkisti/korpi/plants/paint";
-import { weatherAt } from "@anarkisti/korpi/sky";
+import { rainAt, snowAt, weatherAt } from "@anarkisti/korpi/sky";
+import {
+  paintRainfall,
+  paintSnowCaps,
+  paintSnowfall,
+  paintSnowGround,
+} from "@anarkisti/korpi/sky/paint";
 
-import { fill, fillFaded, paintRaster } from "$lib/scene/pen";
+import { fill, paintRaster } from "$lib/scene/pen";
 import { hash, ramp } from "$lib/scene/pixel";
 import type { Weather } from "$lib/scene/sky";
 
-import { at, FLAT, footAt, onFloor, PX_M, Z } from "../depth";
+import { at, FLAT, floorZ, onFloor, PX_M, ROOM_VIEW, Z } from "../depth";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
 import { dayAt } from "./daylight";
 import { FRIDAY, litter, type Season, seasonAt, SEASONS_FROM, snowCover, STORM_S } from "./seasons";
 import { ROOT_Y, sceneOf, standFor, standing } from "./stand";
-import { driftOf } from "./wind";
+import { driftOf, fridayAir } from "./wind";
 
 const AUTUMN = ["#d9a441", "#e07b2a", "#c8452f", "#b3741f"];
-const SNOW = ["#f4f7fa", "#e4ebf0"];
 
 /** Friday's window: the storm after the blast, then the wood's seasons and their weather. */
 export const windowAt = (since: number): { progress: number; weather: Weather } => {
@@ -36,7 +42,7 @@ const snowing = (since: number) => weatherAt(FRIDAY, since).snow;
 
 /** How hard it is raining, 0..1: the storm's rain as the wood comes in, then the spells of
  *  every season but winter. */
-const raining = (since: number) =>
+export const raining = (since: number) =>
   since < SEASONS_FROM ? 1 - ramp(since, 150, 160) : weatherAt(FRIDAY, since).rain;
 
 /** Something on the floor painted once per quantised state and reused: snow cover, leaf
@@ -62,30 +68,23 @@ const LITTER = Array.from({ length: 220 }, (_, i) => ({
   colour: AUTUMN[Math.floor(hash(i, 14) * AUTUMN.length)],
 }));
 
-const SNOW_CELL = 2;
-/** Every floor cell with the moment in the cover it whitens; melting runs it backwards. */
-let snowCells: { x: number; y: number; at: number; colour: string }[] | null = null;
-const snowField = () =>
-  (snowCells ??= (() => {
-    const cells: { x: number; y: number; at: number; colour: string }[] = [];
-    for (let y = FLOOR_Y; y < SCENE_H; y += SNOW_CELL) {
-      for (let x = 0; x < SCENE_W; x += SNOW_CELL) {
-        const h = hash(x, y, 21);
-        cells.push({ x, y, at: h, colour: SNOW[Math.floor(h * 53) % SNOW.length] });
-      }
-    }
-    return cells;
-  })());
+/** The room's floor, m: wall to wall, from the wall's foot out to the near edge. */
+const FLOOR = { x0: 0, x1: SCENE_W / PX_M, z0: 0, z1: floorZ(SCENE_H) };
 
-/** A ledge the snow settles on, scene px: where it starts, its row, how long it is. */
-type Ledge = [number, number, number];
-/** The AIs' tops (`SLAB` in office/draw.ts) and the desk's, at the depth of what is on them. */
-const FURNITURE: [Ledge, number][] = [
-  [[6, 32, 44], Z.slabSnow],
-  [[270, 32, 44], Z.slabSnow],
-  [[104, 118, 112], Z.deskSnow],
+/** A ledge the snow settles on: its front edge's top at scene (x, y), `w` px long, `z` m out. */
+const ledge = (x: number, y: number, w: number, z: number): Box3 => {
+  const a = ROOM_VIEW.unproject(x, y, -z);
+  return { x0: a.x, x1: a.x + w / PX_M, y0: a.y - 0.05, y1: a.y, z0: z - 0.05, z1: z };
+};
+/** The AIs' tops (`SLAB` in office/draw.ts) and the desk's, at the depth of what is on them:
+ *  korpi lays the snow a millimetre in front, at `Z.slabSnow` and `Z.deskSnow`. */
+const FURNITURE = [
+  ledge(6, 32, 44, Z.slabFace),
+  ledge(270, 32, 44, Z.slabFace),
+  ledge(104, 118, 112, Z.onDesk),
 ];
-const SILL: Ledge = [126, 60, 68];
+/** The window's sill, on the wall. */
+const SILL = [ledge(126, 60, 68, 0)];
 
 /** The leaf litter and the snow on the floor, flat on it. */
 export const drawGround = (pen: Pen, since: number) => {
@@ -98,34 +97,22 @@ export const drawGround = (pen: Pen, since: number) => {
   }
   const snow = snowCover(since);
   if (snow > 0) {
-    layer(onFloor(pen, FLAT.snow), "snow", `${Math.round(snow * 30)}`, (off) => {
-      for (const c of snowField()) {
-        if (c.at < snow) fill(off, c.colour, c.x, c.y, SNOW_CELL, SNOW_CELL);
-      }
-    });
+    const key = `${Math.round(snow * 30)}`;
+    layer(onFloor(pen, FLAT.snow), "snow", key, (off) =>
+      paintSnowGround(off, ROOM_VIEW, FLOOR, Math.round(snow * 30) / 30),
+    );
   }
 };
 
-/** A snow cap on a ledge. */
-const capLedge = (pen: Pen, snow: number, [x, y, w]: Ledge) => {
-  for (let k = 0; k < w; k++) {
-    if (hash(x + k, y, 31) > snow) continue;
-    fill(pen, SNOW[0], x + k, y - 1);
-    if (hash(x + k, y, 32) < snow - 0.5) fill(pen, SNOW[1], x + k, y - 2);
-  }
-};
-
-/** Snow on the window sill, while the window hangs: the sill goes down with it. */
+/** Snow on the window sill (`pen` on the wall), while the window hangs: the sill goes down
+ *  with it. */
 export const drawSillSnow = (pen: Pen, since: number, hanging: boolean) => {
-  const snow = snowCover(since);
-  if (hanging && snow > 0) capLedge(pen, snow, SILL);
+  if (hanging) paintSnowCaps(pen, ROOM_VIEW, SILL, snowCover(since));
 };
 
 /** Snow on the slabs and the desk. */
-export const drawSnowCaps = (pen: Pen, since: number) => {
-  const snow = snowCover(since);
-  if (snow > 0) for (const [ledge, z] of FURNITURE) capLedge(at(pen, z), snow, ledge);
-};
+export const drawSnowCaps = (pen: Pen, since: number) =>
+  paintSnowCaps(pen, ROOM_VIEW, FURNITURE, snowCover(since));
 
 const drawFallingLeaves = (pen: Pen, since: number, season: Season, seed: number) => {
   const on =
@@ -148,84 +135,37 @@ const drawFallingLeaves = (pen: Pen, since: number, season: Season, seed: number
     const blown = driftOf(since - t * period, since, seed, x0) * LEAF_PX_S;
     const x = x0 + Math.sin(t * 6 + i) * 8 + t * 12 * (hash(i, 47) - 0.5) + blown;
     const y = y0 + t * (FLOOR_Y + 4 - y0);
-    at(pen, aloft(i, 48)).fill(colours[i % colours.length], Math.round(x), Math.round(y), 2, 1);
+    // Anywhere from just off the wall to the near floor; past the floor there, under it.
+    const z = 0.1 + 2.4 * hash(i, 48);
+    at(pen, z).fill(colours[i % colours.length], Math.round(x), Math.round(y), 2, 1);
   }
 };
 
-/** How fast a leaf and a flake ride a wind of 1, scene px/s. */
+/** How fast a leaf rides a wind of 1, scene px/s. */
 const LEAF_PX_S = 20;
-const FLAKE_PX_S = 16;
-const DROP_PX_S = 30;
 
-/** How far out falling leaf or flake `i` is, m: anywhere from just off the wall to the near
- *  floor, a `near` one in the nearer half. Past the floor where that is, it is under it. */
-const aloft = (i: number, salt: number, near = false) =>
-  near ? 1.3 + 1.2 * hash(i, salt) : 0.1 + 2.4 * hash(i, salt);
-
-const RAIN = "#a8bccf";
-
-/**
- * Rain through the room, now that the roof is gone: streaks that lean with the wind and fall
- * fast, each to a spot on the floor, where it splashes for a moment.
- */
-const drawRainfall = (pen: Pen, since: number, seed: number) => {
-  const on = raining(since);
-  if (on <= 0) return;
-  const a = 0.55 * on;
-  const span = SCENE_W + 20;
-  for (let i = 0; i < 70; i++) {
-    const near = i % 5 === 0;
-    const speed = near ? 190 : 140 + 30 * hash(i, 61);
-    const land = FLOOR_Y + 2 + Math.floor(hash(i, 62) * (SCENE_H - FLOOR_Y - 4));
-    // At the depth of the floor where it lands, so it splashes there.
-    const drop = footAt(pen, land);
-    const fall = (land + 6) / speed;
-    const cycle = fall + 0.12;
-    const t = (since + hash(i, 63) * cycle) % cycle;
-    const x0 = hash(i, 64) * span;
-    // The same wind that carries the snow, read over the drop's short way down.
-    const lean = -driftOf(since - 0.25, since, seed, x0) * 4 * 0.45;
-    const blown = driftOf(since - Math.min(t, fall), since, seed, x0) * DROP_PX_S;
-    const x = ((((x0 + blown) % span) + span) % span) - 10;
-    if (t < fall) {
-      const y = -6 + t * speed;
-      const len = near ? 5 : 3;
-      for (let j = 0; j < len; j++)
-        fillFaded(drop, RAIN, a, Math.round(x + lean * j), Math.round(y - j));
-    } else {
-      fillFaded(drop, RAIN, a, Math.round(x) - 1, land, 1, 1);
-      fillFaded(drop, RAIN, a, Math.round(x) + 1, land, 1, 1);
-      fillFaded(drop, RAIN, a, Math.round(x), land - 1, 1, 1);
-    }
-  }
-};
-
-const drawSnowfall = (pen: Pen, since: number, season: Season, seed: number) => {
-  const on = snowing(since);
-  if (on <= 0) return;
-  const a = 0.9 * on;
-  // Spread over the whole room, carried on the wind through the broken window; one flake in
-  // four is nearer, bigger and quicker.
-  const span = SCENE_W + 10;
-  const fall = SCENE_H + 10;
-  for (let i = 0; i < 90; i++) {
-    const near = i % 4 === 0;
-    const speed = near ? 20 + 8 * hash(i, 51) : 10 + 7 * hash(i, 51);
-    const x0 = hash(i, 52) * span;
-    const down = (since * speed + hash(i, 53) * fall) % fall;
-    const blown = driftOf(since - down / speed, since, seed, x0) * FLAKE_PX_S * (near ? 1.3 : 1);
-    const drift = blown + Math.sin(since * 0.6 + i) * 4;
-    const x = ((((x0 + drift) % span) + span) % span) - 5;
-    const y = down - 5;
-    const flake = at(pen, aloft(i, 54, near));
-    fillFaded(flake, SNOW[0], a, Math.round(x), Math.round(y), near ? 2 : 1, near ? 2 : 1);
-  }
-};
+/** Across the room with a little either side, from up past the top of the view (at the near
+ *  edge of the floor) down to the floor, m. */
+const ACROSS = { x0: -0.25, x1: SCENE_W / PX_M + 0.25, y0: 0, y1: (SCENE_H + 10) / PX_M };
+/** Rain through the room now that the roof is gone, splashing on the floor from a little off
+ *  the wall to the near edge; snow carried in from just off the wall to the near floor. */
+const RAIN = { ...ACROSS, z0: floorZ(FLOOR_Y + 2), z1: floorZ(SCENE_H - 2) };
+const SNOW = { ...ACROSS, z0: 0.1, z1: 2.5 };
+/** Half a floor row nearer, m: a drop splashes on the floor whichever way its row rounds. */
+const SPLASH = 0.05;
 
 /** Leaves in autumn, snow in winter, rain in its spells, through the whole room. */
 export const drawFalling = (pen: Pen, since: number, seed: number) => {
-  const season = seasonAt(since);
-  drawFallingLeaves(pen, since, season, seed);
-  drawSnowfall(pen, since, season, seed);
-  drawRainfall(pen, since, seed);
+  drawFallingLeaves(pen, since, seasonAt(since), seed);
+  const air = fridayAir(seed);
+  const snow = snowing(since);
+  if (snow > 0) {
+    const flakes = snowAt({ seed, volume: SNOW, count: 90 }, air, since, snow);
+    paintSnowfall(pen, ROOM_VIEW, flakes);
+  }
+  const rain = raining(since);
+  if (rain > 0) {
+    const drops = rainAt({ seed, volume: RAIN, count: 70 }, air, since, rain);
+    paintRainfall(at(pen, SPLASH), ROOM_VIEW, drops);
+  }
 };

@@ -12,7 +12,7 @@ import { drawDeer, drawFliers, drawGlowing, drawSmallLife } from "./life";
 import { drawFlowers } from "./meadow";
 import { drawCracks, drawGrass, drawMoss, drawVines } from "./overgrowth";
 import { drawSticks } from "./shedding";
-import { drawApples, drawTrees, type Knocks } from "./stand";
+import { drawApples, drawSeeds, drawTrees, type Knocks } from "./stand";
 import { drawSwallows } from "./swallows";
 import { drawShrubs } from "./undergrowth";
 import { climbTo, fixtureAt, onWall, type Setting } from "./wall";
@@ -28,9 +28,9 @@ const takenBy = (since: number, seed: number, wall: Setting, knocks: Knocks) => 
 
 /**
  * What grows: the floor going green and its cracks, the litter and the snow on it; what is on
- * the back wall (the sill's snow, the climbers); the trees and what they drop, the shrubs, the
- * grass and the flowers, the apples; snow on the furniture. What has come down off the wall
- * lies among them (`paintWall`).
+ * the back wall (the sill's snow, the climbers); the trees and what they drop (sticks, cones
+ * and keys), the shrubs, the grass and the flowers, the apples; snow on the furniture. What has
+ * come down off the wall lies among them (`paintWall`).
  */
 export const drawGarden = (pen: Pen, { since, seed, knocks }: Friday, wall: Setting) => {
   drawMoss(pen, since, seed);
@@ -42,6 +42,7 @@ export const drawGarden = (pen: Pen, { since, seed, knocks }: Friday, wall: Sett
   drawVines(on, since, seed);
   drawSticks(pen, since, seed);
   drawTrees(pen, since, seed, knocks);
+  drawSeeds(pen, since, seed);
   drawShrubs(pen, since, seed);
   drawGrass(pen, since, seed);
   drawFlowers(pen, since, seed);

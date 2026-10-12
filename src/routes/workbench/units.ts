@@ -51,6 +51,7 @@ import {
 import { sfx } from "$lib/audio/sfx.svelte";
 import { BOX, drawCharger, PAD as DOCK } from "$lib/office/charger";
 import { PX_M } from "$lib/office/depth";
+import { GLASS } from "$lib/office/draw";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "$lib/office/engine";
 import { drawSpider } from "$lib/office/wood/life";
 import { drawFlowers } from "$lib/office/wood/meadow";
@@ -64,8 +65,9 @@ import {
   shakeApple,
 } from "$lib/office/wood/stand";
 import { drawGround } from "$lib/office/wood/weather";
+import { paintFridayWindow } from "$lib/office/wood/window";
 import { CALENDAR, paintCalendar } from "$lib/scene/calendar";
-import { fill, fillFaded } from "$lib/scene/pen";
+import { colourOf, fill, fillFaded } from "$lib/scene/pen";
 import { smooth } from "$lib/scene/pixel";
 import { paintText, pixelTextWidth } from "$lib/scene/pixelfont";
 import droneSprite from "$lib/sprites/drone.json";
@@ -827,6 +829,34 @@ const charger: Unit = {
   },
 };
 
+/** Friday's window as the blast left it, over a plain sky: korpi's panes, cracks and rain. */
+const OPENING = { x: GLASS.x - 2, y: GLASS.y - 2, w: GLASS.w + 4, h: GLASS.h + 4 };
+const fridayWindow: Unit = {
+  name: "window",
+  about: "friday's window as the blast left it, rain running down what glass is left",
+  animated: true,
+  defaults: { seed: 1, rain: 0.8 },
+  params: () => [
+    { kind: "seed", key: "seed" },
+    {
+      kind: "range",
+      key: "rain",
+      min: 0,
+      max: 1,
+      step: 0.05,
+      show: share,
+      hint: "how hard it is raining",
+    },
+  ],
+  size: () => ({ w: OPENING.w + 8, h: OPENING.h + 8 }),
+  draw: ({ pen }, v, t) => {
+    fill(pen, "#b9c0c4", 0, 0, OPENING.w + 8, OPENING.h + 8);
+    fill(pen, "#8fa8bd", 6, 6, OPENING.w - 4, OPENING.h - 4);
+    const at = shifted(pen, { dx: 4 - OPENING.x, dy: 4 - OPENING.y });
+    paintFridayWindow(at, OPENING, t, num(v, "seed"), colourOf("#3d3a33"), num(v, "rain"));
+  },
+};
+
 export const UNITS: Unit[] = [
   tree,
   conk,
@@ -836,6 +866,7 @@ export const UNITS: Unit[] = [
   flower,
   spider,
   wood,
+  fridayWindow,
   wallSim,
   stoneUnit,
   sprite,
