@@ -1,0 +1,61 @@
+{
+  "name": "gate",
+  "w": 2,
+  "h": 20,
+  "palette": {
+    "R": "#c8452f",
+    "W": "#efe6cf"
+  },
+  "frames": [
+    [
+      "RR",
+      "RR",
+      "RR",
+      "RR",
+      "WW",
+      "WW",
+      "WW",
+      "WW",
+      "RR",
+      "RR",
+      "RR",
+      "RR",
+      "WW",
+      "WW",
+      "WW",
+      "WW",
+      "RR",
+      "RR",
+      "RR",
+      "RR"
+    ]
+  ],
+  "slices": [
+    {
+      "frames": [
+        [
+          "RR",
+          "RR",
+          "RR",
+          "RR",
+          "WW",
+          "WW",
+          "WW",
+          "WW",
+          "RR",
+          "RR",
+          "RR",
+          "RR",
+          "WW",
+          "WW",
+          "WW",
+          "WW",
+          "RR",
+          "RR",
+          "RR",
+          "RR"
+        ]
+      ]
+    }
+  ]
+}

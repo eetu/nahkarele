@@ -1,3 +1,5 @@
+import type { Turn } from "@anarkisti/korpi/model";
+
 import { drawCalendar } from "$lib/scene/calendar";
 import { rect } from "$lib/scene/pixel";
 import { drawPixelText } from "$lib/scene/pixelfont";
@@ -7,7 +9,6 @@ import { bake, drawSprite, frameOf } from "$lib/sprites/sprite";
 import {
   BELT_Y,
   BOT_MAX,
-  current,
   type FactoryState,
   GATE_X,
   type Item,
@@ -23,6 +24,7 @@ import {
   ZONE,
 } from "./engine";
 import { lookOf, SPRITES } from "./look";
+import { type Models, modelsOf, solid } from "./models";
 
 /** The factory's window: where the glass is, and the day it shows. */
 const GLASS = { x: 16, y: 18, w: 56, h: 44 };
@@ -45,6 +47,8 @@ export type Stagecraft = {
   /** What the wall signs show: the speaker's state, and fullscreen (null where unsupported). */
   muted: boolean;
   fullscreen: boolean | null;
+  /** What is drawn in depth: the gate, and what falls. */
+  models: Models;
 };
 
 export const createStagecraft = (): Stagecraft => ({
@@ -56,6 +60,7 @@ export const createStagecraft = (): Stagecraft => ({
   sparkles: [],
   muted: false,
   fullscreen: null,
+  models: modelsOf(),
 });
 
 /** Scene rect the nixie clock overlay covers. */
@@ -257,15 +262,53 @@ const drawItems = (ctx: CanvasRenderingContext2D, s: FactoryState, stage: "belt"
   }
 };
 
-/** The barrier that holds the front boot: down while it waits, up once decided. */
-const drawGate = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
-  const front = current(s);
-  const waiting = front !== null && front.x + ITEM_W / 2 >= GATE_X - 0.01;
-  const x = GATE_X + ITEM_W / 2 + 1;
-  rect(ctx, C.steelDark, x, 104, 2, 4);
-  if (!waiting) return;
-  for (let y = 108; y < BELT_Y; y += 4) rect(ctx, y % 8 === 0 ? C.red : C.face, x, y, 2, 4);
+/** The gate's pole: its hinge on the bracket, scene px, and how long it hangs. */
+const POLE = { x: GATE_X + ITEM_W / 2 + 2, y: 108, h: BELT_Y - 108 };
+/** Seconds the pole takes to tip up out of the way once a call is made. */
+const GATE_UP_S = 0.15;
+/** Scene px a boot goes past the pole before it swings back down. */
+const GATE_DOWN_PX = 4;
+
+const eased = (p: number) => {
+  const q = Math.min(1, Math.max(0, p));
+  return q * q * (3 - 2 * q);
 };
+
+/**
+ * How far the gate's pole has tipped up toward the screen, 0 hanging … 1 out of the way: up
+ * from the call that lets a boot go, back down as that boot clears it, so it hangs again before
+ * the next one comes; up for as long as the relay is away.
+ */
+const gateUp = (s: FactoryState) => {
+  if (s.away) return 1;
+  let passing: Item | null = null;
+  for (const i of s.items) {
+    if (i.stage === "belt" && i.decided && (!passing || i.x < passing.x)) passing = i;
+  }
+  if (!passing || passing.x > POLE.x + GATE_DOWN_PX) return 0;
+  return Math.min(
+    eased((s.t - s.lastDecision) / GATE_UP_S),
+    1 - eased((passing.x - POLE.x) / GATE_DOWN_PX),
+  );
+};
+
+/** The barrier that holds the front boot: a pole hung across the belt from its bracket. */
+const drawGate = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactoryState) => {
+  rect(ctx, C.steelDark, POLE.x - 1, 104, 2, 4);
+  const a = (gateUp(s) * Math.PI) / 2;
+  const half = POLE.h / 2;
+  const look = { sprite: SPRITES.gate, frame: 0 };
+  st.models.paint(
+    look,
+    POLE.x,
+    POLE.y + half * Math.cos(a) + half * 0.25 * Math.sin(a),
+    { tip: -a },
+    half * Math.sin(a),
+  );
+};
+
+/** The roll that lays a thing on its side, the way it tips off the belt. */
+const ROLL = -Math.PI / 2;
 
 const drawLying = (ctx: CanvasRenderingContext2D, item: Item, x: number, y: number, turn = 1) => {
   const look = lookOf(item);
@@ -276,21 +319,48 @@ const drawLying = (ctx: CanvasRenderingContext2D, item: Item, x: number, y: numb
   ctx.restore();
 };
 
-const drawFloor = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
+/** `item` going down or lying, its middle at `cx`, `cy`, turned `turn`: in depth when its
+ *  sprite has depth, else its sprite turned by the quarter of the roll. */
+const drawDown = (
+  ctx: CanvasRenderingContext2D,
+  st: Stagecraft,
+  item: Item,
+  cx: number,
+  cy: number,
+  turn: Turn,
+) => {
+  const look = lookOf(item);
+  if (solid(look.sprite)) st.models.paint(look, cx, cy, turn);
+  else drawLying(ctx, item, cx - ITEM_W / 2, cy - ITEM_W / 2, (turn.roll ?? 0) / (Math.PI / 2));
+};
+
+/** Half a turn's tilt toward the screen at the middle of a fall, none at either end. */
+const wobble = (p: number) => 0.5 * Math.sin(p * Math.PI);
+
+const drawFloor = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactoryState) => {
   for (const item of s.items) {
     if (item.stage !== "floor") continue;
     // Tips over as it falls from the belt.
     const p = Math.min(1, (s.t - item.stageAt) / 0.3);
-    drawLying(ctx, item, item.x, BELT_Y - ITEM_W + (153 - BELT_Y + ITEM_W) * p * p, p);
+    const y = BELT_Y - ITEM_W + (153 - BELT_Y + ITEM_W) * p * p;
+    drawDown(ctx, st, item, item.x + ITEM_W / 2, y + ITEM_W / 2, {
+      roll: ROLL * p,
+      tip: wobble(p),
+    });
   }
+  st.models.present(ctx);
 };
 
-const drawOutCrate = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
+const drawOutCrate = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactoryState) => {
   for (const item of s.items) {
     if (item.stage !== "delivered") continue;
     const p = Math.min(1, (s.t - item.stageAt) / 0.3);
-    drawLying(ctx, item, OUT_CRATE.x + 5, 140 + p * 20);
+    drawDown(ctx, st, item, OUT_CRATE.x + 5 + ITEM_W / 2, 140 + p * 20 + ITEM_W / 2, {
+      roll: ROLL,
+      tip: wobble(p),
+    });
   }
+  st.models.present(ctx);
   const { x, y, w, h } = OUT_CRATE;
   rect(ctx, C.crateDark, x, y, w, h);
   rect(ctx, C.crate, x + 1, y + 1, w - 2, h - 2);
@@ -344,15 +414,21 @@ const drawButtons = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactorySt
 const SHREDDER = { x: 236, y: 150, w: 52, h: 28 };
 const SHRED_FALL_S = 0.3;
 
-const drawRejects = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
+const drawRejects = (ctx: CanvasRenderingContext2D, st: Stagecraft, s: FactoryState) => {
   for (const item of s.items) {
     if (item.stage !== "rejected") continue;
     const age = s.t - item.stageAt;
     const p = Math.min(1, age / SHRED_FALL_S);
     const look = lookOf(item);
     // Down through the hatch and into the rollers, where the shredder body hides it.
-    drawSprite(ctx, look.sprite, SHREDDER.x + SHREDDER.w / 2 - 8, 130 + p * p * 30, look);
+    const x = SHREDDER.x + SHREDDER.w / 2 - 8;
+    const y = 130 + p * p * 30;
+    if (solid(look.sprite)) {
+      st.models.paint(look, x + ITEM_W / 2, y + ITEM_W / 2, { roll: 0.9 * p, tip: 0.7 * p });
+    } else drawSprite(ctx, look.sprite, x, y, look);
   }
+  // The gate's pole and what drops into the shredder, before the shredder covers it.
+  st.models.present(ctx);
 };
 
 /** Rubber crumbs thrown up by the rollers, for as long as a boot is going through. */
@@ -581,12 +657,12 @@ export const drawFactory = (
   drawItems(ctx, s, "belt");
   drawItems(ctx, s, "shipped");
   drawPress(ctx, st, s);
-  drawGate(ctx, s);
-  drawRejects(ctx, s);
+  drawGate(ctx, st, s);
+  drawRejects(ctx, st, s);
   drawShredder(ctx, s);
   drawCrumbs(ctx, s);
-  drawOutCrate(ctx, s);
-  drawFloor(ctx, s);
+  drawOutCrate(ctx, st, s);
+  drawFloor(ctx, st, s);
   drawBots(ctx, s);
   drawMachine(ctx, s);
   drawSparkles(ctx, st, s.t);

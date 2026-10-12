@@ -4,6 +4,7 @@ import bot from "$lib/sprites/bot.json";
 import exit from "$lib/sprites/exit.json";
 import foreman from "$lib/sprites/foreman.json";
 import fx from "$lib/sprites/fx.json";
+import gate from "$lib/sprites/gate.json";
 import phone from "$lib/sprites/phone.json";
 import screen from "$lib/sprites/screen.json";
 import speaker from "$lib/sprites/speaker.json";
@@ -21,6 +22,7 @@ export const SPRITES = {
   worker: worker as Sprite,
   foreman: foreman as Sprite,
   fx: fx as Sprite,
+  gate: gate as Sprite,
   exit: exit as Sprite,
   wc: wc as Sprite,
   speaker: speaker as Sprite,

@@ -13,7 +13,8 @@ shape), `../dice` (same SvelteKit stack), `eetu/scene` (origin of `src/lib/tape/
 ## Layout
 
 ```
-src/lib/factory/     kumitehdas: engine (belt, gate, TÄ'h, floor bots), days, drawing, week store
+src/lib/factory/     kumitehdas: engine (belt, gate, TÄ'h, floor bots), days, drawing, models (what
+                     is drawn in depth), week store
 src/lib/office/      software specialist: engine (messages, desk, pay), tasks, days, drawing, depth
                      (the room's view and depths), week store
   wood/              friday's wood, the room's side of korpi `plants` (what grows, how it moves
@@ -58,6 +59,10 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   Defects are frames or variants of their model's sprite (`MODEL_DEFECTS` in `days.ts`);
   `xray` is a palette variant. Thursday adds phones; Friday is phones only and a boot is
   `foreign`, always defective.
+  A sprite with slices in dab (its grid the front, each slice a voxel further back) is a thing
+  in depth, korpi `model`: the factory draws its gate (a pole tipping up toward the screen) and
+  what falls that way (`factory/models.ts`, a raster laid over the canvas in draw order), lit
+  so a face toward the screen keeps its drawn colour. The boot has six voxels of depth.
 - **In the office, every message is delivered.** The AIs send tokens on a schedule; they pile
   in the tray (max `DESK_CAPACITY`), overflow or slide onto the floor, and the drone carries
   those to the receiver. An answer only moves the accuracy bonus. Salary is time on shift.
