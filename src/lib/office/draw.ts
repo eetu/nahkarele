@@ -418,7 +418,6 @@ const paintDesk = (pen: Pen, s: OfficeState, mood: Mood) => {
   fill(desk, C.desk, x, y, w, 4);
   fill(desk, C.deskFront, x + 2, y + 4, w - 4, foot - y - 4);
   fill(desk, C.deskEdge, x + 2, y + 4, w - 4, 1);
-  fill(desk, C.deskEdge, x + w / 2 - 1, y + 8, 2, foot - y - 12);
   // On it: the back of a CRT on the left, the input box on the right.
   const on = at(pen, Z.onDesk);
   fill(on, C.crtDark, x + 6, y - 20, 24, 20);
