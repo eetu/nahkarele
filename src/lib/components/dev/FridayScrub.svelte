@@ -1,13 +1,11 @@
 <script lang="ts">
+  import { rateOf as shuttleRate, SHUTTLE, type Shuttle } from "@anarkisti/korpi/clock";
+
   import { officeWeek } from "$lib/office/week.svelte";
   import { SEASON_S, seasonAt, SEASONS_FROM } from "$lib/office/wood/seasons";
   import { windAt } from "$lib/office/wood/wind";
 
   const SEASONS = ["summer", "autumn", "winter", "spring"];
-  /** The fastest friday runs, either way, with the thumb pulled all the way. */
-  const FASTEST = 200;
-  /** Around the middle, a pull this small is still normal speed. */
-  const SLACK = 0.08;
 
   // Friday's clock is not reactive state: read it a few times a second.
   let since = $state(0);
@@ -29,20 +27,26 @@
   });
 
   /**
-   * A shuttle: the thumb rests in the middle at normal speed; pulled right, friday runs ever
-   * faster, pulled left, backwards, both up to `FASTEST` times; let go, it springs back to the
-   * middle and friday to normal speed. `pull` is how far, -1..1.
+   * A shuttle (korpi's): the thumb rests in the middle at normal speed; pulled right, friday
+   * runs ever faster, pulled left, backwards; let go, it springs back to the middle and friday
+   * to normal speed. `pull` is how far, -1..1. Pulled all the way, a year goes by each frame
+   * friday paints (30 a second).
    */
+  const FRIDAY_SHUTTLE: Shuttle = { ...SHUTTLE, fastest: 4 * SEASON_S * 30 };
+
   let pull = $state(0);
   let held = $state(false);
   let track: HTMLDivElement | undefined = $state();
 
-  const rateOf = (d: number) => {
-    const u = (Math.abs(d) - SLACK) / (1 - SLACK);
-    if (u <= 0) return 1;
-    const r = FASTEST ** u;
-    return d > 0 ? r : -r;
-  };
+  const rateOf = (d: number) => shuttleRate(d, FRIDAY_SHUTTLE);
+
+  /** How far the thumb is pulled at 10×, 100× and 1000×: the scale is logarithmic, equal pulls
+   *  multiplying the speed, so the decades lie evenly; the ends are the next. */
+  const DECADES = [10, 100, 1000].map(
+    (r) =>
+      FRIDAY_SHUTTLE.slack +
+      ((1 - FRIDAY_SHUTTLE.slack) * Math.log(r)) / Math.log(FRIDAY_SHUTTLE.fastest),
+  );
   const rate = $derived(rateOf(pull));
   const speed = $derived(
     `${rate < 0 ? "◀◀" : rate > 1 ? "▶▶" : "▶"} ${Math.abs(rate).toFixed(Math.abs(rate) < 10 ? 1 : 0)}×`,
@@ -95,8 +99,8 @@
     role="slider"
     tabindex="0"
     aria-label="friday speed: pull right to run ahead, left to run back"
-    aria-valuemin={-FASTEST}
-    aria-valuemax={FASTEST}
+    aria-valuemin={-FRIDAY_SHUTTLE.fastest}
+    aria-valuemax={FRIDAY_SHUTTLE.fastest}
     aria-valuenow={Math.round(rate)}
     aria-valuetext={speed}
     onpointerdown={onDown}
@@ -110,6 +114,10 @@
     <span class="end back" aria-hidden="true">◀◀</span>
     <span class="end ahead" aria-hidden="true">▶▶</span>
     <span class="middle" aria-hidden="true"></span>
+    {#each DECADES as d (d)}
+      <span class="decade" aria-hidden="true" style:left="{50 - d * 50}%"></span>
+      <span class="decade" aria-hidden="true" style:left="{50 + d * 50}%"></span>
+    {/each}
     <span
       class="run"
       aria-hidden="true"
@@ -171,6 +179,14 @@
     left: 50%;
     top: 0.3rem;
     bottom: 0.3rem;
+    width: 1px;
+    background: var(--halo-off-bg);
+  }
+
+  .decade {
+    position: absolute;
+    top: 0.5rem;
+    bottom: 0.5rem;
     width: 1px;
     background: var(--halo-off-bg);
   }

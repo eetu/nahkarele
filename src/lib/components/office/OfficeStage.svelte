@@ -7,7 +7,16 @@
   import { fullscreen } from "$lib/fullscreen.svelte";
   import { leaveKey } from "$lib/keys";
   import { dockCue, PAD } from "$lib/office/charger";
-  import { birdCue, crowCaws, paintOffice, pokeOf, signAt, SIGNS, wallCue } from "$lib/office/draw";
+  import {
+    birdCue,
+    crowCaws,
+    type Mood,
+    paintOffice,
+    pokeOf,
+    signAt,
+    SIGNS,
+    wallCue,
+  } from "$lib/office/draw";
   import {
     AI_MOUTH,
     FLY_S,
@@ -159,6 +168,30 @@
     else sfx.flutter(pan(e.x));
   };
 
+  /** Friday is heard while a frame takes no more of it than this, s: run far ahead on the dev
+   *  shuttle, a frame of a year would sound all at once. */
+  const HEARD_S = 10;
+
+  /** What friday does from `from` to now that can be heard. */
+  const playFriday = (from: number, mood: Mood) => {
+    const to = mood.since;
+    const cue = birdCue(from, to, mood);
+    if (cue === "chirp") sfx.chirp();
+    else if (cue === "peck") sfx.peck();
+    else if (cue === "alarm") sfx.alarm();
+    else if (cue === "song") sfx.song();
+    for (const x of crowCaws(from, to, mood)) sfx.caw(pan(x));
+    for (const x of swallowCue(from, to)) sfx.twitter(pan(x));
+    if (owlCue(from, to, mood.seed)) sfx.hoot();
+    for (const x of appleCue(from, to, mood.seed, mood.knocks)) sfx.apple(pan(x));
+    for (const hit of wallCue(from, to, mood)) sfx.crumble(pan(hit.x), hit.big);
+    for (const x of shedCue(from, to, mood.seed)) sfx.twig(pan(x));
+    const docking = dockCue(from, to);
+    if (docking === "land") sfx.land();
+    else if (docking === "rise") sfx.whirr(pan(PAD.x));
+    for (const fell of fellCue(from, to, mood.seed)) sfx.timber(fell.kind, pan(fell.x));
+  };
+
   $effect(() => {
     const el = canvas;
     const ctx = el?.getContext("2d");
@@ -186,25 +219,7 @@
       for (const e of s.events.splice(0)) play(e);
       if (before.blast === null && mood.blast !== null) sfx.blast();
       if (mood.after) {
-        const cue = birdCue(before.since, mood.since, mood);
-        if (cue === "chirp") sfx.chirp();
-        else if (cue === "peck") sfx.peck();
-        else if (cue === "alarm") sfx.alarm();
-        else if (cue === "song") sfx.song();
-        for (const x of crowCaws(before.since, mood.since, mood)) sfx.caw(pan(x));
-        for (const x of swallowCue(before.since, mood.since)) sfx.twitter(pan(x));
-        if (owlCue(before.since, mood.since, mood.seed)) sfx.hoot();
-        for (const x of appleCue(before.since, mood.since, mood.seed, mood.knocks)) {
-          sfx.apple(pan(x));
-        }
-        for (const hit of wallCue(before.since, mood.since, mood)) sfx.crumble(pan(hit.x), hit.big);
-        for (const x of shedCue(before.since, mood.since, mood.seed)) sfx.twig(pan(x));
-        const docking = dockCue(before.since, mood.since);
-        if (docking === "land") sfx.land();
-        else if (docking === "rise") sfx.whirr(pan(PAD.x));
-        for (const fell of fellCue(before.since, mood.since, mood.seed)) {
-          sfx.timber(fell.kind, pan(fell.x));
-        }
+        if (mood.since - before.since <= HEARD_S) playFriday(before.since, mood);
         // The tree takes a tap while it has ripe apples; the rect changes rarely.
         const tree = appleTreeAt(mood.since, mood.seed, mood.knocks);
         const key = tree ? `${tree.x},${tree.y},${tree.w},${tree.h}` : "";
