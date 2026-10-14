@@ -1,5 +1,4 @@
 import { sfx } from "$lib/audio/sfx.svelte";
-import { clockAt } from "$lib/scene/sky";
 import { track } from "$lib/track";
 
 import { DAYS } from "./days";
@@ -12,7 +11,6 @@ import {
   ITEM_W,
   queued,
   setAway,
-  shiftProgress,
   type Tally,
 } from "./engine";
 
@@ -60,7 +58,6 @@ class Week {
   best = $state<number | null>(loadBest());
   away = $state(false);
   hud = $state({
-    clock: "07:00",
     left: 0,
     pace: 1,
     queued: 0,
@@ -100,7 +97,6 @@ class Week {
   /** Called by the frame loop after each step. */
   sync = () => {
     const s = this.sim;
-    this.hud.clock = clockAt(shiftProgress(s));
     if (this.screen !== "shift") return;
     this.hud.left = s.total - s.spawned;
     this.hud.pace = Math.round(s.pace * 10) / 10;

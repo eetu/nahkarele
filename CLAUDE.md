@@ -27,7 +27,8 @@ src/lib/office/      software specialist: engine (messages, desk, pay), tasks, d
                      behind it, under korpi's sky) · window (the broken window, korpi's) ·
                      weather · life · tit, crow, swallows (the birds)
 src/lib/audio/       synthesized sound for both rooms, the mute
-src/lib/scene/       shared: the winter window, shift clock, calendar, LED, pixel font, pixel helpers
+src/lib/scene/       shared: the winter window, shift clock, calendar, LED, nixie, pixel font,
+                     pixel helpers
 src/lib/sprites/     dab-format sprite JSON for both rooms + a reader
 src/lib/tape/        orientation cassette: mechanics (from scene), canvas drawing, script + cues
 src/lib/components/  factory/ · office/ · intro/ · dev/ (dev bar, shuttle); shared signs and icons

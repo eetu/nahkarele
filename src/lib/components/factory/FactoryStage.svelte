@@ -4,7 +4,7 @@
   import type { Snippet } from "svelte";
 
   import { panOf, sfx } from "$lib/audio/sfx.svelte";
-  import { BUTTONS, CLOCK, createStagecraft, drawFactory, SIGNS } from "$lib/factory/draw";
+  import { BUTTONS, createStagecraft, drawFactory, SIGNS } from "$lib/factory/draw";
   import {
     decide,
     type FactoryEvent,
@@ -23,7 +23,6 @@
   import { createCamera, type Fit, fitScene } from "$lib/scene/camera";
 
   import SceneSign from "../SceneSign.svelte";
-  import NixieClock from "./NixieClock.svelte";
 
   type Props = {
     children?: Snippet;
@@ -230,15 +229,6 @@
           class:staffed
           aria-label="a conveyor belt of rubber boots, a gate, and TÄ'h the inspection machine"
         ></canvas>
-        <div
-          class="nixie"
-          style:left="{(CLOCK.x / SCENE_W) * 100}%"
-          style:top="{(CLOCK.y / SCENE_H) * 100}%"
-          style:width="{(CLOCK.w / SCENE_W) * 100}%"
-          style:height="{(CLOCK.h / SCENE_H) * 100}%"
-        >
-          <NixieClock value={week.hud.clock} />
-        </div>
         <!-- Leaving is leaving: the next visit starts a new week. -->
         <SceneSign at={SIGNS.exit} scene={SCENE} label="exit" home onclick={week.newWeek} />
         <SceneSign
@@ -340,11 +330,6 @@
 
   canvas.staffed {
     cursor: crosshair;
-  }
-
-  .nixie {
-    position: absolute;
-    pointer-events: none;
   }
 
   .overlay {

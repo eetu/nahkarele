@@ -1,9 +1,11 @@
 import type { Turn } from "@anarkisti/korpi/model";
+import { canvasPen } from "@anarkisti/korpi/paint";
 
 import { drawCalendar } from "$lib/scene/calendar";
+import { drawNixieClock } from "$lib/scene/nixie";
 import { rect } from "$lib/scene/pixel";
 import { drawPixelText } from "$lib/scene/pixelfont";
-import { drawWindow, flash, roomDarkness, type SkyInput } from "$lib/scene/sky";
+import { clockAt, drawWindow, flash, roomDarkness, type SkyInput } from "$lib/scene/sky";
 import { bake, drawSprite, frameOf } from "$lib/sprites/sprite";
 
 import {
@@ -67,8 +69,8 @@ export const createStagecraft = (): Stagecraft => ({
   fallen: fallenOf(),
 });
 
-/** Scene rect the nixie clock overlay covers. */
-export const CLOCK = { x: 146, y: 22, w: 40, h: 16 };
+/** The nixie clock's tubes, on a rod from the ceiling. */
+const CLOCK = { x: 141, y: 22, w: 46, h: 16 };
 /** The way out, and the toilet, on the wall past TÄ'h where the belt leaves the room. */
 export const SIGNS = {
   exit: { x: 295, y: 3, w: SPRITES.exit.w, h: SPRITES.exit.h },
@@ -154,11 +156,12 @@ const drawRoom = (ctx: CanvasRenderingContext2D, s: FactoryState) => {
 
   drawWindow(ctx, skyOf(s), GLASS, C.frame);
 
-  // Mounting plate for the nixie clock, which sits on top of the canvas.
+  // The nixie clock's housing, and the cathodes in its tubes; the digits glow over the dark.
   const { x: kx, y: ky, w: kw, h: kh } = CLOCK;
   rect(ctx, C.frame, kx - 2, ky - 2, kw + 4, kh + 4);
   rect(ctx, "#1a1c1e", kx - 1, ky - 1, kw + 2, kh + 2);
   rect(ctx, C.steel, kx + kw / 2 - 1, 0, 2, ky - 2);
+  drawNixieClock(canvasPen(ctx), CLOCK, clockAt(shiftProgress(s)), "metal");
 
   // The day's calendar page. Between shifts the line runs on with nothing to count.
   const left = Number.isFinite(s.total) ? s.total - s.spawned : null;
@@ -656,6 +659,7 @@ export const drawFactory = (
     rect(ctx, "#0a0f1c", 0, 0, SCENE_W, SCENE_H);
     ctx.globalAlpha = 1;
   }
+  drawNixieClock(canvasPen(ctx), CLOCK, clockAt(shiftProgress(s)), "glow");
   // Lit signs, so they read in the dark; the speaker and the screen show their state.
   drawSprite(ctx, SPRITES.exit, SIGNS.exit.x, SIGNS.exit.y);
   drawSprite(ctx, SPRITES.wc, SIGNS.wc.x, SIGNS.wc.y);
