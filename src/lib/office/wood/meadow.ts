@@ -5,8 +5,15 @@
 // them, and the night that closes the kinds that close.
 
 import { lru } from "@anarkisti/korpi/core";
+import { FLOWERS } from "@anarkisti/korpi/flora";
 import type { Pen } from "@anarkisti/korpi/paint";
-import { type Flower, type Meadow, meadowOf, shadeOf, type Spot } from "@anarkisti/korpi/plants";
+import {
+  type FlowerKind,
+  type Meadow,
+  meadowOf,
+  shadeOf,
+  type Spot,
+} from "@anarkisti/korpi/plants";
 import { meadowPainterOf } from "@anarkisti/korpi/plants/paint";
 
 import { floorZ, grounded, PX_M, ROOM_VIEW } from "../depth";
@@ -62,6 +69,7 @@ const meadowFor = (seed: number): Meadow =>
     meadowOf({
       seed,
       cal: FRIDAY,
+      kinds: FLOWERS,
       spots: spotsOf(),
       shade: shadeOf(standFor(seed)),
       steps: { n: 7, every: 40 },
@@ -74,7 +82,7 @@ const meadowFor = (seed: number): Meadow =>
 export const flowersAt = (seed: number, since: number) =>
   meadowFor(seed)
     .heldAt(since)
-    .map((held, i): { x: number; z: number; kind: Flower } | null => {
+    .map((held, i): { x: number; z: number; kind: FlowerKind } | null => {
       if (!held) return null;
       const { x, z } = spotsOf()[i];
       return { x, z, kind: held.kind };

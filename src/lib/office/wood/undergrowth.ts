@@ -2,11 +2,12 @@
 // near edge of the floor, each kind and shape from the seed (korpi's `planShrub`). They come up
 // after the moss.
 
+import { BILBERRY, JUNIPER, LILAC, RASPBERRY } from "@anarkisti/korpi/flora";
 import { type Pen, shifted } from "@anarkisti/korpi/paint";
 import {
   planShrub,
   rustleOf,
-  type Shrub,
+  type ShrubKind,
   type ShrubPlan,
   underSnow,
 } from "@anarkisti/korpi/plants";
@@ -34,10 +35,10 @@ const FRONT = [
   // Off to the side of where the exit sign lands, so it does not grow over it.
   { x: 122, y: FLOOR_Y + 23, start: 110 },
 ];
-const TALL: Shrub[] = ["lilac", "raspberry", "juniper"];
-const LOW: Shrub[] = ["bilberry", "juniper", "raspberry"];
+const TALL = [LILAC, RASPBERRY, JUNIPER];
+const LOW = [BILBERRY, JUNIPER, RASPBERRY];
 /** How tall each kind stands behind the desk, and in front of it, px. */
-const HEIGHT: Record<Shrub, [number, number]> = {
+const HEIGHT: Record<string, [number, number]> = {
   lilac: [38, 26],
   raspberry: [22, 16],
   juniper: [30, 15],
@@ -53,10 +54,10 @@ let bushes: { seed: number; back: Placed[]; front: Placed[] } | null = null;
 
 const bushesOf = (seed: number) => {
   if (bushes?.seed === seed) return bushes;
-  const place = (slots: typeof BACK, kinds: Shrub[], tall: 0 | 1, salt: number) =>
+  const place = (slots: typeof BACK, kinds: ShrubKind[], tall: 0 | 1, salt: number) =>
     slots.map(({ x, y, start }, i) => {
       const kind = kinds[i];
-      const h = HEIGHT[kind][tall] * (0.85 + 0.3 * hash(seed, i, salt));
+      const h = HEIGHT[kind.name][tall] * (0.85 + 0.3 * hash(seed, i, salt));
       const plan = planShrub(Math.floor(hash(seed, i, salt + 1) * 2 ** 31), h / PX_M, kind);
       return { plan, x, y, start };
     });

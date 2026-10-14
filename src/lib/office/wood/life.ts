@@ -3,7 +3,6 @@
 // on the floor at the depth of its feet, on the wall, on its tree's branch, or in the air.
 
 import { flipped, type Pen, shifted } from "@anarkisti/korpi/paint";
-import { drawApple } from "@anarkisti/korpi/plants/paint";
 
 import { prefersReducedMotion } from "$lib/keys";
 import { fadedPen, fill, fillFaded } from "$lib/scene/pen";
@@ -19,7 +18,16 @@ import { frameOf, paintSprite, type Sprite } from "$lib/sprites/sprite";
 import { at, footAt, Z } from "../depth";
 import { FLOOR_Y, G, SCENE_W } from "../engine";
 import { type Season, seasonAt, snowCover } from "./seasons";
-import { hedgehogApple, type Knocks, movedPx, poseAt, sceneOf, standFor, standing } from "./stand";
+import {
+  drawApple,
+  hedgehogApple,
+  type Knocks,
+  movedPx,
+  poseAt,
+  sceneOf,
+  standFor,
+  standing,
+} from "./stand";
 import { feltBy, historyOf, springOf, windAt } from "./wind";
 
 const S = {
@@ -331,7 +339,7 @@ const drawHedgehog = (pen: Pen, since: number, season: Season) => {
   const into = fadedPen(footAt(pen, HEDGEHOG_FOOT), on);
   const body = facing(into, Math.round(x), HEDGEHOG_FOOT + 1 - S.hedgehog.h, w, face);
   paintSprite(body, S.hedgehog, 0, 0, { frame: frameOf(S.hedgehog, "shuffle", since * 3) });
-  if (hedgehogApple(since)) drawApple(body, 4, -1, 2, true, 1);
+  if (hedgehogApple(since)) drawApple(body, 4, -1);
 };
 
 // --- The owl --------------------------------------------------------------------------

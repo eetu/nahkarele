@@ -2,9 +2,10 @@
 // climbers up the walls, creeper over the AIs. The plants are korpi's; where they come up, and
 // when, is the room's.
 
+import { CLEMATIS, CREEPER, GRASS, HOP } from "@anarkisti/korpi/flora";
 import { line, type Pen, shifted } from "@anarkisti/korpi/paint";
 import {
-  type Climber,
+  type ClimberKind,
   type ClimberPlan,
   type GrassPlan,
   planClimber,
@@ -119,7 +120,7 @@ const patchesOf = (seed: number) => {
     const plans = TUFTS.map((tufts, i) => {
       const [root] = tufts;
       const local = tufts.map((t) => ({ x: (t.x - root.x) / PX_M, y: (root.y - t.y) / PX_M }));
-      return planGrass(Math.floor(hash(seed, i, 23) * 2 ** 31), local, 1 / PX_M);
+      return planGrass(Math.floor(hash(seed, i, 23) * 2 ** 31), local, GRASS, 1 / PX_M);
     });
     patches = { seed, plans };
   }
@@ -164,7 +165,7 @@ export const drawGrass = (pen: Pen, since: number, seed: number) => {
 // --- Climbers ---------------------------------------------------------------------------
 
 /** How high each kind reaches up the wall, scene px. */
-const HEIGHT: Record<Climber, number> = { creeper: FLOOR_Y - 18, hop: 100, clematis: 70 };
+const HEIGHT: Record<string, number> = { creeper: FLOOR_Y - 18, hop: 100, clematis: 70 };
 /** How fast a climber reaches up, scene px/s. */
 const CLIMB_PX_S = 1.6;
 
@@ -172,11 +173,11 @@ let climbers: { seed: number; plans: ClimberPlan[] } | null = null;
 
 const climbersOf = (seed: number) => {
   if (climbers?.seed !== seed) {
-    const kinds = shuffled<Climber>(["creeper", "hop", "clematis", "creeper"], seed, 21);
+    const kinds = shuffled<ClimberKind>([CREEPER, HOP, CLEMATIS, CREEPER], seed, 21);
     const plans = VINES.map((_, i) =>
       planClimber(
         Math.floor(hash(seed, i, 24) * 2 ** 31),
-        (HEIGHT[kinds[i]] * (0.9 + 0.1 * hash(seed, i, 22))) / PX_M,
+        (HEIGHT[kinds[i].name] * (0.9 + 0.1 * hash(seed, i, 22))) / PX_M,
         kinds[i],
       ),
     );
@@ -246,7 +247,8 @@ export const drawCreeperOver = (
   const id = `${seed}|${x}`;
   let plan = curtains.get(id);
   if (!plan) {
-    plan = planCurtain(Math.floor(hash(seed, x, 25) * 2 ** 31), w / PX_M, (bottom - top) / PX_M);
+    const h = (bottom - top) / PX_M;
+    plan = planCurtain(Math.floor(hash(seed, x, 25) * 2 ** 31), w / PX_M, h, CREEPER);
     curtains.set(id, plan);
   }
   const root = { x: x + w / 2, y: bottom };

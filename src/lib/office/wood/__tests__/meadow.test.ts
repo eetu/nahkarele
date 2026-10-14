@@ -1,4 +1,4 @@
-import { type Flower, shortest } from "@anarkisti/korpi/plants";
+import { shortest } from "@anarkisti/korpi/plants";
 import { describe, expect, it } from "vitest";
 
 import { ROOM_VIEW } from "$lib/office/depth";
@@ -7,11 +7,11 @@ import { FLOOR_Y } from "$lib/office/engine";
 
 import { flowersAt } from "../meadow";
 
-const SUN: Flower[] = ["coltsfoot", "dandelion", "fireweed", "oxeye", "harebell"];
-const SHADE: Flower[] = ["anemone", "lily", "sorrel"];
+const SUN = ["coltsfoot", "dandelion", "fireweed", "oxeye", "harebell"];
+const SHADE = ["anemone", "lily", "sorrel"];
 
 const kinds = (seed: number, since: number) =>
-  flowersAt(seed, since).flatMap((f) => (f ? [f.kind] : []));
+  flowersAt(seed, since).flatMap((f) => (f ? [f.kind.name] : []));
 
 /** Where a flower stands in the room, scene px. */
 const sceneOf = (f: { x: number; z: number }) => {

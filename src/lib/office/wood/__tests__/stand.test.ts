@@ -1,3 +1,4 @@
+import { APPLE } from "@anarkisti/korpi/flora";
 import { describe, expect, it } from "vitest";
 
 import { SCENE_W } from "../../engine";
@@ -44,13 +45,13 @@ describe("friday's stand", () => {
   it("keeps the apple tree's slot for apple trees, and changes the others' kind", () => {
     for (let seed = 1; seed <= 6; seed++) {
       const slots = livesOf(seed);
-      const apple = slots.filter((lives) => lives[0].species === "apple");
+      const apple = slots.filter((lives) => lives[0].species === APPLE);
       expect(apple).toHaveLength(1);
-      expect(apple[0].every((l) => l.species === "apple")).toBe(true);
+      expect(apple[0].every((l) => l.species === APPLE)).toBe(true);
       for (const lives of slots) {
-        if (lives[0].species === "apple") continue;
+        if (lives[0].species === APPLE) continue;
         lives.forEach((l, k) => {
-          expect(l.species).not.toBe("apple");
+          expect(l.species).not.toBe(APPLE);
           if (k > 0) expect(l.species).not.toBe(lives[k - 1].species);
         });
       }

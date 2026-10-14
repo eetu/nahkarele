@@ -2,24 +2,18 @@
 // interface, so it can be looked at alone, at any setting, side by side with its variants.
 // An adapter here only sets the stage; the drawing is the unit's own code from $lib.
 
+import { CLIMBERS, CONKS, FLOWERS, GRASS, SHRUBS, TREES } from "@anarkisti/korpi/flora";
 import { type Pen, type Raster, shifted } from "@anarkisti/korpi/paint";
 import {
   annual,
   type Arch,
   archOf,
-  type Climber,
   type ClimberPlan,
-  CLIMBERS,
   closes,
   conkKey,
-  type ConkKind,
-  CONKS,
   conksOn,
   coverOf,
-  type Flower,
   type FlowerPlan,
-  FLOWERS,
-  FRUIT,
   fruitAt,
   type GrassPlan,
   lifespanOf,
@@ -31,10 +25,7 @@ import {
   planShrub,
   poseOf,
   rustleOf,
-  type Shrub,
   type ShrubPlan,
-  SHRUBS,
-  SPECIES,
   type Species,
   tallOf,
 } from "@anarkisti/korpi/plants";
@@ -64,6 +55,7 @@ import {
   drawApples,
   drawTrees,
   type Knocks,
+  LIFESPAN,
   shakeApple,
 } from "$lib/office/wood/stand";
 import { drawGround } from "$lib/office/wood/weather";
@@ -126,6 +118,12 @@ export type Unit = {
 const num = (v: Values, key: string) => Number(v[key]);
 const str = (v: Values, key: string) => String(v[key]);
 
+/** The names of `kinds`, for a select. */
+const names = (kinds: readonly { name: string }[]) => kinds.map((k) => k.name);
+/** The kind of `kinds` that `key`'s select names. */
+const kindIn = <K extends { name: string }>(kinds: readonly K[], v: Values, key: string): K =>
+  kinds.find((k) => k.name === str(v, key)) ?? kinds[0];
+
 const SEASONS = ["summer", "autumn", "winter", "spring"] as const;
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 
@@ -177,7 +175,7 @@ const TREE_X = 130;
 /** The bench's trees at an age, with that year's fruit, so a moving tree is planned once. */
 const plans = new Map<string, { arch: Arch; plan: Plan }>();
 const planFor = (seed: number, species: Species, age: number, tall: boolean) => {
-  const key = `${seed}|${species}|${age}|${tall}`;
+  const key = `${seed}|${species.name}|${age}|${tall}`;
   let known = plans.get(key);
   if (!known) {
     const h = tall ? TALL_H : SCENE_H;
@@ -185,7 +183,7 @@ const planFor = (seed: number, species: Species, age: number, tall: boolean) => 
     const base = planAt(arch, age);
     // Fruit from 0.15 m up to 0.2 m under the bench's top, as in the room.
     const band = [6 / PX_M, (h - ROOT_UP - 8) / PX_M] as const;
-    known = { arch, plan: { ...base, fruit: fruitAt(base, 0, FRUIT[species] ?? 0, age, band) } };
+    known = { arch, plan: { ...base, fruit: fruitAt(base, 0, species.fruit?.n ?? 0, age, band) } };
     plans.set(key, known);
   }
   return known;
@@ -210,7 +208,7 @@ const tree: Unit = {
     gusts: "gusty",
   },
   params: () => [
-    { kind: "select", key: "species", options: SPECIES },
+    { kind: "select", key: "species", options: names(TREES) },
     { kind: "seed", key: "seed" },
     {
       kind: "range",
@@ -238,10 +236,11 @@ const tree: Unit = {
     office(pen, 260, h, h - 29);
     fillFaded(pen, "#f4f7fa", coverOf(look), 0, h - 29, 260, 9);
     const seed = num(v, "seed");
-    const species = str(v, "species") as Species;
+    const species = kindIn(TREES, v, "species");
     const age = num(v, "age");
-    // It dies at its kind's middling age: older than that, it stands dead, conks and all.
-    const died = Math.round(lifespanOf(species, 0.5));
+    // It dies at its kind's middling age in the room: older than that, it stands dead, conks
+    // and all.
+    const died = Math.round(lifespanOf(species, 0.5) * LIFESPAN);
     const dead = age > died ? Math.min(1, (age - died) / 1.5) : 0;
     const { arch, plan } = planFor(seed, species, Math.min(age, died), tall);
     const seen = dead ? { ...look, dead } : look;
@@ -254,7 +253,7 @@ const tree: Unit = {
       snow: coverOf(look),
     });
     const pose = posePx(poseOf(plan, 1, seen, t, windOf(v), TREE_X / PX_M), PX_M);
-    const key = `${seed}|${species}|${age}|${tall}|${look.k}|${look.p}|${conkKey(conks)}`;
+    const key = `${seed}|${species.name}|${age}|${tall}|${look.k}|${look.p}|${conkKey(conks)}`;
     const at = rooted(pen, TREE_X, h - ROOT_UP);
     drawPosed(
       at,
@@ -283,7 +282,7 @@ const conk: Unit = {
     snow: 0,
   },
   params: () => [
-    { kind: "select", key: "kind", options: CONKS },
+    { kind: "select", key: "kind", options: names(CONKS) },
     { kind: "seed", key: "seed" },
     {
       kind: "range",
@@ -314,7 +313,7 @@ const conk: Unit = {
     // A trunk 8 px across, its bark plain.
     fill(pen, "#6a5848", 16, 0, 8, 32);
     fill(pen, "#857060", 16, 0, 1, 32);
-    const kind = str(v, "kind") as ConkKind;
+    const kind = kindIn(CONKS, v, "kind");
     const side = str(v, "side") === "left" ? -1 : 1;
     const reach = num(v, "reach") / PX_M;
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
@@ -328,7 +327,7 @@ const conk: Unit = {
       bands: 1 + num(v, "years"),
       fresh: annual(kind) ? withered === 0 : phase < 0.3 || phase > 0.85,
       withered,
-      snow: num(v, "snow") > 0 && kind !== "chaga",
+      snow: num(v, "snow") > 0 && !kind.inBark,
       seed: num(v, "seed"),
     } as const;
     drawConk(pen, side > 0 ? 24 : 15, 12, shape, PX_M);
@@ -351,7 +350,7 @@ const shrub: Unit = {
     gusts: "gusty",
   },
   params: () => [
-    { kind: "select", key: "kind", options: SHRUBS },
+    { kind: "select", key: "kind", options: names(SHRUBS) },
     { kind: "seed", key: "seed" },
     {
       kind: "range",
@@ -380,8 +379,8 @@ const shrub: Unit = {
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
     office(pen, 60, 50, 42);
     const seed = num(v, "seed");
-    const kind = str(v, "kind") as Shrub;
-    const key = `${seed}|${num(v, "height")}|${kind}`;
+    const kind = kindIn(SHRUBS, v, "kind");
+    const key = `${seed}|${num(v, "height")}|${kind.name}`;
     let plan = shrubPlans.get(key);
     if (!plan) {
       plan = planShrub(seed, num(v, "height") / PX_M, kind);
@@ -418,7 +417,7 @@ const climber: Unit = {
     gusts: "gusty",
   },
   params: () => [
-    { kind: "select", key: "kind", options: CLIMBERS },
+    { kind: "select", key: "kind", options: names(CLIMBERS) },
     { kind: "seed", key: "seed" },
     {
       kind: "range",
@@ -439,8 +438,8 @@ const climber: Unit = {
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
     office(pen, 60, 150, 144);
     const seed = num(v, "seed");
-    const kind = str(v, "kind") as Climber;
-    const key = `${seed}|${num(v, "height")}|${kind}`;
+    const kind = kindIn(CLIMBERS, v, "kind");
+    const key = `${seed}|${num(v, "height")}|${kind.name}`;
     let plan = climberPlans.get(key);
     if (!plan) {
       plan = planClimber(seed, num(v, "height") / PX_M, kind);
@@ -496,7 +495,7 @@ const grass: Unit = {
         x: (p.x - root.x) / PX_M,
         y: (root.y - p.y) / PX_M,
       }));
-      plan = planGrass(seed, tufts, 1 / PX_M);
+      plan = planGrass(seed, tufts, GRASS, 1 / PX_M);
       grassPlans.set(seed, plan);
     }
     // Each tuft come up as far as `growth` has it, eased as in the room.
@@ -533,7 +532,7 @@ const flower: Unit = {
     gusts: "gusty",
   },
   params: () => [
-    { kind: "select", key: "kind", options: FLOWERS },
+    { kind: "select", key: "kind", options: names(FLOWERS) },
     { kind: "seed", key: "seed" },
     {
       kind: "range",
@@ -564,8 +563,8 @@ const flower: Unit = {
     office(pen, 40, 64, 56);
     fillFaded(pen, "#f4f7fa", coverOf(look), 0, 56, 40, 8);
     const seed = num(v, "seed");
-    const kind = str(v, "kind") as Flower;
-    const key = `${seed}|${kind}|${num(v, "room")}`;
+    const kind = kindIn(FLOWERS, v, "kind");
+    const key = `${seed}|${kind.name}|${num(v, "room")}`;
     let plan = flowerPlans.get(key);
     if (!plan) {
       plan = planFlowers(seed, kind, num(v, "room") / PX_M);

@@ -20,7 +20,8 @@ describe("friday's trees shedding", () => {
   it("drop the same branches whichever way the clock is read", () => {
     const whole = shedCue(SEASONS_FROM, 6000, 4).length;
     let parts = 0;
-    for (let t = SEASONS_FROM; t < 6000; t += 250) parts += shedCue(t, t + 250, 4).length;
+    for (let t = SEASONS_FROM; t < 6000; t += 250)
+      parts += shedCue(t, Math.min(t + 250, 6000), 4).length;
     expect(parts).toBe(whole);
   });
 });

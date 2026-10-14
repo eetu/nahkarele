@@ -4,8 +4,6 @@
 // lands on the desk by the jar, which sends the tit off its seeds. Like everything on friday a
 // function of the clock and the seed: each visit is worked out whole from its number.
 
-import { drawApple } from "@anarkisti/korpi/plants/paint";
-
 import type { Pen } from "$lib/scene/pen";
 import { hash } from "$lib/scene/pixel";
 import { daylight } from "$lib/scene/sky";
@@ -16,7 +14,7 @@ import { at, floorZ, footAt, Z } from "../depth";
 import { FLOOR_Y, SCENE_W } from "../engine";
 import type { Pt } from "./posed";
 import { SEASON_S, SEASONS_FROM } from "./seasons";
-import { applesDown, type Knocks, sceneOf, standFor, standing } from "./stand";
+import { applesDown, drawApple, type Knocks, sceneOf, standFor, standing } from "./stand";
 import { birdAt, cycleAt } from "./tit";
 import { climbTo, type Setting } from "./wall";
 import { windowAt } from "./weather";
@@ -291,7 +289,7 @@ export const drawCrow = (
   // The apple it took, in its beak.
   if (p.carrying) {
     const beak = p.face > 0 ? left + CROW.w - 1 : left;
-    drawApple(into, beak, p.feet.y - FEET.y + 8, 2, true, 1);
+    drawApple(into, beak, p.feet.y - FEET.y + 8);
   }
 };
 
