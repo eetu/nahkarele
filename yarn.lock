@@ -44,18 +44,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@anarkisti/korpi@npm:^0.2.0":
-  version: 0.2.0
-  resolution: "@anarkisti/korpi@npm:0.2.0"
+"@anarkisti/korpi@npm:^0.3.0":
+  version: 0.3.0
+  resolution: "@anarkisti/korpi@npm:0.3.0"
   dependencies:
-    "@glowbox/lcd": "npm:^1.13.0"
-    "@glowbox/neon": "npm:^1.13.0"
+    "@glowbox/lcd": "npm:^1.13.1"
+    "@glowbox/neon": "npm:^1.13.1"
   peerDependencies:
     "@anarkisti/dab": ^0.2.3
   peerDependenciesMeta:
     "@anarkisti/dab":
       optional: true
-  checksum: 10c0/8d0598a71a588fb6dcca595bf2898b0914fc309842dd61e27289375353d989be9ad72650514aa1a954f5525bf9b8dc23ec95d98bf195d3865b510b2c7b80de87
+  checksum: 10c0/5d6117d019e116a273f362ed657790924b5a46306dd3b1557c33a9078cef320a5f0faaf9103546f3b1d408b9e695c6bb2e105f78796aa7b7b8572aab06a47772
   languageName: node
   linkType: hard
 
@@ -314,31 +314,31 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@glowbox/lcd@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/lcd@npm:1.13.0"
-  checksum: 10c0/29419c6f52e17160d49cd559002acff42dfbd2a4d0762446b3021256f5f97a571d64c36b31d0ee7340c687d57f30c20e31dc67dde67f8b46271543dbd50ece23
+"@glowbox/lcd@npm:^1.13.1":
+  version: 1.13.2
+  resolution: "@glowbox/lcd@npm:1.13.2"
+  checksum: 10c0/77a47df2880df6a5555215c5ac6f99aad0f6af5bc751cd0f1719bc5d8b078acc7bb229681ac6158bcebeaba3ab820480c46c78cd4cbfd4684762fa53d3f1afc0
   languageName: node
   linkType: hard
 
-"@glowbox/neon@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/neon@npm:1.13.0"
-  checksum: 10c0/436002213e7d76f082159aeee93b8b47189c79275e8edf12b6b51ac9b58ee2bfdfa7d0664bf4e086935ee48d5e3e5b6318ee10d38229a530f5b187a97cf4adf2
+"@glowbox/neon@npm:^1.13.1":
+  version: 1.13.2
+  resolution: "@glowbox/neon@npm:1.13.2"
+  checksum: 10c0/43182284b509af86a5ac89c4597ac9c4ce6e6ce31ea1c59d6d45dcaa52b407fb2c35a3330763cab3a1cda8be0f1aebbd1fefbcf6220b0591a264dfefdb87e641
   languageName: node
   linkType: hard
 
-"@glowbox/nixie@npm:^1.12.0":
-  version: 1.12.0
-  resolution: "@glowbox/nixie@npm:1.12.0"
-  checksum: 10c0/587aac29e4be1d2e28757c57e540cb814070aa478e8a47be4606b0c19eaf5b74f04362e32c27cc43f9c4d09a47afa68de5673a436c6b89eed96a4d37ad8419d8
+"@glowbox/nixie@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/nixie@npm:1.13.2"
+  checksum: 10c0/3772ed176a61dcb27a4b175cfa4f5d5bef865e92238ea8361dac1bd5eafe31e8915b9e7b5b0b128c530c89059ae8fbd84ab55db3b885237bb9951b0899f9bc2f
   languageName: node
   linkType: hard
 
-"@glowbox/seven-segment@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/seven-segment@npm:1.13.0"
-  checksum: 10c0/49b6d227bd05dc5fb0c62a8f8ae6aa4fa3baf92e8629025e437729e9a1d583a4064d0c2b8ff8b227c4886ac50bc3f86e17d072d0305b3dcbb35ab96a302b6449
+"@glowbox/seven-segment@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/seven-segment@npm:1.13.2"
+  checksum: 10c0/bfc742a10ae3dee1f99034377ae3c81d1eff72d0d3431ccaf3a2c2a4e1d2c8cf09094eabc309c20e795dccde3698912c9785786d1c0c0748b311042efdd9f81a
   languageName: node
   linkType: hard
 
@@ -1949,13 +1949,12 @@ __metadata:
   dependencies:
     "@anarkisti/dab": "npm:^0.2.4"
     "@anarkisti/eslint-config": "npm:^1.1.0"
-    "@anarkisti/korpi": "npm:^0.2.0"
+    "@anarkisti/korpi": "npm:^0.3.0"
     "@fontsource/inter": "npm:^5.3.0"
     "@fontsource/pixelify-sans": "npm:^5.3.0"
     "@fontsource/space-grotesk": "npm:^5.3.0"
-    "@glowbox/lcd": "npm:^1.13.0"
-    "@glowbox/nixie": "npm:^1.12.0"
-    "@glowbox/seven-segment": "npm:^1.13.0"
+    "@glowbox/nixie": "npm:^1.13.2"
+    "@glowbox/seven-segment": "npm:^1.13.2"
     "@lucide/svelte": "npm:^1.48.0"
     "@sveltejs/adapter-static": "npm:^3.0.10"
     "@sveltejs/kit": "npm:^2.70.3"

@@ -11,6 +11,8 @@ import {
   shifted,
   wash,
 } from "@anarkisti/korpi/paint";
+import { flashed } from "@anarkisti/korpi/sky";
+import { mirrorWet } from "@anarkisti/korpi/wet/paint";
 
 import { prefersReducedMotion } from "$lib/keys";
 import { CALENDAR, paintCalendar } from "$lib/scene/calendar";
@@ -82,7 +84,7 @@ import {
   rubbleCue,
   type Setting,
 } from "./wood/wall";
-import { windowAt } from "./wood/weather";
+import { wetFloor, windowAt } from "./wood/weather";
 import { windAt } from "./wood/wind";
 import { paintFridayWindow } from "./wood/window";
 
@@ -590,6 +592,8 @@ const NIGHT = rgb("#0a0f1c");
 const FIREFLY = rgb3(rgb("#e8ff7a"));
 const FLAME = rgb3(rgb("#ffb24a"));
 const CHARGING = rgb3(rgb("#58e070"));
+/** How much of lightning's flash reaches the room inside its walls. */
+const ROOM_FLASH = 0.4;
 
 /**
  * The room's light. On working days the room darkens with the shift, the window with it; on
@@ -598,12 +602,18 @@ const CHARGING = rgb3(rgb("#58e070"));
  * near them; on friday so do the candle and the charger, more as the dark comes.
  */
 const lightOf = (mood: Mood, sky: SkyInput, bolt: number): Light => {
-  const room = toward(NIGHT, Math.max(0, roomDarkness(sky, bolt)));
-  if (!mood.after) return { open: () => room, points: () => clockLight(mood) };
+  if (!mood.after) {
+    const room = toward(NIGHT, Math.max(0, roomDarkness(sky, bolt)));
+    return { open: () => room, points: () => clockLight(mood) };
+  }
+  // Lightning lights the world beyond the wall, and the roofless room inside its walls a
+  // share of that.
+  const room = toward(NIGHT, Math.max(0, roomDarkness(sky, 0)));
   const dark = 1 - daylight(sky.progress);
-  const indoors = further(room, NIGHT, dark * 0.32);
+  const indoors = flashed(further(room, NIGHT, dark * 0.32), bolt * ROOM_FLASH);
+  const open = flashed(toward(colourOf(OUTSIDE_NIGHT), outsideNight(sky)), bolt);
   return {
-    open: () => toward(colourOf(OUTSIDE_NIGHT), outsideNight(sky)),
+    open: () => open,
     sheltered: () => indoors,
     shelter: covered,
     points: () => [
@@ -711,7 +721,9 @@ export const paintOffice = (scene: Raster, s: OfficeState, mood: Mood, signs: Si
   // Lightning: friday's storms are korpi's, flashing as they strike.
   const bolt = mood.after ? lightningAt(mood.since, mood.seed) : flash(sky);
   resolve(scene, ROOM_VIEW, lightOf(mood, sky, bolt), mood.since);
+  // The floor, wet from the rain, mirrors what stands over it as it is lit.
+  if (mood.after) mirrorWet(scene, ROOM_VIEW, wetFloor(mood.since, mood.seed, scene), mood.since);
   const blastFlash = mood.blast !== null ? Math.max(0, 1 - mood.blast / 0.6) : 0;
-  const white = Math.max(bolt * 0.18, blastFlash * 0.9);
+  const white = Math.max(mood.after ? 0 : bolt * 0.18, blastFlash * 0.9);
   if (white > 0) wash(scene, colourOf(mix("#f4f6ff", "#fff4d8", blastFlash)), white);
 };

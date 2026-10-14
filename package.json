@@ -19,13 +19,12 @@
   },
   "dependencies": {
     "@anarkisti/dab": "^0.2.4",
-    "@anarkisti/korpi": "^0.2.0",
+    "@anarkisti/korpi": "^0.3.0",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/pixelify-sans": "^5.3.0",
     "@fontsource/space-grotesk": "^5.3.0",
-    "@glowbox/lcd": "^1.13.0",
-    "@glowbox/nixie": "^1.12.0",
-    "@glowbox/seven-segment": "^1.13.0",
+    "@glowbox/nixie": "^1.13.2",
+    "@glowbox/seven-segment": "^1.13.2",
     "@lucide/svelte": "^1.48.0"
   },
   "devDependencies": {

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { gapsOf } from "@anarkisti/korpi/clock";
+
   import { panOf, sfx } from "$lib/audio/sfx.svelte";
   import cake from "$lib/sprites/cake.json";
   import flask from "$lib/sprites/flask.json";
@@ -22,7 +24,7 @@
     let rockets: Rocket[] = [];
     let t = 0;
     let nextLaunch = 0;
-    let last = performance.now();
+    const gap = gapsOf(0.05);
     let raf = 0;
 
     const burst = (x: number, y: number, colour: string) => {
@@ -74,8 +76,7 @@
     };
 
     const frame = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
+      const dt = gap(now / 1000);
       t += dt;
       if (t >= nextLaunch) {
         rockets.push({

@@ -3,6 +3,7 @@
 export const px = (v: number) => `${v} px`;
 export const share = (v: number) => `${Math.round(v * 100)}%`;
 export const years = (v: number) => `${v} y`;
+export const mmH = (v: number) => `${v} mm/h`;
 
 /** Seconds as h:mm:ss. */
 export const clock = (s: number) => {

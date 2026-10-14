@@ -39,7 +39,7 @@ import { daylight, mix, type SkyInput } from "$lib/scene/sky";
 import { OUTSIDE_Z, SKY_Z } from "../depth";
 import { SCENE_W } from "../engine";
 import { dayAt } from "./daylight";
-import { FRIDAY, seasonAt, SEASONS_FROM, STORM_S } from "./seasons";
+import { FRIDAY, seasonAt, SEASONS_FROM, snowCover, STORM_S } from "./seasons";
 import { fridayAir } from "./wind";
 
 /** Where the land meets the sky, scene y; the outside is painted down to `DEPTH`. */
@@ -104,10 +104,14 @@ const GROUND = ["#5a8a3a", "#8a8a4a", "#e4eaee", "#6aa040"];
 const ASH = "#4a4440";
 const BROADLEAF = [["#4a7a32"], ["#c8a040", "#d86a2a", "#b83a2a"], ["#6a5e52"], ["#7ab84a"]];
 
+/** The snow lying out there as it lies in the room, in the twelfths the land is painted again
+ *  at. */
+const snowStep = (since: number) => Math.round(snowCover(since) * 12) / 12;
+
 const paintLand = (pen: Pen, w: World, since: number) => {
   const heal = healAt(since);
-  const { k, p } = seasonAt(since);
-  const snow = k === 2 ? ramp(p, 0.05, 0.3) : k === 3 ? 1 - ramp(p, 0, 0.3) : 0;
+  const { k } = seasonAt(since);
+  const snow = snowStep(since);
   const px = (c: string, x: number, y: number, pw = 1, ph = 1) => fill(pen, c, x, y, pw, ph);
   // The far ridge: bare and grey at first, forest blue once it has grown back.
   const ridge = mix(mix("#5a5a5a", "#46606e", heal), "#b8c4cc", snow);
@@ -252,7 +256,7 @@ export const paintOutside = (scene: Raster, sky: SkyInput, since: number, seed: 
   paintHeavens(heavens, sky, since, seed);
   paintSmoke(shifted(heavens, { dd: -SKY_Z }), w, since, day);
   const { k, p } = seasonAt(since);
-  const key = `${seed}|${Math.round(healAt(since) * 40)}|${k}|${Math.round(p * 12)}`;
+  const key = `${seed}|${Math.round(healAt(since) * 40)}|${k}|${Math.round(p * 12)}|${snowStep(since)}`;
   if (!land || land.key !== key) {
     const r = land?.r ?? raster(SCENE_W, DEPTH);
     r.px.fill(0);

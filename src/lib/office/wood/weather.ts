@@ -2,26 +2,40 @@
 // ledges, and the leaves, flakes and drops that fall through the room on the wind. The year's
 // spells, the snow and the rain are korpi's; the storm after the blast is friday's own.
 
-import type { Box3 } from "@anarkisti/korpi/core";
+import { type Box3, lru } from "@anarkisti/korpi/core";
+import { materialOf, type Wetting } from "@anarkisti/korpi/materials";
 import { clear, type Pen, type Raster, raster, rasterPen } from "@anarkisti/korpi/paint";
 import { crownOf, deciduous } from "@anarkisti/korpi/plants";
 import { autumnOf } from "@anarkisti/korpi/plants/paint";
-import { rainAt, snowAt, weatherAt } from "@anarkisti/korpi/sky";
+import { HEAVY_MM, hourOf, rainAt, SNOW_COVERS, snowAt, weatherAt } from "@anarkisti/korpi/sky";
 import {
   paintRainfall,
   paintSnowCaps,
   paintSnowfall,
   paintSnowGround,
 } from "@anarkisti/korpi/sky/paint";
+import { heldAt, type Rainfall, rainingFrom } from "@anarkisti/korpi/wet";
+import type { WetGround } from "@anarkisti/korpi/wet/paint";
 
 import { fill, paintRaster } from "$lib/scene/pen";
 import { hash, ramp } from "$lib/scene/pixel";
 import type { Weather } from "$lib/scene/sky";
 
-import { at, FLAT, floorZ, onFloor, PX_M, ROOM_VIEW, Z } from "../depth";
+import { at, FLAT, floorZ, onFloor, OUTSIDE_Z, PX_M, ROOM_VIEW, Z } from "../depth";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
 import { dayAt } from "./daylight";
-import { FRIDAY, litter, type Season, seasonAt, SEASONS_FROM, snowCover, STORM_S } from "./seasons";
+import { mossOver } from "./moss";
+import { floorMoss } from "./overgrowth";
+import {
+  FRIDAY,
+  litter,
+  type Season,
+  seasonAt,
+  SEASONS_FROM,
+  snowCover,
+  snowDepth,
+  STORM_S,
+} from "./seasons";
 import { ROOT_Y, sceneOf, standFor, standing } from "./stand";
 import { driftOf, fridayAir } from "./wind";
 
@@ -37,13 +51,54 @@ export const windowAt = (since: number): { progress: number; weather: Weather } 
   return { progress, weather: weatherAt(FRIDAY, since).kind };
 };
 
-/** How hard it is snowing, 0..1, easing in and out of each winter spell. */
+/** How hard it is snowing, mm/h of water, easing in and out of each winter spell. */
 const snowing = (since: number) => weatherAt(FRIDAY, since).snow;
 
-/** How hard it is raining, 0..1: the storm's rain as the wood comes in, then the spells of
+/** How hard it is raining, mm/h: the storm's downpour as the wood comes in, then the spells of
  *  every season but winter. */
 export const raining = (since: number) =>
-  since < SEASONS_FROM ? 1 - ramp(since, 150, 160) : weatherAt(FRIDAY, since).rain;
+  since < SEASONS_FROM ? HEAVY_MM * (1 - ramp(since, 150, 160)) : weatherAt(FRIDAY, since).rain;
+
+/** Friday's rain over the day before `since`, read every `RAIN_STEP` s: further back than a
+ *  day, anything it fell on has dried. */
+const RAIN_STEP = 0.5;
+const rainfalls = lru<number, Rainfall>(2);
+const rainfallTo = (since: number): Rainfall =>
+  rainfalls.get(since, () => {
+    let rain: Rainfall = [];
+    const from = Math.max(0, Math.floor((since - FRIDAY.day) / RAIN_STEP) * RAIN_STEP);
+    for (let t = from; t <= since; t += RAIN_STEP) rain = rainingFrom(rain, t, raining(t));
+    return rain;
+  });
+
+/** The water on a surface that wets as `wets` does, `since` s into friday, mm: gathering as the
+ *  rain comes, drying once it stops, by friday's hours. */
+export const wetAt = (since: number, wets: Wetting) =>
+  heldAt(rainfallTo(since), since, wets, hourOf(FRIDAY));
+
+/** The floor is concrete; wet, it mirrors what stands over it, roughly: what it mirrors runs on
+ *  down, ripples where drops land, and breaks here and there. */
+const CONCRETE = materialOf("stone").wets;
+const WET_FLOOR = { mirror: 0.25, smear: 4, strip: 2, ripple: 1, hz: 6, gaps: 0.1 };
+
+/** Where the moss has come over the floor, worked out again each second. */
+const mosses = lru<string, WetGround["rough"]>(2);
+
+/** The floor `since` s into friday, as wet as the rain has left it, for korpi's `mirrorWet`:
+ *  bare concrete and what lies flat on it mirror, the moss does not. A ray past the wall sees the
+ *  world beyond it as the frame shows it (`frame`). */
+export const wetFloor = (since: number, seed: number, frame: Raster): WetGround => {
+  const mirror = WET_FLOOR.mirror * Math.min(1, wetAt(since, CONCRETE) / CONCRETE.holds);
+  const s = Math.floor(since);
+  return {
+    ...WET_FLOOR,
+    y: 0,
+    box: FLOOR,
+    mirror,
+    ...(mirror > 0 && { rough: mosses.get(`${seed}|${s}`, () => mossOver(floorMoss(seed), s)) }),
+    sky: { raster: frame, back: -OUTSIDE_Z },
+  };
+};
 
 /** Something on the floor painted once per quantised state and reused: snow cover, leaf
  *  litter. Each is a raster of the floor, painted in scene px. */
@@ -95,11 +150,11 @@ export const drawGround = (pen: Pen, since: number) => {
       for (const l of LITTER) if (l.at < leaves) fill(off, l.colour, l.x, l.y, 2, 1);
     });
   }
-  const snow = snowCover(since);
+  const snow = Math.round(snowCover(since) * 30);
   if (snow > 0) {
-    const key = `${Math.round(snow * 30)}`;
-    layer(onFloor(pen, FLAT.snow), "snow", key, (off) =>
-      paintSnowGround(off, ROOM_VIEW, FLOOR, Math.round(snow * 30) / 30),
+    // Repainted only as the cover steps; deeper than covers, the floor looks the same.
+    layer(onFloor(pen, FLAT.snow), "snow", `${snow}`, (off) =>
+      paintSnowGround(off, ROOM_VIEW, FLOOR, (snow / 30) * SNOW_COVERS),
     );
   }
 };
@@ -107,12 +162,12 @@ export const drawGround = (pen: Pen, since: number) => {
 /** Snow on the window sill (`pen` on the wall), while the window hangs: the sill goes down
  *  with it. */
 export const drawSillSnow = (pen: Pen, since: number, hanging: boolean) => {
-  if (hanging) paintSnowCaps(pen, ROOM_VIEW, SILL, snowCover(since));
+  if (hanging) paintSnowCaps(pen, ROOM_VIEW, SILL, snowDepth(since));
 };
 
 /** Snow on the slabs and the desk. */
 export const drawSnowCaps = (pen: Pen, since: number) =>
-  paintSnowCaps(pen, ROOM_VIEW, FURNITURE, snowCover(since));
+  paintSnowCaps(pen, ROOM_VIEW, FURNITURE, snowDepth(since));
 
 const drawFallingLeaves = (pen: Pen, since: number, season: Season, seed: number) => {
   const on =

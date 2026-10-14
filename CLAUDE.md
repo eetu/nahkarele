@@ -157,7 +157,9 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   the block above it, and the signs' buttons follow (the exit sign lands in front of the
   desk); what is on the wall (cracks, climbers, the snail, the sill's snow) goes with the
   wall. Rain and snow fall through the room in their spells, each drop and flake at its depth,
-  and lie on the floor and the ledges (korpi `sky`). The window hangs broken (korpi `window`,
+  and lie on the floor and the ledges (korpi `sky`). The rain wets the floor and the glass, which
+  dry after it (korpi `wet`); wet, the bare concrete mirrors what stands over it once the frame
+  is lit, the moss does not. The window hangs broken (korpi `window`,
   `wood/window.ts`): a pane gone, the others cracked where the blast struck them, rain running
   down the glass that is left. The trees clear of the desk
   stand in front of the furniture, the rest behind it. The gaps and the window look out on one world (`wood/outside.ts`), ruined

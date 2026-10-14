@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { gapsOf } from "@anarkisti/korpi/clock";
   import Pause from "@lucide/svelte/icons/pause";
   import Play from "@lucide/svelte/icons/play";
   import Square from "@lucide/svelte/icons/square";
@@ -83,7 +84,7 @@
     if (!ctx) return;
     let palette = readPalette();
     let raf = 0;
-    let last = performance.now();
+    let gap = gapsOf(0.1);
 
     const paint = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -98,8 +99,7 @@
     };
 
     const frame = (t: number) => {
-      const dt = Math.min(0.1, (t - last) / 1000);
-      last = t;
+      const dt = gap(t / 1000);
       // The tape moves at the reels' speed, so a pause slurs out and play winds up.
       if (mode === "play" || mode === "pause") {
         position = Math.min(TAPE_SECONDS, position + dt * deck.spin);
@@ -127,7 +127,7 @@
 
     wake = () => {
       if (raf) return;
-      last = performance.now();
+      gap = gapsOf(0.1);
       raf = requestAnimationFrame(frame);
     };
 

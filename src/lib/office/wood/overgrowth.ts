@@ -20,7 +20,7 @@ import { hash, shuffled, smooth } from "$lib/scene/pixel";
 
 import { FLAT, floorZ, grounded, onFloor, PX_M } from "../depth";
 import { FLOOR_Y } from "../engine";
-import { drawMoss as drawFloorMoss } from "./moss";
+import { drawMoss as drawFloorMoss, floorMossOf } from "./moss";
 import { drawPosed, type Painter } from "./posed";
 import { lookAt, SEASON_S, seasonAt, SEASONS_FROM } from "./seasons";
 import { plantWind } from "./wind";
@@ -79,11 +79,12 @@ export const drawCracks = (pen: Pen) => {
 };
 
 /** Moss spreads from the cracks and the climbers' roots until it carpets the floor. */
+const MOSS_FROM = [...CRACKS.flat(), ...VINES.map((v) => [v.x, FLOOR_Y] as const)];
+
+export const floorMoss = (seed: number) => floorMossOf(seed, MOSS_FROM);
+
 export const drawMoss = (pen: Pen, since: number, seed: number) =>
-  drawFloorMoss(onFloor(pen, FLAT.moss), since, seed, [
-    ...CRACKS.flat(),
-    ...VINES.map((v) => [v.x, FLOOR_Y] as const),
-  ]);
+  drawFloorMoss(onFloor(pen, FLAT.moss), since, seed, MOSS_FROM);
 
 /** A soft plant rooted at scene (`x`, `y`): korpi's painting in its own pixels, moved there,
  *  rustling in friday's wind. */

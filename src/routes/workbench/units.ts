@@ -15,6 +15,7 @@ import {
   type ConkKind,
   CONKS,
   conksOn,
+  coverOf,
   type Flower,
   type FlowerPlan,
   FLOWERS,
@@ -47,6 +48,7 @@ import {
   paintTreeParts,
   posePx,
 } from "@anarkisti/korpi/plants/paint";
+import { HEAVY_MM } from "@anarkisti/korpi/sky";
 
 import { sfx } from "$lib/audio/sfx.svelte";
 import { BOX, drawCharger, PAD as DOCK } from "$lib/office/charger";
@@ -73,7 +75,7 @@ import { paintText, pixelTextWidth } from "$lib/scene/pixelfont";
 import droneSprite from "$lib/sprites/drone.json";
 import { frameOf, paintSprite, type Sprite } from "$lib/sprites/sprite";
 
-import { clock, px, share, years } from "./show";
+import { clock, mmH, px, share, years } from "./show";
 import { stoneUnit, wallSim } from "./wallSim";
 
 export type Param = {
@@ -234,7 +236,7 @@ const tree: Unit = {
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
     office(pen, 260, h, h - 29);
-    fillFaded(pen, "#f4f7fa", look.snow, 0, h - 29, 260, 9);
+    fillFaded(pen, "#f4f7fa", coverOf(look), 0, h - 29, 260, 9);
     const seed = num(v, "seed");
     const species = str(v, "species") as Species;
     const age = num(v, "age");
@@ -249,7 +251,7 @@ const tree: Unit = {
       died,
       year: Math.floor(age),
       phase: through,
-      snow: look.snow,
+      snow: coverOf(look),
     });
     const pose = posePx(poseOf(plan, 1, seen, t, windOf(v), TREE_X / PX_M), PX_M);
     const key = `${seed}|${species}|${age}|${tall}|${look.k}|${look.p}|${conkKey(conks)}`;
@@ -485,7 +487,7 @@ const grass: Unit = {
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
     office(pen, 60, 24, 4);
-    fillFaded(pen, "#f4f7fa", look.snow, 0, 4, 60, 20);
+    fillFaded(pen, "#f4f7fa", coverOf(look), 0, 4, 60, 20);
     const seed = num(v, "seed");
     const [root] = BENCH_TUFTS;
     let plan = grassPlans.get(seed);
@@ -560,7 +562,7 @@ const flower: Unit = {
     const k = SEASONS.indexOf(str(v, "season") as (typeof SEASONS)[number]);
     const look = lookAt(SEASONS_FROM + (k + num(v, "through")) * SEASON_S);
     office(pen, 40, 64, 56);
-    fillFaded(pen, "#f4f7fa", look.snow, 0, 56, 40, 8);
+    fillFaded(pen, "#f4f7fa", coverOf(look), 0, 56, 40, 8);
     const seed = num(v, "seed");
     const kind = str(v, "kind") as Flower;
     const key = `${seed}|${kind}|${num(v, "room")}`;
@@ -835,16 +837,16 @@ const fridayWindow: Unit = {
   name: "window",
   about: "friday's window as the blast left it, rain running down what glass is left",
   animated: true,
-  defaults: { seed: 1, rain: 0.8 },
+  defaults: { seed: 1, rain: 8 },
   params: () => [
     { kind: "seed", key: "seed" },
     {
       kind: "range",
       key: "rain",
       min: 0,
-      max: 1,
-      step: 0.05,
-      show: share,
+      max: HEAVY_MM,
+      step: 0.5,
+      show: mmH,
       hint: "how hard it is raining",
     },
   ],

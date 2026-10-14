@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { gapsOf } from "@anarkisti/korpi/clock";
   import { presenter, raster } from "@anarkisti/korpi/paint";
   import type { Snippet } from "svelte";
 
@@ -167,7 +168,7 @@
     const scene = raster(SCENE_W, SCENE_H);
     const screen = presenter();
     let raf = 0;
-    let last = performance.now();
+    const gap = gapsOf(0.1);
     let shown = NaN;
     let skip = false;
     const frame = (now: number) => {
@@ -177,8 +178,7 @@
         raf = requestAnimationFrame(frame);
         return;
       }
-      const dt = Math.min(0.1, (now - last) / 1000);
-      last = now;
+      const dt = gap(now / 1000);
       const { mood } = officeWeek;
       const before = { blast: mood.blast, since: mood.since };
       officeWeek.tick(dt);
