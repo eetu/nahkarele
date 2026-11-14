@@ -203,6 +203,8 @@
     const gap = gapsOf(0.1);
     let shown = NaN;
     let skip = false;
+    /** When the frame drawn last began, ms. */
+    let last = NaN;
     const frame = (now: number) => {
       // Friday is a screensaver: half the frame rate is plenty for moss and a deer.
       skip = officeWeek.mood.after && !skip;
@@ -210,6 +212,7 @@
         raf = requestAnimationFrame(frame);
         return;
       }
+      const t0 = performance.now();
       const dt = gap(now / 1000);
       const { mood } = officeWeek;
       const before = { blast: mood.blast, since: mood.since };
@@ -249,9 +252,13 @@
       // Silent at rest: a hovering drone buzzing all through friday wore thin on a phone.
       sfx.bed("drone", speed > 0.02 ? 0.004 + speed * 0.02 : 0, 1 + speed * 0.6);
       const signs = { muted: sfx.muted, fullscreen: fullscreen.supported ? fullscreen.on : null };
-      room.draw(SCENE_W, SCENE_H, (f) => paintOffice(f, officeWeek.sim, officeWeek.mood, signs));
+      room.draw(SCENE_W, SCENE_H, (f) => paintOffice(f, officeWeek.sim, officeWeek.mood, signs), {
+        detail: officeWeek.detail,
+      });
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       room.present(el.width / SCENE_W, { ctx });
+      officeWeek.took(performance.now() - t0, Number.isNaN(last) ? undefined : now - last);
+      last = now;
       const focus = officeWeek.mood.after ? SCENE_W / 2 : focusOf(officeWeek.sim);
       const offset = camera.follow(fit, SCENE_W, focus, dt);
       if (frameEl && offset !== shown) {

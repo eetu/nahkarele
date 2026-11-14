@@ -696,7 +696,12 @@ export const paintOffice = (frame: Painting, s: OfficeState, mood: Mood, signs: 
   paintSlab(pen, 2, s, mood);
   paintDesk(pen, s, mood);
   if (mood.after) {
-    const friday = { since: mood.since, seed: mood.seed, knocks: mood.knocks };
+    const friday = {
+      since: mood.since,
+      seed: mood.seed,
+      knocks: mood.knocks,
+      detail: frame.detail,
+    };
     const wall = wallOf(mood);
     drawGarden(pen, friday, wall);
     paintFallen(pen, mood);

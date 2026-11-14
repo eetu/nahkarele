@@ -106,9 +106,20 @@ export const poseAt = (seed: number, life: Life, since: number, knocks: Knocks) 
 
 const painter = standPainterOf({ pxPerM: PX_M, max: 128 });
 
-/** The trees, standing and down, each at its root's depth. */
-export const drawTrees = (pen: Pen, since: number, seed: number, knocks: Knocks) =>
-  painter.trees(grounded(pen), standFor(seed), ROOM_VIEW, since, plantWind(seed), knocks);
+/** The trees, standing and down, each at its root's depth; drawn coarser, their sway worked
+ *  out less often. */
+export const drawTrees = (pen: Pen, since: number, seed: number, knocks: Knocks, detail = 0) =>
+  painter.trees(
+    grounded(pen),
+    standFor(seed),
+    ROOM_VIEW,
+    since,
+    plantWind(seed),
+    knocks,
+    undefined,
+    undefined,
+    detail,
+  );
 
 /** The cones and keys lying under the trees, and a maple's keys spinning down on the wind. */
 export const drawSeeds = (pen: Pen, since: number, seed: number) =>

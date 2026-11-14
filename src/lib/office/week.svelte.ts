@@ -1,3 +1,4 @@
+import { governorOf } from "@anarkisti/korpi/frame";
 import type { Knock } from "@anarkisti/korpi/masonry";
 
 import { sfx } from "$lib/audio/sfx.svelte";
@@ -119,6 +120,11 @@ class OfficeWeek {
   private fridayAt: number | null = null;
   /** Dev only: how fast friday's clock runs; negative runs it back. */
   rate = $state(1);
+  /** How coarsely the room is drawn (korpi's levels of detail), from what its frames take. */
+  private governor = governorOf();
+  detail = $state(0);
+  /** Dev only: the level held whatever the frames take, or null. */
+  pinned = $state<number | null>(null);
 
   get current() {
     return OFFICE_DAYS[this.day];
@@ -177,6 +183,22 @@ class OfficeWeek {
       this.mood.since = (Date.now() - (this.fridayAt ?? Date.now())) / 1000;
     }
     this.sync();
+  };
+
+  /** Called by the frame loop: a frame drawn, what it took and how long after the one before it
+   *  began, ms. Frames while time runs at another rate (the dev shuttle, a toilet break) tell
+   *  nothing of the next ones. */
+  took = (ms: number, since?: number) => {
+    const frozen = this.rate !== 1 || this.away;
+    const detail = this.governor.took({ ms, since, frozen });
+    if (detail !== this.detail) this.detail = detail;
+  };
+
+  /** Dev only: hold the room's detail at `detail`, or govern it again (null). */
+  pin = (detail: number | null) => {
+    this.governor.pin(detail);
+    this.pinned = this.governor.pinned;
+    this.detail = this.governor.detail;
   };
 
   sync = () => {

@@ -84,8 +84,9 @@ export const flowersAt = (seed: number, since: number) =>
 
 const painter = meadowPainterOf({ pxPerM: PX_M, max: 384 });
 
-/** The flowers on the floor in friday's wind, each at its spot's depth, closed for the night. */
-export const drawFlowers = (pen: Pen, since: number, seed: number) =>
+/** The flowers on the floor in friday's wind, each at its spot's depth, closed for the night;
+ *  drawn coarser, a share of them rustle. */
+export const drawFlowers = (pen: Pen, since: number, seed: number, detail = 0) =>
   painter.draw(
     grounded(pen),
     meadowFor(seed),
@@ -93,4 +94,5 @@ export const drawFlowers = (pen: Pen, since: number, seed: number) =>
     since,
     plantWind(seed),
     dayAt(since).sun === null,
+    detail,
   );

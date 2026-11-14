@@ -1,5 +1,6 @@
 <script lang="ts">
   import { rateOf as shuttleRate, SHUTTLE, type Shuttle } from "@anarkisti/korpi/clock";
+  import { DETAILS } from "@anarkisti/korpi/frame";
 
   import { officeWeek } from "$lib/office/week.svelte";
   import { SEASON_S, seasonAt, SEASONS_FROM } from "$lib/office/wood/seasons";
@@ -88,6 +89,12 @@
 
   // Leaving the page or the loop never leaves friday racing.
   $effect(() => () => officeWeek.setRate(1));
+
+  /** The room's detail: governed by its frame times, or pinned at each level in turn. */
+  const pinNext = () => {
+    const p = officeWeek.pinned;
+    officeWeek.pin(p === null ? 0 : p + 1 < DETAILS ? p + 1 : null);
+  };
 </script>
 
 <div class="scrub halo-card" aria-label="friday time, dev only">
@@ -129,6 +136,12 @@
   <span class="num speed">{speed}</span>
   <span class="num time">{clock}</span>
   <span class="label where">{where}</span>
+  <button
+    class="num detail"
+    onclick={pinNext}
+    title="the room's level of detail, 0 finest: governed by its frame times, or pinned"
+    >detail {officeWeek.detail}{officeWeek.pinned === null ? "" : " pinned"}</button
+  >
 </div>
 
 <style>
@@ -229,5 +242,10 @@
 
   .where {
     min-width: 11rem;
+  }
+
+  .detail {
+    padding: 0.3rem 0.55rem;
+    font-size: 0.8rem;
   }
 </style>

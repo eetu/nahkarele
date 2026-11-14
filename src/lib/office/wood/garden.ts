@@ -18,7 +18,8 @@ import { drawShrubs } from "./undergrowth";
 import { climbTo, fixtureAt, onWall, type Setting } from "./wall";
 import { drawFalling, drawGround, drawSillSnow, drawSnowCaps } from "./weather";
 
-export type Friday = { since: number; seed: number; knocks: Knocks };
+/** Friday at a moment, drawn at a level of detail (korpi frame's: 0 finest). */
+export type Friday = { since: number; seed: number; knocks: Knocks; detail?: number };
 
 /** The apples the crow has carried off, for the stand to leave out. */
 const takenBy = (since: number, seed: number, wall: Setting, knocks: Knocks) => {
@@ -32,7 +33,7 @@ const takenBy = (since: number, seed: number, wall: Setting, knocks: Knocks) => 
  * and keys), the shrubs, the grass and the flowers, the apples; snow on the furniture. What has
  * come down off the wall lies among them (`paintWall`).
  */
-export const drawGarden = (pen: Pen, { since, seed, knocks }: Friday, wall: Setting) => {
+export const drawGarden = (pen: Pen, { since, seed, knocks, detail }: Friday, wall: Setting) => {
   drawMoss(pen, since, seed);
   drawCracks(pen);
   drawGround(pen, since);
@@ -41,11 +42,11 @@ export const drawGarden = (pen: Pen, { since, seed, knocks }: Friday, wall: Sett
   drawSillSnow(on, since, sill);
   drawVines(on, since, seed);
   drawSticks(pen, since, seed);
-  drawTrees(pen, since, seed, knocks);
+  drawTrees(pen, since, seed, knocks, detail);
   drawSeeds(pen, since, seed);
   drawShrubs(pen, since, seed);
   drawGrass(pen, since, seed);
-  drawFlowers(pen, since, seed);
+  drawFlowers(pen, since, seed, detail);
   drawApples(pen, since, seed, knocks, takenBy(since, seed, wall, knocks));
   drawSnowCaps(pen, since);
 };
