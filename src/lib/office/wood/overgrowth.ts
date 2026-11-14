@@ -19,7 +19,7 @@ import { paintClimberParts, paintGrassParts, posePx } from "@anarkisti/korpi/pla
 import { colourOf } from "$lib/scene/pen";
 import { hash, shuffled, smooth } from "$lib/scene/pixel";
 
-import { FLAT, floorZ, grounded, onFloor, PX_M } from "../depth";
+import { FLAT, floorZ, onFloor, PX_M } from "../depth";
 import { FLOOR_Y } from "../engine";
 import { drawMoss as drawFloorMoss, floorMossOf } from "./moss";
 import { drawPosed, type Painter } from "./posed";
@@ -158,7 +158,7 @@ export const drawGrass = (pen: Pen, since: number, seed: number) => {
     const paint: Painter = (rec, part) => paintGrassParts(rec, plan, grown, look, part, PX_M);
     const root = tufts[0];
     const standing = footed(plan, root.y, paint);
-    drawSoft(grounded(pen), `grass${seed}:${i}`, key, root, plan, standing, since, seed);
+    drawSoft(pen, `grass${seed}:${i}`, key, root, plan, standing, since, seed);
   });
 };
 

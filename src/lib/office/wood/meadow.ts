@@ -17,7 +17,7 @@ import {
 } from "@anarkisti/korpi/plants";
 import { meadowPainterOf } from "@anarkisti/korpi/plants/paint";
 
-import { floorZ, grounded, PX_M, ROOM_VIEW, SLOPE } from "../depth";
+import { floorZ, PX_M, ROOM_VIEW, SLOPE } from "../depth";
 import { WALL } from "../draw";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
 import { dayAt } from "./daylight";
@@ -101,7 +101,7 @@ const painter = meadowPainterOf({ pxPerM: PX_M, max: 384 });
  *  for the night; drawn coarser, a share of them rustle. */
 export const drawFloorPlants = (pen: Pen, since: number, seed: number, detail = 0) =>
   painter.draw(
-    grounded(pen),
+    pen,
     floorFor(seed),
     ROOM_VIEW,
     since,

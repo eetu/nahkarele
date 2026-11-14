@@ -110,7 +110,7 @@ const painter = standPainterOf({ pxPerM: PX_M, max: 128 });
  *  out less often. */
 export const drawTrees = (pen: Pen, since: number, seed: number, knocks: Knocks, detail = 0) =>
   painter.trees(
-    grounded(pen),
+    pen,
     standFor(seed),
     ROOM_VIEW,
     since,

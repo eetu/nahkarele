@@ -188,7 +188,9 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   at 0.4; what lies flat on the floor (`onFloor`) at its row's depth, what stands on it
   (`standing`, `footAt`) at its foot's, nothing under the floor. So what is nearer covers what is
   farther whatever order things are painted in; only what is translucent goes last. The world
-  beyond the wall is behind it.
+  beyond the wall is behind it. korpi's posed plants (trees, floor plants, grass) go through the
+  plain pen at korpi's own depths, so korpi writes them straight into the raster or sends them
+  to the GPU: what of one hangs below its root (a spruce's lowest boughs) is under the floor.
 - **Scene pieces draw themselves.** A tree, a sprite, the calendar, pixel text: a paint
   function over a pen and plain values, no DOM. That is what lets the workbench show them
   alone; keep new pieces that way.
