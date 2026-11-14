@@ -146,16 +146,17 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   spider swings on its thread by the same spring, at a pendulum's pace for the thread's
   length. Leaves and snow ride the wind's integral (`driftOf`); grass, the
   window's rain and a sound bed follow it. The back wall is masonry (`@anarkisti/korpi/masonry`, the
-  room's side in `wood/wall.ts`; korpi's painter paints it, each stone at its own depth): cement blocks laid in courses under plaster,
-  baked once per seed into a timeline; the plaster comes off in patches over the years
+  room's side in `wood/wall.ts`; korpi's painter paints what stands, a solid as thick as the
+  wall, its top and the beds its gaps leave running back from its face): cement blocks laid in courses under plaster,
+  worked out per seed into a timeline as far as it is asked; the plaster comes off in patches over the years
   (soonest beside a gap) and shows the blocks. A block stands while its centre of mass is over its bed (or mortar holds it
   a little past, or the arch over a gap leans on it); the roof comes down at the blast and in
   its first years, blocks wear loose from the top and the gaps' edges (Weibull wear times
   exposure), and what loses its support comes down with them; part of the foot stands for
-  good. A block tips out of the wall into the room (or outside, seen through the gaps),
-  tumbles at real gravity, may break landing, and lies on the heap at the wall's foot until
-  moss has it and it sinks. What hangs on the wall (window, clock, calendar, signs) goes with
-  the block above it, and the signs' buttons follow (the exit sign lands in front of the
+  good. A block that comes off is heard crumbling and is gone: what comes off a korpi wall is
+  a stepped world's (`masonry/world`), which friday's clock, running on through reloads and
+  sleeps, cannot keep. What hangs on the wall (window, clock, calendar, signs) goes with
+  the block above it (korpi's `hung`), and the signs' buttons follow (the exit sign lands in front of the
   desk); what is on the wall (cracks, climbers, the snail, the sill's snow) goes with the
   wall. Rain and snow fall through the room in their spells, each drop and flake at its depth,
   and lie on the floor and the ledges (korpi `sky`). The rain wets the floor and the glass, which

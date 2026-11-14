@@ -6,21 +6,12 @@
 
 import { type Input, lru, mix, rgb, type Rgba } from "@anarkisti/korpi/core";
 import {
-  type Body,
   classesAt,
   CRACK_S,
   exposureOf,
-  fracture,
   gapsOf,
-  halfDepth,
-  halfHeight,
-  heightOver,
-  layBond,
-  lying,
-  moving,
   PACE,
   type Pace,
-  pieceOf,
   releasedBy,
   type Spec,
   stateAt,
@@ -28,13 +19,7 @@ import {
   wallOf,
   warningAt,
 } from "@anarkisti/korpi/masonry";
-import {
-  frameOf,
-  paintStone,
-  WALL_PALETTE,
-  type WallPainter,
-  wallPainter,
-} from "@anarkisti/korpi/masonry/paint";
+import { frameOf, type WallPainter, wallPainter } from "@anarkisti/korpi/masonry/paint";
 import { line, shifted } from "@anarkisti/korpi/paint";
 import { floor } from "@anarkisti/korpi/shapes";
 import { obliqueView } from "@anarkisti/korpi/view";
@@ -42,11 +27,10 @@ import { obliqueView } from "@anarkisti/korpi/view";
 import { PX_M, SLOPE } from "$lib/office/depth";
 import { WALL } from "$lib/office/draw";
 import { SCENE_H, SCENE_W } from "$lib/office/engine";
-import { mossColour } from "$lib/office/wood/moss";
 import { specOf } from "$lib/office/wood/wall";
 import { paintText } from "$lib/scene/pixelfont";
 
-import { clock as hms, px, share } from "./show";
+import { clock as hms, px } from "./show";
 import type { Param, Stage, Unit, Values } from "./units";
 
 /** The office's back wall, as the room lays it: the window an insert, the clock, the pay
@@ -67,9 +51,9 @@ const AT = { x: 0, y: SPEC.ground / PX_M, z: 0 };
 /** Ways of building it: course height, a piece's length and the wall's thickness, px. Bricks
  *  come away brick by brick, rubble stone by stone, from a wall 50 cm thick. */
 const BUILDS = {
-  block: { course: 8, unit: 16, thickness: 8, brittle: 1 },
-  brick: { course: 4, unit: 10, thickness: 9, brittle: 0.4 },
-  rubble: { course: 12, unit: 18, thickness: 20, brittle: 0.25 },
+  block: { course: 8, unit: 16, thickness: 8 },
+  brick: { course: 4, unit: 10, thickness: 9 },
+  rubble: { course: 12, unit: 18, thickness: 20 },
 } as const;
 type Build = keyof typeof BUILDS;
 
@@ -161,32 +145,6 @@ const TUNE: Tune[] = [
     get: (p) => p.bite,
   }),
   tune({
-    key: "sinks",
-    min: 60,
-    max: 14400,
-    step: 60,
-    show: hms,
-    hint: "how long a fallen piece takes to sink away",
-    get: (p) => p.sink[1],
-  }),
-  tune({
-    key: "bounce",
-    min: 0,
-    max: 0.8,
-    step: 0.05,
-    show: share,
-    hint: "a landing's speed kept upward",
-    get: (p) => p.bounce[0],
-  }),
-  tune({
-    key: "repose",
-    min: 0.3,
-    max: 1.5,
-    step: 0.05,
-    hint: "the steepest the heap stands, rise over run",
-    get: (p) => p.repose,
-  }),
-  tune({
     key: "glue",
     min: 0,
     max: 6,
@@ -208,9 +166,6 @@ const paceOf = (v: Values): Pace => ({
   after: [Number(v.shock), PACE.after[1]],
   collapses: Number(v.collapses),
   bite: Number(v.bite),
-  sink: [PACE.sink[0], Number(v.sinks)],
-  bounce: [Number(v.bounce), PACE.bounce[1]],
-  repose: Number(v.repose),
   glue: Number(v.glue),
 });
 
@@ -362,26 +317,13 @@ const draw = ({ pen, scene }: Stage, v: Values, t: number) => {
     }
   }
 
-  // Over everything, as on a glass in front of it: the heap's height, and the readout.
+  // Over everything, as on a glass in front of it: the readout.
   const top = shifted(pen, { dx: at.ox, dy: at.oy, dd: -1e3 });
-  if (show === "pile") {
-    // The heap's height along the wall, nearest the wall and at its toe.
-    for (const [z0, z1, hex] of [
-      [0, 6, "#ffe040"],
-      [14, 28, "#ff8040"],
-    ] as const) {
-      for (let x = 0; x < W; x += 2) {
-        const high = heightOver(r.pile, x, x + 1, z0, z1, since);
-        if (high > 0) top.fill(rgb(hex), x, Math.round(SPEC.ground - high + at.k * z0), 2, 1);
-      }
-    }
-  }
   const standing = state.standing.reduce((s, x) => s + x, 0);
   const lines = [
     `${hms(since)}  ${String(v.rate).replace("×", "x")}  seed ${v.seed}`,
     `standing ${standing}/${bond.blocks.length}  released ${releasedBy(r, since)}  window ${state.inserts[0] ? "in" : "out"}`,
     `bake ${wall.inspect().bakeMs.toFixed(0)}ms  taps ${tapsOf(Number(v.seed)).length}  cracked ${warningAt(r, since).length} (${CRACK_S}s ahead)`,
-    `falling ${moving(r, since).length}  lying ${lying(r, since).length}  thuds ${r.cues.filter((c) => c.t <= since).length}`,
   ];
   lines.forEach((text, i) => paintText(top, text, 4, H + 6 + i * 10, "#20262c"));
 };
@@ -421,8 +363,8 @@ export const wallSim: Unit = {
     {
       kind: "select",
       key: "show",
-      options: ["look", "classes", "hazard", "order", "pile"],
-      hint: "as drawn, how each block stands, how exposed, when it goes, the heap",
+      options: ["look", "classes", "hazard", "order"],
+      hint: "as drawn, how each block stands, how exposed, when it goes",
     },
     {
       kind: "select",
@@ -448,116 +390,5 @@ export const wallSim: Unit = {
     const kind = how === "roof" ? "roof" : "block";
     tapsOf(seed).push({ t: sinceOf(v, t), p, kind, source: "bench" });
     tapsOf(seed).sort((a, b) => a.t - b.t);
-  },
-};
-
-/** One stone of the wall as the room draws it, at any turn, whole or broken, mossed or sunk:
- *  for tuning how stones look. It stands on a strip of floor, lying or upright as turned. */
-const STONE = { w: 96, h: 64, ground: 44 };
-const PIECES = ["whole", "piece 1", "piece 2", "chip"] as const;
-
-const stoneOf = (v: Values): Body => {
-  const seed = Number(v.seed);
-  const bond = layBond(SPEC, seed);
-  const block = bond.blocks[Math.min(bond.blocks.length - 1, Number(v.block))];
-  const piece = pieceOf(bond, block);
-  const whole: Body = {
-    id: block.i,
-    block: block.i,
-    mask: piece.mask,
-    w: piece.w,
-    h: piece.h,
-    T: SPEC.thickness,
-    n: piece.n,
-    ox: piece.x,
-    oy: piece.y,
-    start: 0,
-    phases: [],
-    lands: 0,
-    out: false,
-    settled: 0,
-    lying: null,
-    broken: false,
-    parent: null,
-    chip: false,
-    fresh: null,
-  };
-  const which = String(v.piece);
-  if (which === "whole") return whole;
-  const pieces = fracture(whole.mask, whole.w, whole.h, seed * 977 + block.i, 120);
-  const wanted =
-    which === "chip"
-      ? pieces.find((p) => p.chip)
-      : pieces.filter((p) => !p.chip)[which === "piece 1" ? 0 : 1];
-  const pc = wanted ?? pieces[0];
-  return {
-    ...whole,
-    mask: pc.mask,
-    fresh: pc.fresh,
-    w: pc.w,
-    h: pc.h,
-    n: pc.n,
-    T: pc.chip ? Math.max(2, Math.round(Math.sqrt(pc.n))) : SPEC.thickness,
-    chip: pc.chip,
-  };
-};
-
-export const stoneUnit: Unit = {
-  name: "stone",
-  about: "one stone of the wall as the room draws it, at any turn, whole or broken",
-  defaults: { seed: 1, block: 40, piece: "whole", phi: 1.57, theta: 0, moss: 0, sink: 0 },
-  params: () => [
-    { kind: "seed", key: "seed" },
-    { kind: "range", key: "block", min: 0, max: 80, step: 1, hint: "which block of the wall" },
-    { kind: "select", key: "piece", options: PIECES, hint: "whole, a piece of it broken, a chip" },
-    {
-      kind: "range",
-      key: "phi",
-      min: -3.2,
-      max: 3.2,
-      step: 0.05,
-      hint: "tipped out of the wall's plane, top toward the room, radians",
-    },
-    {
-      kind: "range",
-      key: "theta",
-      min: -0.6,
-      max: 0.6,
-      step: 0.02,
-      hint: "turned in the wall's plane, radians",
-    },
-    { kind: "range", key: "moss", min: 0, max: 1, step: 0.05, show: share },
-    {
-      kind: "range",
-      key: "sink",
-      min: 0,
-      max: 16,
-      step: 1,
-      show: px,
-      hint: "how far it has sunk into the ground",
-    },
-  ],
-  size: () => ({ w: STONE.w, h: STONE.h }),
-  draw: ({ pen, scene }, v) => {
-    pen.fill(DADO, 0, 0, STONE.w, STONE.ground, 10);
-    pen.fill(GRASS, 0, STONE.ground, STONE.w, STONE.h - STONE.ground, 10);
-    const body = stoneOf(v);
-    const phi = Number(v.phi);
-    const theta = Number(v.theta);
-    const z = 8;
-    const pose = {
-      x: STONE.w / 2,
-      y: STONE.ground - halfHeight(body.w, body.h, body.T, phi, theta) - SLOPE * z,
-      z,
-      phi,
-      theta,
-    };
-    paintStone(scene, { ox: 0, oy: 0, d0: 0, k: SLOPE, pxPerM: PX_M }, body, pose, {
-      palette: WALL_PALETTE,
-      sink: Number(v.sink),
-      moss: Number(v.moss),
-      mossColour: (x, y, up) => mossColour(x, y, up, 0),
-      ground: STONE.ground + Math.round(SLOPE * (z + halfDepth(body.h, body.T, phi))),
-    });
   },
 };

@@ -1,4 +1,4 @@
-import { shortest } from "@anarkisti/korpi/plants";
+import { isFlower, shortest } from "@anarkisti/korpi/plants";
 import { describe, expect, it } from "vitest";
 
 import { ROOM_VIEW } from "$lib/office/depth";
@@ -60,7 +60,9 @@ describe("friday's flowers", () => {
           // In front of the furniture, a flower must keep below its foot.
           if (!behind(x)) continue;
           fronted++;
-          expect((y - FLOOR_Y - 1) / 40).toBeGreaterThanOrEqual(shortest(f.kind));
+          expect(isFlower(f.kind)).toBe(true);
+          if (isFlower(f.kind))
+            expect((y - FLOOR_Y - 1) / 40).toBeGreaterThanOrEqual(shortest(f.kind));
         }
       }
     }

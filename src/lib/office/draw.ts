@@ -165,9 +165,9 @@ const fixtureZ = (name: Fixture, rect: Rect, mood: Mood) => {
   const from = FIXTURES[name].y + FIXTURES[name].h;
   if (!mood.after || rect.y + rect.h <= from) return Z.hung;
   const wall = wallOf(mood);
-  const land = landOf(name, mood.seed, wall);
+  const land = landOf(name, mood.since, mood.seed, wall);
   const down = Math.min(1, (rect.y + rect.h - from) / (land - from));
-  const z = floorZ(land) + LATER * fallRank(name, mood.seed, wall);
+  const z = floorZ(land) + LATER * fallRank(name, mood.since, mood.seed, wall);
   return Z.hung + (z - Z.hung) * down;
 };
 

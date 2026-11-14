@@ -2,7 +2,7 @@ import { ruinOf } from "@anarkisti/korpi/masonry";
 import { raster, rasterPen } from "@anarkisti/korpi/paint";
 import { describe, expect, it } from "vitest";
 
-import { ROOM_VIEW } from "../../depth";
+import { PX_M, ROOM_VIEW } from "../../depth";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../../engine";
 import { healAt } from "../outside";
 import {
@@ -86,11 +86,12 @@ describe("what is left of the wall", () => {
 describe("the wall in the room", () => {
   const near = (d: number, z: number) => Math.abs(d + z) < 1e-6;
 
-  it("puts its face at the wall, and each stone at its own depth, in the room or outside", () => {
+  it("puts its face at the wall and its tops behind it, within its thickness", () => {
     // Counted, then asserted once: an expect per pixel of a hundred frames is most of the time.
-    const seen = { face: 0, room: 0, outside: 0, glowing: 0, under: 0 };
+    const seen = { face: 0, tops: 0, room: 0, past: 0, glowing: 0 };
+    const deep = specOf(WALL).thickness / PX_M;
     for (const seed of [1, 2, 3]) {
-      // The blast and its first minutes: much falling onto much lying.
+      // The blast and its first minutes: much coming down.
       for (let since = 1; since < 240; since += 7.3) {
         const scene = raster(SCENE_W, SCENE_H);
         // A glowing sky behind it all.
@@ -101,22 +102,17 @@ describe("the wall in the room", () => {
           const d = scene.depth[i];
           // Nothing it paints gives light of its own.
           if (scene.glow[i]) seen.glowing++;
-          if (near(d, 0)) seen.face++;
-          else if (d < 0) {
-            seen.room++;
-            // What lies in the room is out on the floor, never under it.
-            const row = Math.floor(i / SCENE_W);
-            const p = ROOM_VIEW.unproject((i % SCENE_W) + 0.5, row + 0.5, d);
-            if (p.y <= -0.05) seen.under++;
-          } else seen.outside++;
+          // The cracks round what is about to go lie a hair over the face.
+          if (Math.abs(d) < 1e-3) seen.face++;
+          else if (d < 0) seen.room++;
+          else if (d <= deep + 1e-6) seen.tops++;
+          else seen.past++;
         }
       }
     }
-    expect(seen.glowing).toBe(0);
-    expect(seen.under).toBe(0);
+    expect(seen).toMatchObject({ glowing: 0, room: 0, past: 0 });
     expect(seen.face).toBeGreaterThan(0);
-    expect(seen.room).toBeGreaterThan(0);
-    expect(seen.outside).toBeGreaterThan(0);
+    expect(seen.tops).toBeGreaterThan(0);
   });
 
   it("leaves its gaps for what is beyond it, and what is on it goes with it", () => {

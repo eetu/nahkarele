@@ -2,21 +2,23 @@
 // a window in it, a clock, a calendar and signs hung on it. The roof comes down at the blast
 // and for its first years; blocks work loose from the top and the edges of the gaps, decade by
 // decade, and whatever is left without support comes down with them; the foot stands for good.
-// What comes off tips out of the wall into the room (or outside, seen through the gaps),
-// tumbles, hops, maybe breaks, and lies on the heap at the wall's foot until moss has it and it
-// sinks away. What hangs on the wall goes with the block above it and falls upright, landing
-// where it always did. The world outside shows where the wall was. All by friday's clock and
-// seed, like everything else here. This file is the room's side of it: the wall's numbers, its
-// fixtures, and where it stands in the room; korpi's painter paints it.
+// What hangs on the wall goes with the block above it and falls upright, landing where it
+// always did (korpi's `hung`). The world outside shows where the wall was. All by friday's clock
+// and seed, like everything else here. This file is the room's side of it: the wall's numbers,
+// its fixtures and where they land, and where it stands in the room; korpi's painter paints
+// what stands.
 
 import { mix, rgb, type Rgba } from "@anarkisti/korpi/core";
 import {
   climb,
-  cuesBetween,
   hanging,
+  hungGoneAt,
+  insertGoneAt,
   type Knock,
-  type Ruin,
+  pieceOf,
+  releasedBy,
   type Spec,
+  stands,
   type Wall,
   wallOf,
 } from "@anarkisti/korpi/masonry";
@@ -29,12 +31,8 @@ import {
 import { masked, type Pen, type Raster } from "@anarkisti/korpi/paint";
 import type { ObliqueView } from "@anarkisti/korpi/view";
 
-import { hash, smooth } from "$lib/scene/pixel";
-
 import { PX_M } from "../depth";
 import { FLOOR_Y, G, SCENE_W } from "../engine";
-import { mossColour } from "./moss";
-import { SEASONS_FROM } from "./seasons";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
@@ -61,12 +59,9 @@ export type Setting = {
 const WALL_H = 97;
 /** Where a fixture that comes down in front of the furniture rests: the near floor. */
 const NEAR_FLOOR = FLOOR_Y + 14;
-/** How long a fixture's landing bumps, s. */
-const BUMP_S = 0.3;
-/** Moss starts up a stone this long after it comes to rest, s, and has it covered this much
- *  later. */
-export const MOSS_FROM = 120;
-const MOSS_S = 3600;
+/** A fixture has come to rest this long after it goes, s: down from the top of the wall and its
+ *  landing's bump over. */
+const LANDED_S = 5;
 
 const specs = new WeakMap<Setting, Spec>();
 
@@ -113,56 +108,17 @@ export const grimed = (pen: Pen): Pen => {
   return glowing ? { ...out, glowing: (g) => grimed(glowing(g)) } : out;
 };
 
-const grimedPalette = (p: WallPalette): WallPalette => ({
-  block: { units: p.block.units.map(grimy), mortar: grimy(p.block.mortar) },
-  brick: { units: p.brick.units.map(grimy), mortar: grimy(p.brick.mortar) },
-  rubble: { units: p.rubble.units.map(grimy), mortar: grimy(p.rubble.mortar) },
-  plaster: { face: grimy(p.plaster.face), rim: grimy(p.plaster.rim) },
-  inside: { face: grimy(p.inside.face), edge: grimy(p.inside.edge), grit: grimy(p.inside.grit) },
-  outside: {
-    face: grimy(p.outside.face),
-    edge: grimy(p.outside.edge),
-    stain: grimy(p.outside.stain),
+const PALETTE: WallPalette = {
+  block: { units: WALL_PALETTE.block.units.map(grimy), mortar: grimy(WALL_PALETTE.block.mortar) },
+  brick: { units: WALL_PALETTE.brick.units.map(grimy), mortar: grimy(WALL_PALETTE.brick.mortar) },
+  rubble: {
+    units: WALL_PALETTE.rubble.units.map(grimy),
+    mortar: grimy(WALL_PALETTE.rubble.mortar),
   },
-  bed: {
-    up: grimy(p.bed.up),
-    down: grimy(p.bed.down),
-    side: grimy(p.bed.side),
-    fresh: grimy(p.bed.fresh),
-  },
-  rim: grimy(p.rim),
-  crack: grimy(p.crack),
-  dust: [grimy(p.dust[0]), grimy(p.dust[1])],
-});
-const PALETTE = grimedPalette(WALL_PALETTE);
-
-/** Moss on the heap, summer's: what lies there is repainted only when something comes to rest. */
-const MOSS = {
-  amount: (age: number) => smooth((age - MOSS_FROM) / MOSS_S),
-  colour: (x: number, y: number, top: boolean) => grimy(mossColour(x, y, top, SEASONS_FROM)),
+  plaster: { face: grimy(WALL_PALETTE.plaster.face), rim: grimy(WALL_PALETTE.plaster.rim) },
+  rim: grimy(WALL_PALETTE.rim),
+  crack: grimy(WALL_PALETTE.crack),
 };
-
-/** Each wall by seed, baked once, with its painter: the last few seeds asked for. */
-const walls = new WeakMap<Spec, Map<number, { wall: Wall; painter: WallPainter }>>();
-const wallFor = (seed: number, setting: Setting) => {
-  const spec = specOf(setting);
-  const bySeed = walls.get(spec) ?? new Map<number, { wall: Wall; painter: WallPainter }>();
-  walls.set(spec, bySeed);
-  const known = bySeed.get(seed);
-  if (known) return known;
-  const wall = wallOf({ spec, seed, at: AT });
-  const made = { wall, painter: wallPainter(wall, { moss: MOSS, palette: PALETTE }) };
-  bySeed.set(seed, made);
-  if (bySeed.size > 4) bySeed.delete(bySeed.keys().next().value as number);
-  return made;
-};
-const ruinFor = (seed: number, setting: Setting): Ruin => wallFor(seed, setting).wall.ruin;
-
-// --- Fixtures --------------------------------------------------------------------------
-
-/** A fixture coming down: when it goes, its sideways drift, px/s, and where its bottom
- *  comes to rest. It falls upright and stands where it lands. */
-type Falling = Rect & { at: number; vx: number; land: number };
 
 /** Where something `w` wide landing at `x` comes to rest: on the floor, or behind what it fell
  *  behind. */
@@ -174,37 +130,34 @@ const restOn = (fronts: Rect[], x: number, w: number, floor: number) => {
   return floor;
 };
 
-/** How long something falls from `bottom` before it lands at `land`. */
-const fallFrom = (bottom: number, land: number) => Math.sqrt((2 * Math.max(0, land - bottom)) / G);
+/** Where a fixture coming down at `x` lands in the room, scene row: the exit sign on the near
+ *  floor, the rest on the floor or behind the furniture they fell behind. */
+const landIn =
+  (setting: Setting) =>
+  (name: string, x: number, w: number): number =>
+    setting.before?.includes(name) ? NEAR_FLOOR : restOn(setting.fronts, x, w, FLOOR_Y + 1);
 
-const fixturesCache = new WeakMap<Ruin, Record<string, Falling>>();
-const fixturesOf = (r: Ruin, setting: Setting) => {
-  const known = fixturesCache.get(r);
+/** Each wall by seed, baked once, with its painter: the last few seeds asked for. */
+const walls = new WeakMap<Spec, Map<number, { wall: Wall; painter: WallPainter }>>();
+const wallFor = (seed: number, setting: Setting) => {
+  const spec = specOf(setting);
+  const bySeed = walls.get(spec) ?? new Map<number, { wall: Wall; painter: WallPainter }>();
+  walls.set(spec, bySeed);
+  const known = bySeed.get(seed);
   if (known) return known;
-  const out: Record<string, Falling> = {};
-  for (const [name, f] of Object.entries(setting.fixtures)) {
-    const k = setting.openings.indexOf(name);
-    const at = k >= 0 ? r.insertAt[k] : (r.hangAt[name] ?? Infinity);
-    const vx = (hash(r.seed, Math.round(f.x + f.w / 2), 5) - 0.5) * 4;
-    const land = setting.before?.includes(name)
-      ? NEAR_FLOOR
-      : restOn(setting.fronts, f.x + vx * fallFrom(f.y + f.h, FLOOR_Y + 1), f.w, FLOOR_Y + 1);
-    out[name] = { ...f, at, vx, land };
-  }
-  fixturesCache.set(r, out);
-  return out;
+  const wall = wallOf({ spec, seed, at: AT, land: landIn(setting) });
+  const made = { wall, painter: wallPainter(wall, { palette: PALETTE }) };
+  bySeed.set(seed, made);
+  if (bySeed.size > 4) bySeed.delete(bySeed.keys().next().value as number);
+  return made;
 };
 
-/** Where a fixture is: still on the wall, falling, or down. */
-const placeOf = (b: Falling, since: number) => {
-  const t = since - b.at;
-  if (!(t >= 0)) return { on: true, x: b.x, y: b.y };
-  const fall = fallFrom(b.y + b.h, b.land);
-  if (t < fall) return { on: false, x: b.x + b.vx * t, y: b.y + 0.5 * G * t * t };
-  const u = t - fall;
-  const bump = u < BUMP_S ? Math.sin((u / BUMP_S) * Math.PI) * 2 : 0;
-  const slide = b.vx * 0.3 * Math.min(u, BUMP_S);
-  return { on: false, x: b.x + b.vx * fall + slide, y: b.land - b.h - bump };
+// --- Fixtures --------------------------------------------------------------------------
+
+/** When fixture `name` came off `wall`, if it has by `t`; else Infinity. */
+const goneAt = (wall: Wall, setting: Setting, name: string, t: number) => {
+  const k = setting.openings.indexOf(name);
+  return k >= 0 ? insertGoneAt(wall.ruin, k, t) : hungGoneAt(wall.ruin, name, t);
 };
 
 /**
@@ -217,9 +170,8 @@ export const fixtureAt = (
   seed: number,
   setting: Setting,
 ): { on: boolean; rect: Rect } => {
-  const b = fixturesOf(ruinFor(seed, setting), setting)[name];
-  const at = placeOf(b, since);
-  return { on: at.on, rect: { x: Math.round(at.x), y: Math.round(at.y), w: b.w, h: b.h } };
+  const { on, rect } = wallFor(seed, setting).wall.hung(name, since);
+  return { on, rect: { ...rect, x: Math.round(rect.x), y: Math.round(rect.y) } };
 };
 
 /** The fixtures off the wall `since` seconds into friday, by name, and where each is now. */
@@ -228,15 +180,22 @@ export const fallenAt = (since: number, seed: number, setting: Setting) =>
     .map((name) => ({ name, ...fixtureAt(name, since, seed, setting) }))
     .filter(({ on }) => !on);
 
-/** Where a fixture's bottom rests once down, scene row: the floor it stands at the depth of. */
-export const landOf = (name: string, seed: number, setting: Setting) =>
-  fixturesOf(ruinFor(seed, setting), setting)[name].land;
+/** Where fixture `name`'s bottom rests once down, scene row, if it has come off by `since`: the
+ *  floor it stands at the depth of. */
+export const landOf = (name: string, since: number, seed: number, setting: Setting) => {
+  const { wall } = wallFor(seed, setting);
+  const goes = goneAt(wall, setting, name, since);
+  if (!Number.isFinite(goes)) return FLOOR_Y + 1;
+  const { rect } = wall.hung(name, goes + LANDED_S);
+  return rect.y + rect.h;
+};
 
-/** How many fixtures came off the wall before `name`: what comes down later lies in front of
- *  what is already down where it lands. */
-export const fallRank = (name: string, seed: number, setting: Setting) => {
-  const all = fixturesOf(ruinFor(seed, setting), setting);
-  return Object.values(all).filter((f) => f.at < all[name].at).length;
+/** How many fixtures came off the wall before `name`, once it has by `since`: what comes down
+ *  later lies in front of what is already down where it lands. */
+export const fallRank = (name: string, since: number, seed: number, setting: Setting) => {
+  const { wall } = wallFor(seed, setting);
+  const at = goneAt(wall, setting, name, since);
+  return Object.keys(setting.fixtures).filter((n) => goneAt(wall, setting, n, since) < at).length;
 };
 
 // --- The wall, standing and coming down -----------------------------------------------------
@@ -244,8 +203,8 @@ export const fallRank = (name: string, seed: number, setting: Setting) => {
 /**
  * The wall `since` seconds into friday, into `scene` through the room's view, each pixel at its
  * own depth: its face (the coat, the blocks where it has come off, the broken rim round the
- * gaps, the cracks of what is about to go), the stones falling and lying at its foot, in the room
- * or out under the sky, and the dust of their landing.
+ * gaps, the cracks of what is about to go), and its top and the beds its gaps leave, running
+ * back through its thickness.
  */
 export const paintWall = (
   scene: Raster,
@@ -270,7 +229,8 @@ export const standsAt = (since: number, seed: number, setting: Setting) => {
 export const onWall = (pen: Pen, since: number, seed: number, setting: Setting): Pen =>
   masked(pen, standsAt(since, seed, setting));
 
-/** What thuds between two moments of friday, and where: stones and fixtures landing. */
+/** What is heard of the wall between two moments of friday, and where: blocks coming loose,
+ *  and fixtures landing. */
 export const rubbleCue = (
   from: number,
   to: number,
@@ -278,12 +238,15 @@ export const rubbleCue = (
   setting: Setting,
 ): { x: number; big: boolean }[] => {
   if (to <= from) return [];
-  const r = ruinFor(seed, setting);
-  const hits = cuesBetween(r, from, to).map((c) => ({ x: c.x, big: c.big }));
-  for (const b of Object.values(fixturesOf(r, setting))) {
-    const t = b.at + fallFrom(b.y + b.h, b.land);
-    if (t > from && t <= to) hits.push({ x: b.x + b.w / 2, big: true });
+  const { wall } = wallFor(seed, setting);
+  const r = wall.ruin;
+  const { releases } = r.by(to);
+  const hits: { x: number; big: boolean }[] = [];
+  for (let k = releasedBy(r, from); k < releases.length && releases[k].t <= to; k++) {
+    const p = pieceOf(r.bond, r.bond.blocks[releases[k].i]);
+    hits.push({ x: p.x + p.w / 2, big: false });
   }
+  for (const c of wall.cues(from, to)) hits.push({ x: c.p.x * PX_M, big: true });
   return hits;
 };
 
@@ -311,18 +274,18 @@ export const pokeAt = (
     const { on, rect } = fixtureAt(name, t, seed, setting);
     if (on && over(rect)) return null;
   }
-  const r = ruinFor(seed, setting);
+  const r = wallFor(seed, setting).wall.ruin;
   const o = r.bond.owner[py * SCENE_W + px];
-  return o >= 0 && r.releaseAt[o] > t ? { t, x: px, y: py, kind: "block" } : null;
+  return o >= 0 && stands(r, o, t) ? { t, x: px, y: py, kind: "block" } : null;
 };
 
 /** How many blocks hang in the air `since` seconds into friday: none, if the ruin is right. */
 export const floatingAt = (since: number, seed: number, setting: Setting) =>
-  hanging(ruinFor(seed, setting), since);
+  hanging(wallFor(seed, setting).wall.ruin, since);
 
 /**
  * The highest row a climber at column `x` can reach on its way up to `y`, `since` seconds into
  * friday: up the wall from the dado for as long as the wall still stands there.
  */
 export const climbTo = (x: number, y: number, since: number, seed: number, setting: Setting) =>
-  climb(ruinFor(seed, setting), x, y, since);
+  climb(wallFor(seed, setting).wall.ruin, x, y, since);

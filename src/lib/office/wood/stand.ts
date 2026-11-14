@@ -10,14 +10,7 @@
 import { lru } from "@anarkisti/korpi/core";
 import { APPLE, TREES } from "@anarkisti/korpi/flora";
 import type { Pen } from "@anarkisti/korpi/paint";
-import {
-  type Fruit,
-  type Life,
-  type Pt,
-  type Slot,
-  type Stand,
-  standOf,
-} from "@anarkisti/korpi/plants";
+import { type Life, type Pt, type Slot, type Stand, standOf } from "@anarkisti/korpi/plants";
 import { drawFruit, standPainterOf, type Taken } from "@anarkisti/korpi/plants/paint";
 
 import { floorZ, grounded, PX_M, ROOM_VIEW } from "../depth";
@@ -57,60 +50,36 @@ export const inLane = (life: Life, front: boolean) => SLOTS[life.slot].front ===
 /** Friday's pace: a tree lives this share of its kind's years, a few friday hours. */
 export const LIFESPAN = 1 / 7;
 
-/** The floor's depth, m out from the wall (rows 152 to 167): what comes down from a tree lands
- *  within it. */
-const DEPTH = [0.2, 1.7] as const;
-const deepIn = (z: number) => Math.max(DEPTH[0], Math.min(DEPTH[1], z));
-
-/** `stand` with what comes down from its trees kept within `DEPTH`: korpi's `StandSpec.depth`,
- *  until a release has it. */
-const floored = (stand: Stand): Stand => {
-  const land = (f: Fruit): Fruit => ({ ...f, ground: { x: f.ground.x, z: deepIn(f.ground.z) } });
-  return {
-    ...stand,
-    fruitOf: (life, t, knocks) => stand.fruitOf(life, t, knocks).map(land),
-    hanging: (t, knocks) => stand.hanging(t, knocks).map(land),
-    fruitDown: (t, knocks) => stand.fruitDown(t, knocks).map(land),
-    fruitCues: (from, to, knocks) =>
-      stand.fruitCues(from, to, knocks).map((c) => ({ ...c, p: { ...c.p, z: deepIn(c.p.z) } })),
-    seedsUnder: (life, t, drift) =>
-      stand.seedsUnder(life, t, drift).map((s) => ({ ...s, dz: deepIn(life.z + s.dz) - life.z })),
-    keysAloft: (life, t, drift) =>
-      stand.keysAloft(life, t, drift).map((k) => ({ ...k, z: deepIn(k.z) })),
-  };
-};
-
 const stands = lru<number, Stand>(8);
 
 /** `seed`'s wood. */
 export const standFor = (seed: number): Stand =>
   stands.get(seed, () =>
-    floored(
-      standOf({
-        seed,
-        cal: FRIDAY,
-        slots: SLOTS,
-        kinds: TREES,
-        always: APPLE,
-        keeps: [APPLE],
-        lifespan: LIFESPAN,
-        wolfOneIn: 64,
-        growIn: { years: 5, by: SEASONS_FROM },
-        // Most go over toward the middle of the room, where there is space to lie; a sapling
-        // comes up within 7 px of its slot.
-        toward: SCENE_W / 2 / PX_M,
-        spread: 7 / PX_M,
-        plan: {
-          // A metre over the room's top; an owl's branch from 0.75 m up to 0.7 m under it.
-          cull: (ROOT_Y + 40) / PX_M,
-          perch: [30 / PX_M, (ROOT_Y - 28) / PX_M],
-        },
-        // Fruit from 0.15 m up to 0.2 m under the room's top.
-        fruit: [6 / PX_M, (ROOT_Y - 8) / PX_M],
-        // What comes down lands whole in view.
-        bounds: [2 / PX_M, (SCENE_W - 3) / PX_M],
-      }),
-    ),
+    standOf({
+      seed,
+      cal: FRIDAY,
+      slots: SLOTS,
+      kinds: TREES,
+      always: APPLE,
+      keeps: [APPLE],
+      lifespan: LIFESPAN,
+      wolfOneIn: 64,
+      growIn: { years: 5, by: SEASONS_FROM },
+      // Most go over toward the middle of the room, where there is space to lie; a sapling
+      // comes up within 7 px of its slot.
+      toward: SCENE_W / 2 / PX_M,
+      spread: 7 / PX_M,
+      plan: {
+        // A metre over the room's top; an owl's branch from 0.75 m up to 0.7 m under it.
+        cull: (ROOT_Y + 40) / PX_M,
+        perch: [30 / PX_M, (ROOT_Y - 28) / PX_M],
+      },
+      // Fruit from 0.15 m up to 0.2 m under the room's top.
+      fruit: [6 / PX_M, (ROOT_Y - 8) / PX_M],
+      // What comes down lands whole in view, on the floor (rows 152 to 167).
+      bounds: [2 / PX_M, (SCENE_W - 3) / PX_M],
+      depth: [0.2, 1.7],
+    }),
   );
 
 /** What stands `since` seconds into friday, alive or dead, at most one a slot, left to right. */

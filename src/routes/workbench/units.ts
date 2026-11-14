@@ -68,7 +68,7 @@ import droneSprite from "$lib/sprites/drone.json";
 import { frameOf, paintSprite, type Sprite } from "$lib/sprites/sprite";
 
 import { clock, mmH, px, share, years } from "./show";
-import { stoneUnit, wallSim } from "./wallSim";
+import { wallSim } from "./wallSim";
 
 export type Param = {
   key: string;
@@ -869,7 +869,6 @@ export const UNITS: Unit[] = [
   wood,
   fridayWindow,
   wallSim,
-  stoneUnit,
   sprite,
   calendar,
   charger,

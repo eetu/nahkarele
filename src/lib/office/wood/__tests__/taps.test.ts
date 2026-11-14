@@ -1,4 +1,4 @@
-import { bake, type Knock, lying, moving, type Ruin, type Spec } from "@anarkisti/korpi/masonry";
+import { bake, type Knock, type Ruin, type Spec, stateAt } from "@anarkisti/korpi/masonry";
 import { describe, expect, it } from "vitest";
 
 import { WALL } from "$lib/office/draw";
@@ -11,24 +11,17 @@ const BUILDS = {
   rubble: { bond: "rubble", course: 12, unit: 18, thickness: 20 },
 } as const;
 
-/** What of `r` shows at `t`: what is falling and what lies, where. */
-const seenAt = (r: Ruin, t: number) => ({
-  moving: moving(r, t).map(({ body, pose }) => [body.id, body.block, pose]),
-  lying: lying(r, t).map(({ body, pose, sink }) => [body.id, body.block, pose, sink]),
-});
-
-/** `r` up to `t`: every release, cue, insert, hung thing and patch of plaster gone by then,
- *  and what shows on the way there. */
+/** `r` up to `t`: every release, insert, hung thing and patch of plaster gone by then, and
+ *  what stands on the way there. */
 const pastOf = (r: Ruin, t: number) => ({
   releases: r.releases.filter((x) => x.t < t),
-  cues: r.cues.filter((x) => x.t < t),
   inserts: Array.from(r.insertAt, (a) => Math.min(a, t)),
   hangs: Object.values(r.hangAt).map((a) => Math.min(a, t)),
   plaster: r.skin ? Array.from(r.skin.lost, (a) => Math.min(a, t)) : null,
   seen: [121, 119, 60, 10, 2, 0.5, 0.1, 0.017, 1e-6]
     .map((d) => t - d)
     .filter((s) => s >= 0)
-    .map((s) => seenAt(r, s)),
+    .map((s) => stateAt(r, s)),
 });
 
 describe("a tap on the wall", () => {
