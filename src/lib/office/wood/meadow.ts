@@ -1,95 +1,108 @@
-// Friday's flowers: where they come up (korpi's `meadowOf` decides which kind holds each spot as
-// the years go, from the shade the stand casts). Bare floor after the blast is the pioneers';
-// as the trees close over, the wood's own flowers take over, and a fallen tree's gap brings the
-// pioneers back. This is the room's side of it: the spots, the headroom the furniture leaves
-// them, and the night that closes the kinds that close.
+// Friday's floor plants, flowers and shrubs (korpi's undergrowth): spots strewn over the floor
+// clear of the trees' feet, each held as the years go by the kind whose niche the stand's shade
+// suits. Bare floor after the blast is the pioneers'; as the trees close over, the wood's own
+// take over, and a fallen tree's gap brings the pioneers back. This is the room's side of it:
+// which kinds, where the floor is and what must stay clear on it, the soil the moss makes, the
+// headroom the furniture leaves, and the night that closes the kinds that close.
 
 import { lru } from "@anarkisti/korpi/core";
-import { FLOWERS } from "@anarkisti/korpi/flora";
+import { BILBERRY, FLOWERS, JUNIPER, LILAC, RASPBERRY } from "@anarkisti/korpi/flora";
 import type { Pen } from "@anarkisti/korpi/paint";
-import { type FloorKind, type Meadow, meadowOf, shadeOf, type Spot } from "@anarkisti/korpi/plants";
+import {
+  type FloorKind,
+  type Meadow,
+  meadowOf,
+  shadeOf,
+  undergrowthOf,
+} from "@anarkisti/korpi/plants";
 import { meadowPainterOf } from "@anarkisti/korpi/plants/paint";
 
-import { floorZ, grounded, PX_M, ROOM_VIEW } from "../depth";
+import { floorZ, grounded, PX_M, ROOM_VIEW, SLOPE } from "../depth";
 import { WALL } from "../draw";
-import { FLOOR_Y, SCENE_H } from "../engine";
+import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
 import { dayAt } from "./daylight";
-import { FRIDAY, SEASONS_FROM } from "./seasons";
+import { floorMoss } from "./overgrowth";
+import { SEASONS_FROM } from "./seasons";
 import { standFor } from "./stand";
 import { plantWind } from "./wind";
 
-/** Where flowers may come up, scene px, and when there is soil enough there, s: clear of the
- *  trees' feet, the shrubs, and where the exit sign comes down; soonest along the cracks. */
-const PLACES = [
-  [2, 158, 150],
-  [8, 174, 130],
-  [54, 158, 70],
-  [66, 170, 30],
-  [76, 162, 25],
-  [92, 176, 40],
-  [96, 160, 110],
-  [106, 168, 140],
-  [136, 158, 35],
-  [142, 173, 50],
-  [160, 177, 160],
-  [182, 158, 170],
-  [196, 170, 150],
-  [210, 158, 30],
-  [224, 167, 35],
-  [238, 176, 45],
-  [250, 162, 40],
-  [258, 173, 55],
-  [267, 165, 120],
-  [312, 170, 160],
-  [318, 157, 180],
-] as const;
+/** What comes up on the floor, in the order tried: the flowers, then the shrubs. */
+const KINDS: readonly FloorKind[] = [...FLOWERS, RASPBERRY, JUNIPER, LILAC, BILBERRY];
 
-let spots: Spot[] | null = null;
+/** The floor, world m: the room's width, from the furniture's feet to the scene's foot. */
+const FLOOR = {
+  x0: 2 / PX_M,
+  x1: (SCENE_W - 2) / PX_M,
+  z0: floorZ(FLOOR_Y + 2),
+  z1: floorZ(SCENE_H - 1),
+};
+/** Spots a square metre of it. */
+const PER = 1.2;
+/** Where the exit sign comes down, scene px across: kept clear, so it can be found and pressed. */
+const EXIT = { x0: 140, x1: 182 };
 
-/** The spots, world m, back to front. A flower in front of what stands on the floor (the AIs,
- *  the desk) keeps under the floor line, so the furniture still reads. */
-const spotsOf = (): Spot[] =>
-  (spots ??= PLACES.map(([x, y, at]) => {
-    const behind = WALL.fronts.some((f) => x >= f.x && x < f.x + f.w);
-    const room = behind ? y - FLOOR_Y - 1 : SCENE_H;
-    return { x: x / PX_M, z: floorZ(y), at, room: room / PX_M };
-  }).sort((a, b) => a.z - b.z));
+/** How far a plant spreads either side of its root, scene px: one this near the furniture
+ *  stands in front of it. */
+const SPREAD = 12;
 
-const meadows = lru<number, Meadow>(8);
+/** A floor point, world m, in scene px: across, and its row. */
+const sceneOf = (x: number, z: number) => ({ x: x * PX_M, row: FLOOR_Y + z * SLOPE * PX_M });
+/** What stands on the floor across `x` (scene px), `by` px either side. */
+const fronting = (x: number, by = 0) =>
+  WALL.fronts.filter((f) => x >= f.x - by && x < f.x + f.w + by);
 
-/** `seed`'s meadow, under its stand: the grow-in in seven steps, then a year a step. */
-const meadowFor = (seed: number): Meadow =>
-  meadows.get(seed, () =>
-    meadowOf({
-      seed,
-      cal: FRIDAY,
-      kinds: FLOWERS,
-      spots: spotsOf(),
-      shade: shadeOf(standFor(seed)),
-      steps: { n: 7, every: 40 },
-      growIn: { years: 5, by: SEASONS_FROM },
-    }),
-  );
+/** Whether a plant may come up at (x, z): not where the exit sign lands, nor behind the
+ *  furniture's feet, where it would not show. */
+const keep = (x: number, z: number) => {
+  const at = sceneOf(x, z);
+  return (at.x < EXIT.x0 || at.x >= EXIT.x1) && fronting(at.x).every((f) => at.row > f.y + f.h);
+};
 
-/** What holds each spot `since` seconds into friday, if anything, where (world m): for the
- *  tests. */
-export const flowersAt = (seed: number, since: number) =>
-  meadowFor(seed)
-    .heldAt(since)
-    .map((held, i): { x: number; z: number; kind: FloorKind } | null => {
-      if (!held) return null;
-      const { x, z } = spotsOf()[i];
-      return { x, z, kind: held.kind };
+/** The most a plant at (x, z) may stand, m: in front of what stands on the floor (the AIs, the
+ *  desk) it keeps under the floor line, so the furniture still reads. */
+const roomAt = (x: number, z: number) => {
+  const at = sceneOf(x, z);
+  return (fronting(at.x, SPREAD).length ? at.row - FLOOR_Y - 1 : SCENE_H) / PX_M;
+};
+
+/** When there is soil at (x, z), s: when the moss, out from the cracks, has come. */
+const soilAt = (seed: number, x: number, z: number) => {
+  const moss = floorMoss(seed);
+  const i = Math.min(moss.cols - 1, Math.floor(x / moss.cell));
+  const r = Math.min(moss.rows - 1, Math.floor((z * SLOPE) / moss.cell));
+  return moss.cells[r * moss.cols + i];
+};
+
+const floors = lru<number, Meadow>(8);
+
+/** `seed`'s floor under its stand: the grow-in in seven steps, then a year a step. Its spots are
+ *  korpi's undergrowth's, each with the soil and headroom the room gives it there. */
+const floorFor = (seed: number): Meadow =>
+  floors.get(seed, () => {
+    const stand = standFor(seed);
+    const grow = { steps: { n: 7, every: 40 }, growIn: { years: 5, by: SEASONS_FROM } };
+    const { spots } = undergrowthOf({ stand, kinds: KINDS, floor: FLOOR, per: PER, keep, ...grow });
+    return meadowOf({
+      ...{ seed, cal: stand.cal, kinds: KINDS, shade: shadeOf(stand), ...grow },
+      spots: spots.map((s) => ({ ...s, at: soilAt(seed, s.x, s.z), room: roomAt(s.x, s.z) })),
     });
+  });
+
+/** What holds each spot `since` seconds into friday, where (world m), and its room: for the
+ *  tests. */
+export const floorPlantsAt = (seed: number, since: number) =>
+  floorFor(seed)
+    .plantsAt(since)
+    .map(({ kind, x, z }) => ({ kind, x, z, room: roomAt(x, z) }));
 
 const painter = meadowPainterOf({ pxPerM: PX_M, max: 384 });
 
-/** The flowers on the floor in friday's wind, each at its spot's depth, closed for the night;
- *  drawn coarser, a share of them rustle. */
-export const drawFlowers = (pen: Pen, since: number, seed: number, detail = 0) =>
+/** The floor's plants in friday's wind, each at its spot's depth, the flowers that close shut
+ *  for the night; drawn coarser, a share of them rustle. */
+export const drawFloorPlants = (pen: Pen, since: number, seed: number, detail = 0) =>
   painter.draw(
     grounded(pen),
-    meadowFor(seed),
+    floorFor(seed),
     ROOM_VIEW,
     since,
     plantWind(seed),

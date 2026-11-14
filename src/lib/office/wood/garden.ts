@@ -9,12 +9,11 @@ import type { Pen } from "@anarkisti/korpi/paint";
 import { at, Z } from "../depth";
 import { crowTook, drawCrow } from "./crow";
 import { drawDeer, drawFliers, drawGlowing, drawSmallLife } from "./life";
-import { drawFlowers } from "./meadow";
+import { drawFloorPlants } from "./meadow";
 import { drawCracks, drawGrass, drawMoss, drawVines } from "./overgrowth";
 import { drawSticks } from "./shedding";
 import { drawApples, drawSeeds, drawTrees, type Knocks } from "./stand";
 import { drawSwallows } from "./swallows";
-import { drawShrubs } from "./undergrowth";
 import { climbTo, fixtureAt, onWall, type Setting } from "./wall";
 import { drawFalling, drawGround, drawSillSnow, drawSnowCaps } from "./weather";
 
@@ -44,9 +43,8 @@ export const drawGarden = (pen: Pen, { since, seed, knocks, detail }: Friday, wa
   drawSticks(pen, since, seed);
   drawTrees(pen, since, seed, knocks, detail);
   drawSeeds(pen, since, seed);
-  drawShrubs(pen, since, seed);
   drawGrass(pen, since, seed);
-  drawFlowers(pen, since, seed, detail);
+  drawFloorPlants(pen, since, seed, detail);
   drawApples(pen, since, seed, knocks, takenBy(since, seed, wall, knocks));
   drawSnowCaps(pen, since);
 };

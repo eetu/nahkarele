@@ -20,8 +20,9 @@ src/lib/office/      software specialist: engine (messages, desk, pay), tasks, d
   wood/              friday's wood, the room's side of korpi `plants` (what grows, how it moves
                      and is painted): garden (draw order) · seasons · wind ·
                      stand (the six slots, lanes, the apple tree's tap) · shedding (where dead
-                     branches come to rest, a stick painted) · undergrowth (the shrubs) ·
-                     overgrowth (cracks, grass, climbers) · meadow (the flowers' spots) ·
+                     branches come to rest, a stick painted) ·
+                     overgrowth (cracks, grass, climbers) · meadow (the floor's flowers and
+                     shrubs, korpi's undergrowth) ·
                      moss · posed (the soft plants' paintings) ·
                      wall (the back wall coming down; korpi paints it) · outside (the world
                      behind it, under korpi's sky) · window (the broken window, korpi's) ·
@@ -122,12 +123,15 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
   early (`mood.knocks`), and a tap on the back wall knocks out the block there (`mood.pokes`,
   baked into the masonry as a blow), the two things on friday that answer the player; both
-  are kept through a reload. Flowers come up on the floor (korpi `flowers`, each kind on its
-  own calendar, the ones that close at night closing; `wood/meadow.ts`): coltsfoot,
-  dandelion and fireweed on the open floor after the blast, oxeye and harebell once it has
-  settled, and wood anemone, lily of the valley and wood sorrel as the crowns close over; a
-  fallen tree's gap brings the pioneers back. Which kind holds a spot is decided a year at a
-  time under the snow, from the shade the stand casts. The birds keep the
+  are kept through a reload. Flowers and shrubs come up on the floor (korpi's undergrowth,
+  `wood/meadow.ts`: spots strewn clear of the trunks and of where the exit sign lands, each
+  with soil once the moss has reached it; flowers each on their own calendar, the ones that
+  close at night closing): coltsfoot, dandelion, fireweed and raspberry on the open floor
+  after the blast, oxeye and harebell once it has settled, juniper and lilac on ground long
+  open, and wood anemone, lily of the valley, wood sorrel and bilberry as the crowns close
+  over; a fallen tree's gap brings the pioneers back. In front of the furniture a plant keeps
+  under the floor line. Which kind holds a spot is decided a year at a time under the snow,
+  from the shade the stand casts. The birds keep the
   year and the day: the great tit stays the winter (fluffed up), sings in spring and brings a
   fledgling in summer; barn swallows come in late spring, nest on AI #1 and leave in early
   autumn; a hooded crow struts, caws from the broken wall, takes fallen apples and scares the

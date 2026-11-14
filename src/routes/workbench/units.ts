@@ -47,7 +47,7 @@ import { PX_M } from "$lib/office/depth";
 import { GLASS } from "$lib/office/draw";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "$lib/office/engine";
 import { drawSpider } from "$lib/office/wood/life";
-import { drawFlowers } from "$lib/office/wood/meadow";
+import { drawFloorPlants } from "$lib/office/wood/meadow";
 import { drawPosed } from "$lib/office/wood/posed";
 import { lookAt, SEASON_S, SEASONS_FROM } from "$lib/office/wood/seasons";
 import {
@@ -655,7 +655,7 @@ const wood: Unit = {
     office(pen, SCENE_W, SCENE_H, FLOOR_Y);
     drawGround(pen, since);
     drawTrees(pen, since, seed, knocks);
-    drawFlowers(pen, since, seed);
+    drawFloorPlants(pen, since, seed);
     drawApples(pen, since, seed, knocks);
   },
   tap: (v, t, at) => {
