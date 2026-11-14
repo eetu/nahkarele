@@ -1,16 +1,8 @@
 import { rgb } from "@anarkisti/korpi/core";
+import type { Painting } from "@anarkisti/korpi/frame";
 import { further, type Light, type PointLight, rgb3, toward } from "@anarkisti/korpi/light";
-import { resolve } from "@anarkisti/korpi/light/paint";
 import type { Knock } from "@anarkisti/korpi/masonry";
-import {
-  clear,
-  lit,
-  type Pen,
-  type Raster,
-  rasterPen,
-  shifted,
-  wash,
-} from "@anarkisti/korpi/paint";
+import { lit, type Pen, type Raster, shifted, wash } from "@anarkisti/korpi/paint";
 import { flashed } from "@anarkisti/korpi/sky";
 import { mirrorWet } from "@anarkisti/korpi/wet/paint";
 
@@ -666,15 +658,16 @@ const clockLight = (mood: Mood): PointLight[] => {
   return [{ p: { ...p, z: 0.05 }, colour: rgb3(LED), level: 0.25, radius: 0.55 }];
 };
 
-/** Paint one frame into `scene`, lit, at scene px. */
-export const paintOffice = (scene: Raster, s: OfficeState, mood: Mood, signs: Signs) => {
-  clear(scene);
+/** Paint one frame through korpi's frame, at scene px: the room and all in it, its light asked
+ *  once, the wet floor's mirror and any flash over the light. */
+export const paintOffice = (frame: Painting, s: OfficeState, mood: Mood, signs: Signs) => {
+  const { scene } = frame;
   const sky = skyOf(s, mood);
   const shake =
     !prefersReducedMotion() && mood.blast !== null && mood.blast < 1.5
       ? Math.round(Math.sin(mood.blast * 60) * (1.5 - mood.blast))
       : 0;
-  const pen = shifted(rasterPen(scene), { dx: shake });
+  const pen = shifted(frame.pen, { dx: shake });
   paintRoom(scene, pen, s, mood, sky);
   const readout = at(pen, Z.readout);
   if (!mood.after) drawLedClock(lit(readout), CLOCK, clockAt(progress(s)), sky.t);
@@ -720,10 +713,16 @@ export const paintOffice = (scene: Raster, s: OfficeState, mood: Mood, signs: Si
   }
   // Lightning: friday's storms are korpi's, flashing as they strike.
   const bolt = mood.after ? lightningAt(mood.since, mood.seed) : flash(sky);
-  resolve(scene, ROOM_VIEW, lightOf(mood, sky, bolt), mood.since);
+  frame.light(ROOM_VIEW, lightOf(mood, sky, bolt), mood.since);
   // The floor, wet from the rain, mirrors what stands over it as it is lit.
-  if (mood.after) mirrorWet(scene, ROOM_VIEW, wetFloor(mood.since, mood.seed, scene), mood.since);
+  if (mood.after) {
+    frame.after("wet", () =>
+      mirrorWet(scene, ROOM_VIEW, wetFloor(mood.since, mood.seed, scene), mood.since),
+    );
+  }
   const blastFlash = mood.blast !== null ? Math.max(0, 1 - mood.blast / 0.6) : 0;
   const white = Math.max(mood.after ? 0 : bolt * 0.18, blastFlash * 0.9);
-  if (white > 0) wash(scene, colourOf(mix("#f4f6ff", "#fff4d8", blastFlash)), white);
+  if (white > 0) {
+    frame.after("flash", () => wash(scene, colourOf(mix("#f4f6ff", "#fff4d8", blastFlash)), white));
+  }
 };

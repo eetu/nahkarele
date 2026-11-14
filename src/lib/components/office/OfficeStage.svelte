@@ -1,6 +1,6 @@
 <script lang="ts">
   import { gapsOf } from "@anarkisti/korpi/clock";
-  import { presenter, raster } from "@anarkisti/korpi/paint";
+  import { frameOf } from "@anarkisti/korpi/frame";
   import type { Snippet } from "svelte";
 
   import { panOf, sfx } from "$lib/audio/sfx.svelte";
@@ -197,9 +197,8 @@
     const ctx = el?.getContext("2d");
     if (!el || !ctx) return;
     const camera = createCamera();
-    // The room is one raster at scene px, painted and lit each frame, shown once scaled up.
-    const scene = raster(SCENE_W, SCENE_H);
-    const screen = presenter();
+    // The room is one frame at scene px, painted and lit each frame, shown once scaled up.
+    const room = frameOf();
     let raf = 0;
     const gap = gapsOf(0.1);
     let shown = NaN;
@@ -249,12 +248,10 @@
       const speed = Math.hypot(s.drone.vx, s.drone.vy) / 320;
       // Silent at rest: a hovering drone buzzing all through friday wore thin on a phone.
       sfx.bed("drone", speed > 0.02 ? 0.004 + speed * 0.02 : 0, 1 + speed * 0.6);
-      paintOffice(scene, officeWeek.sim, officeWeek.mood, {
-        muted: sfx.muted,
-        fullscreen: fullscreen.supported ? fullscreen.on : null,
-      });
+      const signs = { muted: sfx.muted, fullscreen: fullscreen.supported ? fullscreen.on : null };
+      room.draw(SCENE_W, SCENE_H, (f) => paintOffice(f, officeWeek.sim, officeWeek.mood, signs));
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      screen.present(ctx, scene, 0, 0, el.width / SCENE_W);
+      room.present(el.width / SCENE_W, { ctx });
       const focus = officeWeek.mood.after ? SCENE_W / 2 : focusOf(officeWeek.sim);
       const offset = camera.follow(fit, SCENE_W, focus, dt);
       if (frameEl && offset !== shown) {
@@ -266,7 +263,7 @@
     raf = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(raf);
-      screen.dispose();
+      room.dispose();
       sfx.bed("fans", 0);
       sfx.bed("drone", 0);
       sfx.bed("wind", 0);
