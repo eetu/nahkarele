@@ -1,6 +1,7 @@
 <script lang="ts">
   import { gapsOf } from "@anarkisti/korpi/clock";
   import { frameOf } from "@anarkisti/korpi/frame";
+  import { type GlFrame, glFrameOf } from "@anarkisti/korpi/gpu";
   import type { Snippet } from "svelte";
 
   import { panOf, sfx } from "$lib/audio/sfx.svelte";
@@ -11,6 +12,7 @@
     birdCue,
     crowCaws,
     type Mood,
+    onCpu,
     paintOffice,
     pokeOf,
     signAt,
@@ -50,6 +52,8 @@
   let { children, dock, covered = false }: Props = $props();
 
   let wrap: HTMLDivElement | undefined = $state();
+  /** The room on the GPU (WebGL2), or on the CPU onto a 2D canvas: one of them shown. */
+  let glCanvas: HTMLCanvasElement | undefined = $state();
   let canvas: HTMLCanvasElement | undefined = $state();
   let frameEl: HTMLDivElement | undefined = $state();
   let fit = $state<Fit>({ scale: 2, sceneCss: SCENE_W, viewCss: SCENE_W });
@@ -93,6 +97,12 @@
   let pokable = $state(false);
   const hover = (e: PointerEvent) => {
     if (e.pointerType === "mouse") pokable = pokeUnder(e) !== null;
+  };
+  /** Either canvas, whichever is shown, takes the room's taps. */
+  const pointer = {
+    onclick: poke,
+    onpointermove: hover,
+    onpointerleave: () => (pokable = false),
   };
   const staffed = $derived(officeWeek.screen === "shift");
   const pan = (x: number) => panOf(x, SCENE_W);
@@ -192,13 +202,36 @@
     for (const fell of fellCue(from, to, mood.seed)) sfx.timber(fell.kind, pan(fell.x));
   };
 
+  /** korpi's frame on the GPU drawing onto `el`; null where there is no WebGL2 or it fails. */
+  const glOf = (el: HTMLCanvasElement): GlFrame | null => {
+    try {
+      return glFrameOf(el);
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  };
+
   $effect(() => {
     const el = canvas;
-    const ctx = el?.getContext("2d");
-    if (!el || !ctx) return;
+    const glEl = glCanvas;
+    if (!el || !glEl) return;
     const camera = createCamera();
-    // The room is one frame at scene px, painted and lit each frame, shown once scaled up.
+    // The room is one frame at scene px, painted and lit each frame, shown once scaled up: on the
+    // GPU, or on the CPU while there is no WebGL2 or its context is lost. A lost context that
+    // comes back gets a frame anew.
     const room = frameOf();
+    let gl = glOf(glEl);
+    let ctx: CanvasRenderingContext2D | null = null;
+    const lost = (e: Event) => {
+      e.preventDefault();
+      gl = null;
+    };
+    const restored = () => {
+      gl = glOf(glEl);
+    };
+    glEl.addEventListener("webglcontextlost", lost);
+    glEl.addEventListener("webglcontextrestored", restored);
     let raf = 0;
     const gap = gapsOf(0.1);
     let shown = NaN;
@@ -253,10 +286,27 @@
       sfx.bed("drone", speed > 0.02 ? 0.004 + speed * 0.02 : 0, 1 + speed * 0.6);
       const signs = { muted: sfx.muted, fullscreen: fullscreen.supported ? fullscreen.on : null };
       room.draw(SCENE_W, SCENE_H, (f) => paintOffice(f, officeWeek.sim, officeWeek.mood, signs), {
+        gl,
+        cpu: onCpu(mood),
         detail: officeWeek.detail,
       });
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      room.present(el.width / SCENE_W, { ctx });
+      if (gl) {
+        try {
+          room.present(fit.scale);
+        } catch (e) {
+          // A pass that will not compile here: the CPU's from the next frame on.
+          console.error(e);
+          gl = null;
+        }
+      } else {
+        ctx ??= el.getContext("2d");
+        ctx?.setTransform(1, 0, 0, 1, 0, 0);
+        room.present(el.width / SCENE_W, { ctx });
+      }
+      if (glEl.hidden === !!gl) {
+        glEl.hidden = !gl;
+        el.hidden = !!gl;
+      }
       officeWeek.took(performance.now() - t0, Number.isNaN(last) ? undefined : now - last);
       last = now;
       const focus = officeWeek.mood.after ? SCENE_W / 2 : focusOf(officeWeek.sim);
@@ -270,6 +320,9 @@
     raf = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(raf);
+      glEl.removeEventListener("webglcontextlost", lost);
+      glEl.removeEventListener("webglcontextrestored", restored);
+      gl?.dispose();
       room.dispose();
       sfx.bed("fans", 0);
       sfx.bed("drone", 0);
@@ -285,12 +338,17 @@
     <div class="viewport" style:width="{fit.viewCss}px">
       <div class="frame" bind:this={frameEl} style:width="{fit.sceneCss}px">
         <canvas
+          bind:this={glCanvas}
+          class:pokable
+          aria-label="an office: two AI slabs and a desk between them"
+          hidden
+          {...pointer}
+        ></canvas>
+        <canvas
           bind:this={canvas}
           class:pokable
           aria-label="an office: two AI slabs and a desk between them"
-          onclick={poke}
-          onpointermove={hover}
-          onpointerleave={() => (pokable = false)}
+          {...pointer}
         ></canvas>
         <!-- Leaving is leaving: the next visit starts a new week. -->
         {#if appleRect && officeWeek.screen === "loop"}
@@ -376,6 +434,10 @@
     width: 100%;
     image-rendering: pixelated;
     aspect-ratio: 320 / 180;
+  }
+
+  canvas[hidden] {
+    display: none;
   }
 
   canvas.pokable {
