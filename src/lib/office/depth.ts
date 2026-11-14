@@ -131,5 +131,15 @@ export const standing = (pen: Pen, z: number): Pen => at(grounded(pen), z);
 /** `pen` (in scene px) for something standing on the floor with its foot on scene row `y`. */
 export const footAt = (pen: Pen, y: number): Pen => standing(pen, floorZ(y));
 
-/** Under cover: the room in front of the wall, not the world beyond it. */
-export const covered = (p: { z: number }) => (p.z > -0.0005 ? 1 : 0);
+/** The float32 just under positive `v`: depths are compared as a raster keeps them. */
+const under = (v: number) => {
+  const f = Float32Array.of(v);
+  new Int32Array(f.buffer)[0] -= 1;
+  return f[0];
+};
+/** Where cover ends, depth behind the wall's face: half a millimetre, rounded up to a float32. */
+const OPEN_FROM = Math.fround(0.0005);
+/** Under cover, the room in front of the wall; and the world beyond it, in the open: as the
+ *  frame's depths, lit apart (korpi's light on the GPU takes no shelter). */
+export const INDOORS = [Number.NEGATIVE_INFINITY, under(OPEN_FROM)] as const;
+export const OUTDOORS = [OPEN_FROM, Number.POSITIVE_INFINITY] as const;
