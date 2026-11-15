@@ -34,7 +34,7 @@ import token from "$lib/sprites/token.json";
 import wc from "$lib/sprites/wc.json";
 
 import { BOX, dockAt, drawBox, drawChargerAt, drawChargerLightAt, PAD, roundAt } from "./charger";
-import { at, FLAT, floorZ, footAt, INDOORS, onFloor, OUTDOORS, ROOM_VIEW, Z } from "./depth";
+import { at, COVER, FLAT, floorZ, footAt, onFloor, ROOM_VIEW, Z } from "./depth";
 import {
   AI_MOUTH,
   DESK_CAPACITY,
@@ -588,19 +588,15 @@ const CHARGING = rgb3(rgb("#58e070"));
 const ROOM_FLASH = 0.4;
 
 /**
- * The room's light, and the depths each lights. On working days the room darkens with the shift,
- * the window with it; on friday the world beyond the wall is in the open sky's light, and the
- * room under its cover darkens as the day goes and further at night. The clock and the fireflies
- * light what is near them; on friday so do the candle and the charger, more as the dark comes.
+ * The room's light. On working days the room darkens with the shift, the window with it; on
+ * friday the world beyond the wall is in the open sky's light, and the room under its cover
+ * darkens as the day goes and further at night. The clock and the fireflies light what is near
+ * them; on friday so do the candle and the charger, more as the dark comes.
  */
-const lightsOf = (
-  mood: Mood,
-  sky: SkyInput,
-  bolt: number,
-): { light: Light; depths?: readonly [number, number] }[] => {
+const lightOf = (mood: Mood, sky: SkyInput, bolt: number): Light => {
   if (!mood.after) {
     const room = toward(NIGHT, Math.max(0, roomDarkness(sky, bolt)));
-    return [{ light: { open: () => room, points: () => clockLight(mood) } }];
+    return { open: () => room, points: () => clockLight(mood) };
   }
   // Lightning lights the world beyond the wall, and the roofless room inside its walls a
   // share of that.
@@ -618,10 +614,7 @@ const lightsOf = (
       radius: 0.18,
     })),
   ];
-  return [
-    { light: { open: () => indoors, points }, depths: INDOORS },
-    { light: { open: () => open, points }, depths: OUTDOORS },
-  ];
+  return { open: () => open, sheltered: () => indoors, shelter: COVER, points };
 };
 
 /**
@@ -726,8 +719,7 @@ export const paintOffice = (frame: Painting, s: OfficeState, mood: Mood, signs: 
   }
   // Lightning: friday's storms are korpi's, flashing as they strike.
   const bolt = mood.after ? lightningAt(mood.since, mood.seed) : flash(sky);
-  for (const { light, depths } of lightsOf(mood, sky, bolt))
-    frame.light(ROOM_VIEW, light, mood.since, depths && { depths });
+  frame.light(ROOM_VIEW, lightOf(mood, sky, bolt), mood.since);
   // The floor, wet from the rain, mirrors what stands over it as it is lit.
   if (mood.after) {
     frame.after("wet", () =>
