@@ -85,7 +85,7 @@ const MOSS_FROM = [...CRACKS.flat(), ...VINES.map((v) => [v.x, FLOOR_Y] as const
 export const floorMoss = (seed: number) => floorMossOf(seed, MOSS_FROM);
 
 export const drawMoss = (pen: Pen, since: number, seed: number) =>
-  drawFloorMoss(onFloor(pen, FLAT.moss), since, seed, MOSS_FROM);
+  drawFloorMoss(pen, since, seed, MOSS_FROM);
 
 /** A soft plant rooted at scene (`x`, `y`): korpi's painting in its own pixels, moved there,
  *  rustling in friday's wind. */

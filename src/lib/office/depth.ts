@@ -6,7 +6,7 @@
 
 import { coverOf } from "@anarkisti/korpi/light";
 import { floored, type Pen, shifted } from "@anarkisti/korpi/paint";
-import { floorDepths, obliqueView } from "@anarkisti/korpi/view";
+import { floorDepths, groundDepth, linesOf, obliqueView } from "@anarkisti/korpi/view";
 
 import { FLOOR_Y, SCENE_H, SCENE_W } from "./engine";
 
@@ -67,8 +67,9 @@ export const Z = {
   fireflies: 1.2,
 } as const;
 
-/** What lies flat on the floor, each a hair over the one before. */
-export const FLAT = { floor: 0, moss: 1e-4, cracks: 2e-4, litter: 3e-4, snow: 4e-4 } as const;
+/** What lies flat on the floor, how far over it, m: each a hair over the one before, all under
+ *  what stands on it (`FLOOR_DEPTHS`, a millimetre nearer in depth, a quarter of one in height). */
+export const FLAT = { floor: 0, moss: 2.5e-5, cracks: 5e-5, litter: 7.5e-5, snow: 1e-4 } as const;
 
 /** `pen` at `z` m out. */
 export const at = (pen: Pen, z: number): Pen => shifted(pen, { dd: -z });
@@ -76,12 +77,15 @@ export const at = (pen: Pen, z: number): Pen => shifted(pen, { dd: -z });
 /** The rows a fill covers, as the raster pen rounds them. */
 const rows = (y: number, h: number): [number, number] => [Math.round(y), Math.round(y + h)];
 
+const LINES = linesOf(ROOM_VIEW);
+
 /**
- * `pen` (in scene px) laying what is flat on the floor, `lift` m over it: every row at the
- * floor's depth there, whatever depth it is given.
+ * `pen` (in scene px) laying what is flat on the floor, `lift` m over it: every row at the depth
+ * ground that high is seen at there (korpi's `groundDepth`, as its moss and wet mirror take it),
+ * whatever depth it is given.
  */
 export const onFloor = (pen: Pen, lift = 0): Pen => {
-  const d = (y: number) => -(floorZ(y) + lift);
+  const d = (y: number) => groundDepth(LINES, lift, y + 0.5);
   const out: Pen = {
     fill: (c, x, y, w = 1, h = 1) => {
       const [y0, y1] = rows(y, h);

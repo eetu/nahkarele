@@ -3,14 +3,14 @@
 // patch is the room's: the strip below the floor line, 8 m by 0.75 m as the room's view shows it.
 
 import { lru, type Rgba } from "@anarkisti/korpi/core";
-import { type Pen, shifted } from "@anarkisti/korpi/paint";
+import type { Pen } from "@anarkisti/korpi/paint";
 import { type Moss, mossOf } from "@anarkisti/korpi/plants";
 import { MOSSES, mossPainterOf } from "@anarkisti/korpi/plants/paint";
 import type { SurfaceGrid } from "@anarkisti/korpi/wet/paint";
 
 import { hash } from "$lib/scene/pixel";
 
-import { floorZ, PX_M, SLOPE } from "../depth";
+import { FLAT, floorZ, PX_M, ROOM_VIEW, SLOPE } from "../depth";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
 import { lookAt, seasonAt } from "./seasons";
 
@@ -36,20 +36,22 @@ export const floorMossOf = (seed: number, sources: readonly (readonly [number, n
     }),
   );
 
-/** The floor's moss `since` seconds into friday. Repainted while it grows and when the season
- *  turns. */
+/** The floor's moss `since` seconds into friday, laid flat on it (korpi's `lay`) under the cracks,
+ *  the litter and the snow. Repainted while it grows and when the season turns. */
 export const drawMoss = (
   pen: Pen,
   since: number,
   seed: number,
   sources: readonly (readonly [number, number])[],
 ) =>
-  painter.draw(
-    shifted(pen, { dy: FLOOR_Y }),
+  painter.lay(
+    pen,
     floorMossOf(seed, sources),
+    ROOM_VIEW,
+    { x: 0, z: 0 },
     since,
     lookAt(since),
-    PX_M,
+    FLAT.moss,
   );
 
 /** Where `moss` has come by `since` over the floor, in the room's metres (x across, z out from
