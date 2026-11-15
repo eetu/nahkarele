@@ -157,9 +157,12 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   a little past, or the arch over a gap leans on it); the roof comes down at the blast and in
   its first years, blocks wear loose from the top and the gaps' edges (Weibull wear times
   exposure), and what loses its support comes down with them; part of the foot stands for
-  good. A block that comes off is heard crumbling and is gone: what comes off a korpi wall is
-  a stepped world's (`masonry/world`), which friday's clock, running on through reloads and
-  sleeps, cannot keep. What hangs on the wall (window, clock, calendar, signs) goes with
+  good. A block that comes off falls, is heard landing (korpi's voice for it) and lies in a heap
+  at the wall's foot, behind the furniture's faces, sinking into the floor a block's height in
+  under three hours: korpi's `masonry/world`, a world of bodies on a timeline read at friday's
+  moment (`heapAt`). Where friday's clock jumps (a reload, a sleeping phone) it starts afresh from
+  the closed form two seconds before, what came off earlier lying where it came to rest; while
+  it keeps jumping (the shuttle), at the moment itself. What hangs on the wall (window, clock, calendar, signs) goes with
   the block above it (korpi's `hung`), and the signs' buttons follow (the exit sign lands in front of the
   desk); what is on the wall (cracks, climbers, the snail, the sill's snow) goes with the
   wall. Rain and snow fall through the room in their spells, each drop and flake at its depth,
@@ -210,7 +213,7 @@ In dev, a bar under every page jumps between days, holds friday's shuttle and op
 `/workbench` (so does the key left of 1, backquote): each unit drawn alone with live
 controls, `g` for a grid of seeds, `[` `]` between units; a unit with `tap` answers clicks
 (the wood: shake the apple tree; the wall simulator: knock a block out or bring roof down,
-then scrub, retune or switch the wall to bricks, rubble or plaster). A unit is a small adapter in
+then scrub, retune or switch the wall to bricks, rubble or plaster, its heap at its foot). A unit is a small adapter in
 `src/routes/workbench/units.ts` over a draw function in `$lib`; production serves it too, unlinked and noindex.
 `./install-hooks.sh` once after clone; the pre-commit hook runs `validate`. Icons: edit
 `static/favicon.svg`, then `scripts/gen-icons.sh` (needs librsvg + ImageMagick). Tape: edit

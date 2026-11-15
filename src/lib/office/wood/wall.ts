@@ -3,23 +3,27 @@
 // and for its first years; blocks work loose from the top and the edges of the gaps, decade by
 // decade, and whatever is left without support comes down with them; the foot stands for good.
 // What hangs on the wall goes with the block above it and falls upright, landing where it
-// always did (korpi's `hung`). The world outside shows where the wall was. All by friday's clock
-// and seed, like everything else here. This file is the room's side of it: the wall's numbers,
-// its fixtures and where they land, and where it stands in the room; korpi's painter paints
-// what stands.
+// always did (korpi's `hung`). What comes off falls in a world of bodies, lands, and lies in a
+// heap at the wall's foot sinking into the floor (korpi's `masonry/world`). The world outside
+// shows where the wall was. All by friday's clock and seed, like everything else here. This
+// file is the room's side of it: the wall's numbers, its fixtures and where they land, and where
+// it stands in the room; korpi's painters paint what stands and what came off.
 
 import { mix, rgb, type Rgba } from "@anarkisti/korpi/core";
+import type { Landing } from "@anarkisti/korpi/impacts";
 import {
   climb,
   hanging,
   hungGoneAt,
   insertGoneAt,
   type Knock,
-  pieceOf,
+  PACE,
+  type Pace,
   releasedBy,
   type Spec,
   stands,
   type Wall,
+  type WallInput,
   wallOf,
 } from "@anarkisti/korpi/masonry";
 import {
@@ -28,10 +32,13 @@ import {
   wallPainter,
   type WallPalette,
 } from "@anarkisti/korpi/masonry/paint";
+import { type WallWorld, wallWorldOf } from "@anarkisti/korpi/masonry/world";
 import { masked, type Pen, type PenMask, type Raster } from "@anarkisti/korpi/paint";
+import { type World, worldOf } from "@anarkisti/korpi/physics";
+import { type Timeline, timelineOf } from "@anarkisti/korpi/timeline";
 import type { ObliqueView } from "@anarkisti/korpi/view";
 
-import { PX_M } from "../depth";
+import { PX_M, ROOM_VIEW } from "../depth";
 import { FLOOR_Y, G, SCENE_H, SCENE_W } from "../engine";
 
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -92,6 +99,11 @@ export const specOf = (setting: Setting): Spec => {
 /** The wall's face starts at the top of the scene, over the floor line at the back. */
 const AT = { x: 0, y: FLOOR_Y / PX_M, z: 0 };
 
+/** korpi's pace, but for what came off: it sinks into the floor (the moss and the soil it makes
+ *  coming up round it) a block's height in under three hours, some 17 friday years, as a tree's
+ *  life goes by. */
+export const FRIDAY_PACE: Pace = { ...PACE, sinks: 2e-5 };
+
 /** The ruin's grime: its walls, its floor and its stones a little toward the night's colour, by
  *  day as by night. Paint, not light: the room's light falls on them as on everything else. */
 const GRIME = rgb("#0a0f1c");
@@ -148,7 +160,7 @@ const wallFor = (seed: number, setting: Setting): Made => {
   walls.set(spec, bySeed);
   const known = bySeed.get(seed);
   if (known) return known;
-  const wall = wallOf({ spec, seed, at: AT, land: landIn(setting) });
+  const wall = wallOf({ spec, seed, at: AT, pace: FRIDAY_PACE, land: landIn(setting) });
   const made: Made = { wall, painter: wallPainter(wall, { palette: PALETTE }), standing: null };
   bySeed.set(seed, made);
   if (bySeed.size > 4) bySeed.delete(bySeed.keys().next().value as number);
@@ -250,26 +262,85 @@ const standingMask = (since: number, seed: number, setting: Setting): PenMask =>
 export const onWall = (pen: Pen, since: number, seed: number, setting: Setting): Pen =>
   masked(pen, standingMask(since, seed, setting));
 
-/** What is heard of the wall between two moments of friday, and where: blocks coming loose,
- *  and fixtures landing. */
-export const rubbleCue = (
+/** Where the fixtures landed between two moments of friday, scene x: for the thuds. What came
+ *  off the wall is heard as it lands in the heap (`heapLandings`). */
+export const rubbleCue = (from: number, to: number, seed: number, setting: Setting): number[] =>
+  wallFor(seed, setting)
+    .wall.cues(from, to)
+    .map((c) => c.p.x * PX_M);
+
+// --- What came off it ---------------------------------------------------------------------
+
+/** What comes out of the wall's face lies no further out than this, m: a block 20 cm deep stays
+ *  behind the AIs' faces and the desk (35 cm out and on), whose feet the world does not know. */
+const RUNOUT = 0.12;
+/** The world is stepped up to this far at once, s; jumped further (a reload, a phone waking), it
+ *  starts afresh this long before the moment, so what was falling then is still falling. While
+ *  it keeps jumping (the shuttle), it starts afresh at the moment itself. */
+const LEAD = 2;
+/** A snapshot of it so often, s: going back further than the lead starts it afresh anyway, and
+ *  korpi's timeline keeps a share of its snapshots for good, which over friday's hours add up. */
+const EVERY = 60;
+
+/** What came off a wall, in a world of bodies stepped on its timeline; whether it jumped last. */
+type Heap = { world: World; ww: WallWorld; tl: Timeline<WallInput>; jumped: boolean };
+const heaps = new WeakMap<Wall, Heap>();
+
+/** A heap for `wall`: a world started afresh at a moment lays what came off before where it lies
+ *  then (korpi's `restOf`), asleep. */
+const heapOf = (wall: Wall, palette: WallPalette): Heap => {
+  const known = heaps.get(wall);
+  if (known) return known;
+  const fresh = (t: number) => {
+    const world = worldOf({ t, ground: { made: "stone" } });
+    return { world, ww: wallWorldOf(world, wall, { runout: RUNOUT, palette }) };
+  };
+  const { world, ww } = fresh(0);
+  const tl = timelineOf<WallInput>({
+    parts: [world, ww as unknown as { snapshot(): unknown; restore(s: unknown): void }],
+    step: (t, dt) => {
+      world.to(t + dt, 1);
+      ww.step(world.t);
+    },
+    restart: (t) => {
+      const at = fresh(t);
+      world.restore(at.world.snapshot());
+      ww.restore(at.ww.snapshot());
+    },
+    reach: LEAD,
+    every: EVERY,
+  });
+  const heap = { world, ww, tl, jumped: false };
+  heaps.set(wall, heap);
+  return heap;
+};
+
+/** What came off `wall` at `t`, s: its heap's world got there, stepped or started afresh. */
+export const heapAt = (wall: Wall, t: number, palette = WALL_PALETTE): WallWorld => {
+  const heap = heapOf(wall, palette);
+  const jump = Math.abs(t - heap.tl.t) > LEAD;
+  if (jump && !heap.jumped) heap.tl.seek(t - LEAD);
+  heap.tl.seek(t);
+  heap.jumped = jump;
+  return heap.ww;
+};
+
+/** What has come off the wall `since` seconds into friday. */
+export const heapIn = (since: number, seed: number, setting: Setting) =>
+  heapAt(wallFor(seed, setting).wall, since, PALETTE);
+
+/** What has come off the wall `since` seconds into friday, falling or lying where it came to
+ *  rest, each block at its depth and lit as the room is. */
+export const paintHeap = (pen: Pen, since: number, seed: number, setting: Setting) =>
+  heapIn(since, seed, setting).things.paint(pen, ROOM_VIEW, since);
+
+/** What came off the wall landing between two moments of friday, as korpi's world has it. */
+export const heapLandings = (
   from: number,
   to: number,
   seed: number,
   setting: Setting,
-): { x: number; big: boolean }[] => {
-  if (to <= from) return [];
-  const { wall } = wallFor(seed, setting);
-  const r = wall.ruin;
-  const { releases } = r.by(to);
-  const hits: { x: number; big: boolean }[] = [];
-  for (let k = releasedBy(r, from); k < releases.length && releases[k].t <= to; k++) {
-    const p = pieceOf(r.bond, r.bond.blocks[releases[k].i]);
-    hits.push({ x: p.x + p.w / 2, big: false });
-  }
-  for (const c of wall.cues(from, to)) hits.push({ x: c.p.x * PX_M, big: true });
-  return hits;
-};
+): readonly Landing[] => heapIn(to, seed, setting).things.landings(from, to);
 
 /** How long after a poke its block goes, s: long enough to bake the wall again first. */
 const POKE_LEAD = 0.15;

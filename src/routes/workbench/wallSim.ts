@@ -2,7 +2,8 @@
 // chosen rate from the `since` slider; a tap knocks a block out or brings roof down there, at
 // that moment, recorded as input and baked in (scrub back before it and it never happened);
 // the sliders retune the pace and re-bake at once. Overlays show how each block stands, how
-// exposed it is, when it goes. korpi's masonry painter paints it, through the room's view.
+// exposed it is, when it goes. korpi's masonry painter paints it, through the room's view; what
+// comes off falls and lies in its heap at the foot, sinking into the floor, as on friday.
 
 import { type Input, lru, mix, rgb, type Rgba } from "@anarkisti/korpi/core";
 import {
@@ -10,7 +11,6 @@ import {
   CRACK_S,
   exposureOf,
   gapsOf,
-  PACE,
   type Pace,
   releasedBy,
   type Spec,
@@ -27,7 +27,7 @@ import { obliqueView } from "@anarkisti/korpi/view";
 import { PX_M, SLOPE } from "$lib/office/depth";
 import { WALL } from "$lib/office/draw";
 import { SCENE_H, SCENE_W } from "$lib/office/engine";
-import { specOf } from "$lib/office/wood/wall";
+import { FRIDAY_PACE, heapAt, specOf } from "$lib/office/wood/wall";
 import { paintText } from "$lib/scene/pixelfont";
 
 import { clock as hms, px } from "./show";
@@ -153,20 +153,30 @@ const TUNE: Tune[] = [
     hint: "how far past its bed mortar holds a block",
     get: (p) => p.glue,
   }),
+  tune({
+    key: "sinks",
+    min: 0,
+    max: 5e-5,
+    step: 1e-6,
+    show: (x) => `${Math.round(x * 3.6e6)} mm/h`,
+    hint: "how fast what came off sinks into the floor",
+    get: (p) => p.sinks,
+  }),
 ];
 
 const paceOf = (v: Values): Pace => ({
-  ...PACE,
+  ...FRIDAY_PACE,
   eta: Number(v.eta),
   beta: Number(v.beta),
   free: Number(v.free),
   open: Number(v.open),
   glued: Number(v.glued),
   confined: Number(v.confined),
-  after: [Number(v.shock), PACE.after[1]],
+  after: [Number(v.shock), FRIDAY_PACE.after[1]],
   collapses: Number(v.collapses),
   bite: Number(v.bite),
   glue: Number(v.glue),
+  sinks: Number(v.sinks),
 });
 
 /** The taps given, per seed, in time order: recorded input, at points on the wall's face. */
@@ -266,6 +276,9 @@ const draw = ({ pen, scene }: Stage, v: Values, t: number) => {
     line(it, FRAME, x1, y0, x1, y1);
   }
   painter.paint(scene, VIEW, since);
+  // What came off it, falling and lying in its heap: korpi's world of bodies got to the moment.
+  const heap = heapAt(wall, since);
+  heap.things.paint(pen, VIEW, since);
 
   if (show !== "look") {
     // Each block flat in what is shown, its outline darker, or cracked while it is about to
@@ -324,6 +337,7 @@ const draw = ({ pen, scene }: Stage, v: Values, t: number) => {
     `${hms(since)}  ${String(v.rate).replace("×", "x")}  seed ${v.seed}`,
     `standing ${standing}/${bond.blocks.length}  released ${releasedBy(r, since)}  window ${state.inserts[0] ? "in" : "out"}`,
     `bake ${wall.inspect().bakeMs.toFixed(0)}ms  taps ${tapsOf(Number(v.seed)).length}  cracked ${warningAt(r, since).length} (${CRACK_S}s ahead)`,
+    `heap ${heap.inspect().things} (${heap.inspect().replayed} still)`,
   ];
   lines.forEach((text, i) => paintText(top, text, 4, H + 6 + i * 10, "#20262c"));
 };
@@ -339,7 +353,7 @@ export const wallSim: Unit = {
     wall: "block",
     plaster: 1,
     tap: "knock out",
-    ...Object.fromEntries(TUNE.map((p) => [p.key, p.get(PACE)])),
+    ...Object.fromEntries(TUNE.map((p) => [p.key, p.get(FRIDAY_PACE)])),
   },
   params: () => [
     { kind: "seed", key: "seed" },

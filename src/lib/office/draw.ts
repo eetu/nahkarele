@@ -69,7 +69,9 @@ import {
   fallRank,
   fixtureAt,
   grimed,
+  heapLandings,
   landOf,
+  paintHeap,
   paintWall,
   pokeAt,
   type Rect,
@@ -163,9 +165,16 @@ const fixtureZ = (name: Fixture, rect: Rect, mood: Mood) => {
   return Z.hung + (z - Z.hung) * down;
 };
 
-/** What came down off the wall between two moments of friday, and where: for the thuds. */
+/** Where the fixtures came down off the wall between two moments of friday: for the thuds. */
 export const wallCue = (from: number, to: number, mood: Mood) =>
   rubbleCue(from, to, mood.seed, wallOf(mood));
+
+/** What came off the wall landing between two moments of friday, as korpi's world has it. */
+export const heapCue = (from: number, to: number, mood: Mood) =>
+  heapLandings(from, to, mood.seed, wallOf(mood));
+
+/** Where friday is heard from: six metres in front of the room's middle. */
+export const EAR = ROOM_VIEW.unproject(SCENE_W / 2, SCENE_H * 0.6, -6);
 
 /** What the wall signs show: the speaker's state, and fullscreen (null where unsupported). */
 export type Signs = { muted: boolean; fullscreen: boolean | null };
@@ -705,6 +714,7 @@ export const paintOffice = (frame: Painting, s: OfficeState, mood: Mood, signs: 
     };
     const wall = wallOf(mood);
     drawGarden(pen, friday, wall);
+    paintHeap(pen, mood.since, mood.seed, wall);
     paintFallen(pen, mood);
     paintVisitors(pen, mood);
     drawLife(pen, friday, wall);

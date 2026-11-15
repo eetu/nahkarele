@@ -11,6 +11,8 @@
   import {
     birdCue,
     crowCaws,
+    EAR,
+    heapCue,
     type Mood,
     onCpu,
     paintOffice,
@@ -194,7 +196,8 @@
     for (const x of swallowCue(from, to)) sfx.twitter(pan(x));
     if (owlCue(from, to, mood.seed)) sfx.hoot();
     for (const x of appleCue(from, to, mood.seed, mood.knocks)) sfx.apple(pan(x));
-    for (const hit of wallCue(from, to, mood)) sfx.crumble(pan(hit.x), hit.big);
+    for (const x of wallCue(from, to, mood)) sfx.crumble(pan(x), true);
+    sfx.landings(heapCue(from, to, mood), EAR);
     for (const x of shedCue(from, to, mood.seed)) sfx.twig(pan(x));
     const docking = dockCue(from, to);
     if (docking === "land") sfx.land();

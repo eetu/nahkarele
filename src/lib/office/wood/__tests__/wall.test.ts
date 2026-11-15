@@ -8,10 +8,11 @@ import { healAt } from "../outside";
 import {
   fixtureAt,
   floatingAt,
+  heapIn,
+  heapLandings,
   onWall,
   paintWall,
   pokeAt,
-  rubbleCue,
   specOf,
   standsAt,
 } from "../wall";
@@ -33,12 +34,24 @@ describe("the back wall", () => {
     }
   });
 
-  it("comes down at the blast and keeps crumbling through its first hours", () => {
+  it("comes down at the blast and keeps coming down through its first hours, into a heap that sinks away", () => {
     for (const seed of [4, 5, 6]) {
-      expect(rubbleCue(0, 60, seed, WALL).length).toBeGreaterThan(0);
-      expect(rubbleCue(600, 1800, seed, WALL).length).toBeGreaterThan(0);
-      expect(rubbleCue(1800, 7200, seed, WALL).length).toBeGreaterThan(0);
-      expect(rubbleCue(0, 60, seed, WALL)).toEqual(rubbleCue(0, 60, seed, WALL));
+      const lying = (since: number) => heapIn(since, seed, WALL).things.list.length;
+      const [early, later, hours, days] = [60, 1800, 7200, 400000].map(lying);
+      expect(early).toBeGreaterThan(0);
+      expect(later).toBeGreaterThan(early);
+      expect(hours).toBeGreaterThan(later);
+      expect(days).toBeLessThan(hours);
+      // Read again at a moment, the heap is as it was.
+      expect(lying(1800)).toBe(later);
+    }
+  });
+
+  it("is heard landing, frame by frame through the blast", () => {
+    for (const seed of [4, 5]) {
+      let heard = 0;
+      for (let k = 1; k <= 600; k++) heard += heapLandings((k - 1) / 30, k / 30, seed, WALL).length;
+      expect(heard).toBeGreaterThan(0);
     }
   });
 
