@@ -8,13 +8,7 @@
 import { lru } from "@anarkisti/korpi/core";
 import { BILBERRY, FLOWERS, JUNIPER, LILAC, RASPBERRY } from "@anarkisti/korpi/flora";
 import type { Pen } from "@anarkisti/korpi/paint";
-import {
-  type FloorKind,
-  type Meadow,
-  meadowOf,
-  shadeOf,
-  undergrowthOf,
-} from "@anarkisti/korpi/plants";
+import { type FloorKind, type Meadow, undergrowthOf } from "@anarkisti/korpi/plants";
 import { meadowPainterOf } from "@anarkisti/korpi/plants/paint";
 
 import { floorZ, PX_M, ROOM_VIEW, SLOPE } from "../depth";
@@ -75,18 +69,18 @@ const soilAt = (seed: number, x: number, z: number) => {
 
 const floors = lru<number, Meadow>(8);
 
-/** `seed`'s floor under its stand: the grow-in in seven steps, then a year a step. Its spots are
- *  korpi's undergrowth's, each with the soil and headroom the room gives it there. */
+/** `seed`'s floor under its stand (korpi's undergrowth): the grow-in in seven steps, then a year
+ *  a step, each spot with the soil and headroom the room gives it there. */
 const floorFor = (seed: number): Meadow =>
-  floors.get(seed, () => {
-    const stand = standFor(seed);
-    const grow = { steps: { n: 7, every: 40 }, growIn: { years: 5, by: SEASONS_FROM } };
-    const { spots } = undergrowthOf({ stand, kinds: KINDS, floor: FLOOR, per: PER, keep, ...grow });
-    return meadowOf({
-      ...{ seed, cal: stand.cal, kinds: KINDS, shade: shadeOf(stand), ...grow },
-      spots: spots.map((s) => ({ ...s, at: soilAt(seed, s.x, s.z), room: roomAt(s.x, s.z) })),
-    });
-  });
+  floors.get(seed, () =>
+    undergrowthOf({
+      ...{ stand: standFor(seed), kinds: KINDS, floor: FLOOR, per: PER, keep },
+      soil: (x, z) => soilAt(seed, x, z),
+      room: roomAt,
+      steps: { n: 7, every: 40 },
+      growIn: { years: 5, by: SEASONS_FROM },
+    }),
+  );
 
 /** What holds each spot `since` seconds into friday, where (world m), and its room: for the
  *  tests. */
