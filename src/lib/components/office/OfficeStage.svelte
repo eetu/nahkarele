@@ -1,7 +1,7 @@
 <script lang="ts">
   import { gapsOf } from "@anarkisti/korpi/clock";
   import { frameOf } from "@anarkisti/korpi/frame";
-  import { type GlFrame, glFrameOf } from "@anarkisti/korpi/gpu";
+  import { glFrameOf } from "@anarkisti/korpi/gpu";
   import type { Snippet } from "svelte";
 
   import { panOf, sfx } from "$lib/audio/sfx.svelte";
@@ -202,36 +202,19 @@
     for (const fell of fellCue(from, to, mood.seed)) sfx.timber(fell.kind, pan(fell.x));
   };
 
-  /** korpi's frame on the GPU drawing onto `el`; null where there is no WebGL2 or it fails. */
-  const glOf = (el: HTMLCanvasElement): GlFrame | null => {
-    try {
-      return glFrameOf(el);
-    } catch (e) {
-      console.error(e);
-      return null;
-    }
-  };
-
   $effect(() => {
     const el = canvas;
     const glEl = glCanvas;
     if (!el || !glEl) return;
     const camera = createCamera();
     // The room is one frame at scene px, painted and lit each frame, shown once scaled up: on the
-    // GPU, or on the CPU while there is no WebGL2 or its context is lost. A lost context that
-    // comes back gets a frame anew.
+    // GPU, or on the CPU where there is no WebGL2, while its context is lost or where its frame
+    // failed (korpi's frame falls back, and picks the GPU up again once it is back).
     const room = frameOf();
-    let gl = glOf(glEl);
-    let ctx: CanvasRenderingContext2D | null = null;
-    const lost = (e: Event) => {
-      e.preventDefault();
-      gl = null;
-    };
-    const restored = () => {
-      gl = glOf(glEl);
-    };
-    glEl.addEventListener("webglcontextlost", lost);
-    glEl.addEventListener("webglcontextrestored", restored);
+    const gl = glFrameOf(glEl);
+    const ctx = el.getContext("2d");
+    /** Why the GPU's frame failed, once told. */
+    let told: string | null = null;
     let raf = 0;
     const gap = gapsOf(0.1);
     let shown = NaN;
@@ -290,14 +273,11 @@
         gl: onCpu(mood) ? null : gl,
         detail: officeWeek.detail,
       });
-      ctx ??= el.getContext("2d");
       ctx?.setTransform(1, 0, 0, 1, 0, 0);
-      try {
-        room.present(el.width / SCENE_W, { ctx });
-      } catch (e) {
-        // A pass that will not compile here: the CPU's from the next frame on.
-        console.error(e);
-        gl = null;
+      room.present(el.width / SCENE_W, { ctx });
+      if (gl?.failure && gl.failure !== told) {
+        told = gl.failure;
+        console.error(told);
       }
       // The GL canvas shows while the frame went there; a frame presented nowhere changes nothing.
       const onGpu = room.presented === "gpu";
@@ -305,7 +285,15 @@
         glEl.hidden = !onGpu;
         el.hidden = onGpu;
       }
-      officeWeek.took(performance.now() - t0, Number.isNaN(last) ? undefined : now - last);
+      // What the GPU took for its frames timed since, read every frame: the GPU's while its
+      // frames are shown there (untimed, the governor guesses from the frames' gaps), nothing
+      // for a frame shown on the 2D canvas.
+      const gpu = gl?.took() ?? null;
+      officeWeek.took(
+        performance.now() - t0,
+        Number.isNaN(last) ? undefined : now - last,
+        room.presented === "cpu" ? [] : gpu && onGpu ? gpu : undefined,
+      );
       last = now;
       const focus = officeWeek.mood.after ? SCENE_W / 2 : focusOf(officeWeek.sim);
       const offset = camera.follow(fit, SCENE_W, focus, dt);
@@ -318,8 +306,6 @@
     raf = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(raf);
-      glEl.removeEventListener("webglcontextlost", lost);
-      glEl.removeEventListener("webglcontextrestored", restored);
       gl?.dispose();
       room.dispose();
       sfx.bed("fans", 0);

@@ -120,8 +120,10 @@ class OfficeWeek {
   private fridayAt: number | null = null;
   /** Dev only: how fast friday's clock runs; negative runs it back. */
   rate = $state(1);
-  /** How coarsely the room is drawn (korpi's levels of detail), from what its frames take. */
-  private governor = governorOf();
+  /** How coarsely the room is drawn (korpi's levels of detail), from what its frames take. Where
+   *  the GPU is not timed, a frame begun this long after the one before missed the refresh on
+   *  it: friday draws every other refresh (33 ms apart at 60 a second; one missed, 50). */
+  private governor = governorOf({ missed: 42 });
   detail = $state(0);
   /** Dev only: the level held whatever the frames take, or null. */
   pinned = $state<number | null>(null);
@@ -186,11 +188,12 @@ class OfficeWeek {
   };
 
   /** Called by the frame loop: a frame drawn, what it took and how long after the one before it
-   *  began, ms. Frames while time runs at another rate (the dev shuttle, a toilet break) tell
-   *  nothing of the next ones. */
-  took = (ms: number, since?: number) => {
+   *  began, and what the GPU took for its frames timed since (korpi's `GlFrame.took`), ms.
+   *  Frames while time runs at another rate (the dev shuttle, a toilet break) tell nothing of the
+   *  next ones. */
+  took = (ms: number, since?: number, gpu?: readonly number[]) => {
     const frozen = this.rate !== 1 || this.away;
-    const detail = this.governor.took({ ms, since, frozen });
+    const detail = this.governor.took({ ms, since, frozen, gpu });
     if (detail !== this.detail) this.detail = detail;
   };
 
