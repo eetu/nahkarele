@@ -285,27 +285,25 @@
       // Silent at rest: a hovering drone buzzing all through friday wore thin on a phone.
       sfx.bed("drone", speed > 0.02 ? 0.004 + speed * 0.02 : 0, 1 + speed * 0.6);
       const signs = { muted: sfx.muted, fullscreen: fullscreen.supported ? fullscreen.on : null };
+      // A working day goes to the 2D canvas: no `gl`, and the frame draws and presents there.
       room.draw(SCENE_W, SCENE_H, (f) => paintOffice(f, officeWeek.sim, officeWeek.mood, signs), {
-        gl,
-        cpu: onCpu(mood),
+        gl: onCpu(mood) ? null : gl,
         detail: officeWeek.detail,
       });
-      if (gl) {
-        try {
-          room.present(fit.scale);
-        } catch (e) {
-          // A pass that will not compile here: the CPU's from the next frame on.
-          console.error(e);
-          gl = null;
-        }
-      } else {
-        ctx ??= el.getContext("2d");
-        ctx?.setTransform(1, 0, 0, 1, 0, 0);
+      ctx ??= el.getContext("2d");
+      ctx?.setTransform(1, 0, 0, 1, 0, 0);
+      try {
         room.present(el.width / SCENE_W, { ctx });
+      } catch (e) {
+        // A pass that will not compile here: the CPU's from the next frame on.
+        console.error(e);
+        gl = null;
       }
-      if (glEl.hidden === !!gl) {
-        glEl.hidden = !gl;
-        el.hidden = !!gl;
+      // The GL canvas shows while the frame went there; a frame presented nowhere changes nothing.
+      const onGpu = room.presented === "gpu";
+      if (room.presented !== null && glEl.hidden === onGpu) {
+        glEl.hidden = !onGpu;
+        el.hidden = onGpu;
       }
       officeWeek.took(performance.now() - t0, Number.isNaN(last) ? undefined : now - last);
       last = now;

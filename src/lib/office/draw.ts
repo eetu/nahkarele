@@ -661,9 +661,9 @@ const clockLight = (mood: Mood): PointLight[] => {
   return [{ p: { ...p, z: 0.05 }, colour: rgb3(LED), level: 0.25, radius: 0.55 }];
 };
 
-/** Whether the room is drawn on the CPU though there is a GPU (korpi frame's `cpu`): a working
- *  day's flash is washed over the lit raster, which on the GPU is lit only after; and nothing of
- *  a working day's is drawn there. */
+/** Whether the room is drawn on the CPU though there is a GPU (korpi's frame given no `gl`): a
+ *  working day's flash is washed over the lit raster, which on the GPU is lit only after; and
+ *  nothing of a working day's is drawn there. */
 export const onCpu = (mood: Mood) => !mood.after;
 
 /** Paint one frame through korpi's frame, at scene px: the room and all in it, its light asked
