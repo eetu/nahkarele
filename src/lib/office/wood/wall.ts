@@ -28,11 +28,11 @@ import {
   wallPainter,
   type WallPalette,
 } from "@anarkisti/korpi/masonry/paint";
-import { masked, type Pen, type Raster } from "@anarkisti/korpi/paint";
+import { masked, type Pen, type PenMask, type Raster } from "@anarkisti/korpi/paint";
 import type { ObliqueView } from "@anarkisti/korpi/view";
 
 import { PX_M } from "../depth";
-import { FLOOR_Y, G, SCENE_W } from "../engine";
+import { FLOOR_Y, G, SCENE_H, SCENE_W } from "../engine";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
@@ -137,16 +137,19 @@ const landIn =
   (name: string, x: number, w: number): number =>
     setting.before?.includes(name) ? NEAR_FLOOR : restOn(setting.fronts, x, w, FLOOR_Y + 1);
 
-/** Each wall by seed, baked once, with its painter: the last few seeds asked for. */
-const walls = new WeakMap<Spec, Map<number, { wall: Wall; painter: WallPainter }>>();
-const wallFor = (seed: number, setting: Setting) => {
+/** A wall as friday keeps it: baked once, with its painter and what stood of it last asked. */
+type Made = { wall: Wall; painter: WallPainter; standing: { key: string; mask: PenMask } | null };
+
+/** Each wall by seed: the last few seeds asked for. */
+const walls = new WeakMap<Spec, Map<number, Made>>();
+const wallFor = (seed: number, setting: Setting): Made => {
   const spec = specOf(setting);
-  const bySeed = walls.get(spec) ?? new Map<number, { wall: Wall; painter: WallPainter }>();
+  const bySeed = walls.get(spec) ?? new Map<number, Made>();
   walls.set(spec, bySeed);
   const known = bySeed.get(seed);
   if (known) return known;
   const wall = wallOf({ spec, seed, at: AT, land: landIn(setting) });
-  const made = { wall, painter: wallPainter(wall, { palette: PALETTE }) };
+  const made: Made = { wall, painter: wallPainter(wall, { palette: PALETTE }), standing: null };
   bySeed.set(seed, made);
   if (bySeed.size > 4) bySeed.delete(bySeed.keys().next().value as number);
   return made;
@@ -222,12 +225,30 @@ export const standsAt = (since: number, seed: number, setting: Setting) => {
     y >= WALL_H || (x >= 0 && x < SCENE_W && y >= 0 && wall.occupied(x, y, since));
 };
 
+/** What stands of the wall `since` seconds into friday, as a mask of the scene: made again only
+ *  once something more has come off it. */
+const standingMask = (since: number, seed: number, setting: Setting): PenMask => {
+  const made = wallFor(seed, setting);
+  const r = made.wall.ruin;
+  const inserts = setting.openings.map((_, k) => insertGoneAt(r, k, since) <= since);
+  const key = `${releasedBy(r, since)}|${inserts.join()}`;
+  if (made.standing?.key !== key) {
+    const stands = standsAt(since, seed, setting);
+    const bits = new Uint8Array(SCENE_W * SCENE_H);
+    for (let y = 0; y < SCENE_H; y++)
+      for (let x = 0; x < SCENE_W; x++) bits[y * SCENE_W + x] = stands(x, y) ? 1 : 0;
+    made.standing = { key, mask: { x0: 0, y0: 0, w: SCENE_W, h: SCENE_H, bits } };
+  }
+  return made.standing.mask;
+};
+
 /**
  * `pen` for something on the wall (a crack, a climber): what it puts where the wall has gone is
- * not painted; it went down with the wall.
+ * not painted; it went down with the wall. A mask, so korpi's posed paintings keep their fast
+ * paths through it.
  */
 export const onWall = (pen: Pen, since: number, seed: number, setting: Setting): Pen =>
-  masked(pen, standsAt(since, seed, setting));
+  masked(pen, standingMask(since, seed, setting));
 
 /** What is heard of the wall between two moments of friday, and where: blocks coming loose,
  *  and fixtures landing. */
