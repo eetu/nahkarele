@@ -5,8 +5,8 @@
 // is behind it, under the open sky.
 
 import { coverOf } from "@anarkisti/korpi/light";
-import { type Pen, shifted } from "@anarkisti/korpi/paint";
-import { obliqueView } from "@anarkisti/korpi/view";
+import { floored, type Pen, shifted } from "@anarkisti/korpi/paint";
+import { floorDepths, obliqueView } from "@anarkisti/korpi/view";
 
 import { FLOOR_Y, SCENE_H, SCENE_W } from "./engine";
 
@@ -69,8 +69,6 @@ export const Z = {
 
 /** What lies flat on the floor, each a hair over the one before. */
 export const FLAT = { floor: 0, moss: 1e-4, cracks: 2e-4, litter: 3e-4, snow: 4e-4 } as const;
-/** What stands on the floor is this far over what lies flat there, at its foot. */
-const FOOT = 1e-3;
 
 /** `pen` at `z` m out. */
 export const at = (pen: Pen, z: number): Pen => shifted(pen, { dd: -z });
@@ -95,39 +93,12 @@ export const onFloor = (pen: Pen, lift = 0): Pen => {
   return glowing ? { ...out, glowing: (g) => onFloor(glowing(g), lift) } : out;
 };
 
-/**
- * `pen` (in scene px) that puts nothing under the floor: what reaches below the floor where it
- * is painted (a leaf below its root, an apple's lower half) lies on the floor there.
- */
-export const grounded = (pen: Pen): Pen => {
-  const lowest = (y: number) => -(floorZ(y) + FOOT);
-  const out: Pen = {
-    fill: (c, x, y, w = 1, h = 1, d = 0) => {
-      const [y0, y1] = rows(y, h);
-      if (y1 <= y0) return;
-      if (d <= lowest(y1 - 1)) {
-        pen.fill(c, x, y, w, h, d);
-        return;
-      }
-      for (let r = y0; r < y1; r++) pen.fill(c, x, r, w, 1, Math.min(d, lowest(r)));
-    },
-    span: (c, x0, x1, y, d0, dd = 0) => {
-      const floor = lowest(Math.round(y));
-      if (dd === 0 || (d0 <= floor && d0 + dd * (x1 - x0) <= floor)) {
-        pen.span(c, x0, x1, y, Math.min(d0, floor), dd);
-        return;
-      }
-      const s0 = Math.round(x0);
-      for (let x = s0; x < Math.round(x1); x++)
-        pen.fill(c, x, y, 1, 1, Math.min(d0 + (x - s0) * dd, floor));
-    },
-  };
-  const { glowing } = pen;
-  return glowing ? { ...out, glowing: (g) => grounded(glowing(g)) } : out;
-};
+/** The floor as the room's view draws it, a millimetre nearer: what is drawn through korpi's
+ *  `floored` over it reaches no deeper (a leaf below its root, an apple's lower half lie on it). */
+export const FLOOR_DEPTHS = floorDepths(ROOM_VIEW);
 
 /** `pen` (in scene px) for something standing on the floor `z` m out. */
-export const standing = (pen: Pen, z: number): Pen => at(grounded(pen), z);
+export const standing = (pen: Pen, z: number): Pen => at(floored(pen, FLOOR_DEPTHS), z);
 
 /** `pen` (in scene px) for something standing on the floor with its foot on scene row `y`. */
 export const footAt = (pen: Pen, y: number): Pen => standing(pen, floorZ(y));

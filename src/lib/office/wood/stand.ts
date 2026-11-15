@@ -9,11 +9,11 @@
 
 import { lru } from "@anarkisti/korpi/core";
 import { APPLE, TREES } from "@anarkisti/korpi/flora";
-import type { Pen } from "@anarkisti/korpi/paint";
+import { floored, type Pen } from "@anarkisti/korpi/paint";
 import { type Life, type Pt, type Slot, type Stand, standOf } from "@anarkisti/korpi/plants";
 import { drawFruit, standPainterOf, type Taken } from "@anarkisti/korpi/plants/paint";
 
-import { floorZ, grounded, PX_M, ROOM_VIEW } from "../depth";
+import { FLOOR_DEPTHS, floorZ, PX_M, ROOM_VIEW } from "../depth";
 import { FLOOR_Y, SCENE_W } from "../engine";
 import { FRIDAY, SEASON_S, SEASONS_FROM } from "./seasons";
 import { fridayAir, plantWind } from "./wind";
@@ -106,8 +106,8 @@ export const poseAt = (seed: number, life: Life, since: number, knocks: Knocks) 
 
 const painter = standPainterOf({ pxPerM: PX_M, max: 128 });
 
-/** The trees, standing and down, each at its root's depth; drawn coarser, their sway worked
- *  out less often. */
+/** The trees, standing and down, each at its root's depth (korpi lays what hangs below a root on
+ *  the floor); drawn coarser, their sway worked out less often. */
 export const drawTrees = (pen: Pen, since: number, seed: number, knocks: Knocks, detail = 0) =>
   painter.trees(
     pen,
@@ -123,12 +123,26 @@ export const drawTrees = (pen: Pen, since: number, seed: number, knocks: Knocks,
 
 /** The cones and keys lying under the trees, and a maple's keys spinning down on the wind. */
 export const drawSeeds = (pen: Pen, since: number, seed: number) =>
-  painter.seeds(grounded(pen), standFor(seed), ROOM_VIEW, since, fridayAir(seed).drift);
+  painter.seeds(
+    floored(pen, FLOOR_DEPTHS),
+    standFor(seed),
+    ROOM_VIEW,
+    since,
+    fridayAir(seed).drift,
+  );
 
 /** The apples, hanging, falling, and lying in the grass where they came down; what was `taken`
  *  stays away. */
 export const drawApples = (pen: Pen, since: number, seed: number, knocks: Knocks, taken?: Taken) =>
-  painter.fruit(grounded(pen), standFor(seed), ROOM_VIEW, since, plantWind(seed), knocks, taken);
+  painter.fruit(
+    floored(pen, FLOOR_DEPTHS),
+    standFor(seed),
+    ROOM_VIEW,
+    since,
+    plantWind(seed),
+    knocks,
+    taken,
+  );
 
 /** A tree giving way at its foot, or landing, at scene x. */
 type Fell = { x: number; kind: "crack" | "crash" };
