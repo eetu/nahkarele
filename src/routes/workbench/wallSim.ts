@@ -277,7 +277,7 @@ const draw = ({ pen, scene }: Stage, v: Values, t: number) => {
   }
   painter.paint(scene, VIEW, since);
   // What came off it, falling and lying in its heap: korpi's world of bodies got to the moment.
-  const heap = heapAt(wall, since);
+  const { ww: heap } = heapAt(wall, since);
   heap.things.paint(pen, VIEW, since);
 
   if (show !== "look") {

@@ -35,7 +35,7 @@ describe("the back wall", () => {
 
   it("comes down at the blast and keeps coming down through its first hours, into a heap that sinks away", () => {
     for (const seed of [4, 5, 6]) {
-      const lying = (since: number) => heapIn(since, seed, WALL).things.list.length;
+      const lying = (since: number) => heapIn(since, seed, WALL).ww.things.list.length;
       const [early, later, hours, days] = [60, 1800, 7200, 400000].map(lying);
       expect(early).toBeGreaterThan(0);
       expect(later).toBeGreaterThan(early);
@@ -50,7 +50,7 @@ describe("the back wall", () => {
     for (const seed of [4, 5]) {
       let heard = 0;
       for (let k = 1; k <= 600; k++)
-        heard += heapIn(k / 30, seed, WALL).things.landings((k - 1) / 30, k / 30).length;
+        heard += heapIn(k / 30, seed, WALL).ww.things.landings((k - 1) / 30, k / 30).length;
       expect(heard).toBeGreaterThan(0);
     }
   });

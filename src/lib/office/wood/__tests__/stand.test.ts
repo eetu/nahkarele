@@ -19,13 +19,17 @@ import {
 
 const UNTIL = 20000;
 
+/** Whether `a` and `b` are the same tree: a stand read back past what it holds walks its trees
+ *  anew, another object for the same one. */
+const same = (a: Life, b: Life) => a.slot === b.slot && a.n === b.n;
+
 /** Every tree that stands some time before `UNTIL`, by slot, in order. */
 const livesOf = (seed: number): Life[][] => {
   const slots: Life[][] = [];
   for (let t = 0; t < UNTIL; t += 10) {
     for (const l of standing(seed, t)) {
       slots[l.slot] ??= [];
-      if (!slots[l.slot].includes(l)) slots[l.slot].push(l);
+      if (!slots[l.slot].some((m) => same(l, m))) slots[l.slot].push(l);
     }
   }
   return slots;
@@ -69,7 +73,7 @@ describe("friday's stand", () => {
     expect(Math.sign(crash[0].x - root)).toBe(l.side);
     expect(crash[0].x).toBeGreaterThanOrEqual(0);
     expect(crash[0].x).toBeLessThanOrEqual(SCENE_W);
-    expect(fallen(1, l.falls + 1)).toContain(l);
+    expect(fallen(1, l.falls + 1).some((m) => same(l, m))).toBe(true);
   });
 
   it("drops its apples on the floor in front of the wall, and a shake brings one down at once", () => {

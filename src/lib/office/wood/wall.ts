@@ -281,8 +281,9 @@ const RUNOUT = 0.12;
  *  it keeps jumping (the shuttle), it starts afresh at the moment itself. */
 const LEAD = 2;
 
-/** What came off a wall, in a world of bodies stepped on its timeline; whether it jumped last. */
-type Heap = { world: World; ww: WallWorld; tl: Timeline<WallInput>; jumped: boolean };
+/** What came off a wall (`ww`), in a world of bodies stepped on its timeline (`tl`: the world as
+ *  played, which is what its landings are heard by); whether it jumped last. */
+export type Heap = { world: World; ww: WallWorld; tl: Timeline<WallInput>; jumped: boolean };
 const heaps = new WeakMap<Wall, Heap>();
 
 /** A heap for `wall`: a world started afresh at a moment lays what came off before where it lies
@@ -314,12 +315,12 @@ const heapOf = (wall: Wall, palette: WallPalette): Heap => {
 };
 
 /** What came off `wall` at `t`, s: its heap's world got there, stepped or started afresh. */
-export const heapAt = (wall: Wall, t: number, palette = WALL_PALETTE): WallWorld => {
+export const heapAt = (wall: Wall, t: number, palette = WALL_PALETTE): Heap => {
   const heap = heapOf(wall, palette);
   const jump = Math.abs(t - heap.tl.t) > LEAD;
   heap.tl.seek(t, { lead: heap.jumped ? 0 : LEAD });
   heap.jumped = jump;
-  return heap.ww;
+  return heap;
 };
 
 /** What has come off the wall `since` seconds into friday. */
@@ -329,7 +330,7 @@ export const heapIn = (since: number, seed: number, setting: Setting) =>
 /** What has come off the wall `since` seconds into friday, falling or lying where it came to
  *  rest, each block at its depth and lit as the room is. */
 export const paintHeap = (pen: Pen, since: number, seed: number, setting: Setting) =>
-  heapIn(since, seed, setting).things.paint(pen, ROOM_VIEW, since);
+  heapIn(since, seed, setting).ww.things.paint(pen, ROOM_VIEW, since);
 
 /** How long after a poke its block goes, s: long enough to bake the wall again first. */
 const POKE_LEAD = 0.15;

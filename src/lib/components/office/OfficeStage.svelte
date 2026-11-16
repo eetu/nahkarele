@@ -216,7 +216,7 @@
     for (const x of appleCue(from, to, mood.seed, mood.knocks)) sfx.apple(pan(x));
     for (const x of wallCue(from, to, mood)) sfx.crumble(pan(x), true);
     const heap = heapOf(mood);
-    sfx.landings.hear(heap, heap.things.landings, to, EAR);
+    sfx.landings.hear(heap.tl, heap.ww.things.landings, EAR);
     for (const x of shedCue(from, to, mood.seed)) sfx.twig(pan(x));
     const docking = dockCue(from, to);
     if (docking === "land") sfx.land();
