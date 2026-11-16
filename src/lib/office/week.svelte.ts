@@ -18,6 +18,7 @@ import {
   type Tally,
   type Verdict,
 } from "./engine";
+import { forgetStill } from "./still";
 
 export type Screen = "memo" | "shift" | "blast" | "review" | "loop";
 
@@ -57,6 +58,7 @@ const saveFriday = (at: number | null) => {
     if (at === null) {
       localStorage.removeItem(FRIDAY_KEY);
       localStorage.removeItem(TAPS_KEY);
+      forgetStill();
     } else localStorage.setItem(FRIDAY_KEY, String(at));
   } catch {
     /* the wood then starts over on reload */
@@ -130,6 +132,16 @@ class OfficeWeek {
 
   get current() {
     return OFFICE_DAYS[this.day];
+  }
+
+  /** When friday began (wall-clock ms), while its loop runs: what the room's still is kept for. */
+  get started(): number | null {
+    return this.fridayAt;
+  }
+
+  /** Where friday's clock is now, s: ahead of `mood.since` while no frame has ticked it. */
+  get clock(): number {
+    return this.fridayAt === null ? 0 : (Date.now() - this.fridayAt) / 1000;
   }
 
   /** A toilet break: the specialist leaves, the AIs talk directly, and the day speeds by. */

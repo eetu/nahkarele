@@ -29,6 +29,7 @@
     SCENE_H,
     SCENE_W,
   } from "$lib/office/engine";
+  import { stillOf } from "$lib/office/still";
   import { officeWeek } from "$lib/office/week.svelte";
   import { owlCue } from "$lib/office/wood/life";
   import { shedCue } from "$lib/office/wood/shedding";
@@ -57,6 +58,8 @@
   /** The room on the GPU (WebGL2), or on the CPU onto a 2D canvas: one of them shown. */
   let glCanvas: HTMLCanvasElement | undefined = $state();
   let canvas: HTMLCanvasElement | undefined = $state();
+  /** Friday's last picture, over both while the world catches up (`still`). */
+  let stillEl: HTMLCanvasElement | undefined = $state();
   let frameEl: HTMLDivElement | undefined = $state();
   let fit = $state<Fit>({ scale: 2, sceneCss: SCENE_W, viewCss: SCENE_W });
   const SCENE = { w: SCENE_W, h: SCENE_H };
@@ -185,6 +188,20 @@
    *  shuttle, a frame of a year would sound all at once. */
   const HEARD_S = 10;
 
+  /** A frame begun this long after the one drawn before it, ms, follows a hidden page (a phone
+   *  asleep, another tab) or a load into friday: its clock has run on, and the frame that brings
+   *  the world up to it takes seconds on a phone, while a GL canvas whose context went in the
+   *  background shows nothing. The last picture goes up first, a frame of its own, so the
+   *  browser paints it before that frame starts. */
+  const WAKE_MS = 1000;
+  /** The picture shown is kept so often, ms. */
+  const KEEP_MS = 2000;
+  /** A saved picture still loading is waited for so long, ms, before the room's dark goes up. */
+  const LOAD_MS = 300;
+  /** The note goes up over the still once the world is this far behind, s, or on a load: closer,
+   *  it is caught up as soon as the still goes up. */
+  const NOTE_S = 30;
+
   /** What friday does from `from` to now that can be heard. */
   const playFriday = (from: number, mood: Mood) => {
     const to = mood.since;
@@ -209,7 +226,8 @@
   $effect(() => {
     const el = canvas;
     const glEl = glCanvas;
-    if (!el || !glEl) return;
+    const stilled = stillEl;
+    if (!el || !glEl || !stilled) return;
     const camera = createCamera();
     // The room is one frame at scene px, painted and lit each frame, shown once scaled up: on the
     // GPU, or on the CPU where there is no WebGL2, while its context is lost or where its frame
@@ -223,12 +241,53 @@
     const gap = gapsOf(0.1);
     let shown = NaN;
     let skip = false;
-    /** When the frame drawn last began, ms. */
+    /** When the frame drawn last began, and ended, ms. */
     let last = NaN;
+    let ended = NaN;
+    const still = stillOf();
+    const stillCtx = stilled.getContext("2d");
+    if (officeWeek.screen === "loop" && officeWeek.started !== null) still.load(officeWeek.started);
+    /** When the picture shown was kept last, ms. */
+    let keptAt = Number.NEGATIVE_INFINITY;
+    /** When the world was found behind its clock, ms, until a frame catches it up; whether the
+     *  still is up for it. */
+    let woke = NaN;
+    let up = false;
+    /** The still over the room, under a note of how far behind the world is, or alone. */
+    const cover = (note: boolean) => {
+      if (!stillCtx) return;
+      still.cover(stillCtx, note ? officeWeek.clock : null);
+      stilled.hidden = false;
+    };
+    // A page hidden saves its picture for a tab loaded again, and puts it up for the page shown
+    // again, until its first frame.
+    const hidden = () => {
+      if (officeWeek.screen !== "loop" || officeWeek.started === null) return;
+      still.save(officeWeek.started);
+      if (still.kept) cover(false);
+    };
+    const visibility = () => {
+      if (document.visibilityState === "hidden") hidden();
+    };
+    document.addEventListener("visibilitychange", visibility);
+    window.addEventListener("pagehide", hidden);
     const frame = (now: number) => {
       // Friday is a screensaver: half the frame rate is plenty for moss and a deer.
       skip = officeWeek.mood.after && !skip;
       if (skip) {
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+      // Friday's clock ran on while no frame was drawn: the last picture goes up, and the world
+      // is caught up the frame after.
+      const behind = Number.isNaN(ended) || now - ended > WAKE_MS;
+      if (officeWeek.screen === "loop" && officeWeek.rate === 1 && Number.isNaN(woke) && behind)
+        woke = now;
+      if (!Number.isNaN(woke) && !up) {
+        if (!still.loading || now - woke > LOAD_MS) {
+          cover(Number.isNaN(last) || officeWeek.clock - officeWeek.mood.since >= NOTE_S);
+          up = true;
+        }
         raf = requestAnimationFrame(frame);
         return;
       }
@@ -289,6 +348,18 @@
         glEl.hidden = !onGpu;
         el.hidden = onGpu;
       }
+      // The live picture is there: the still comes down, and is kept again (at once, after a
+      // catch-up).
+      if (room.presented !== null) {
+        if (!stilled.hidden) stilled.hidden = true;
+        const caught = up;
+        woke = NaN;
+        up = false;
+        if (mood.after && (caught || now - keptAt >= KEEP_MS)) {
+          still.keep(onGpu ? glEl : el, mood.since);
+          keptAt = now;
+        }
+      }
       // What the GPU took for its frames timed since, read every frame: the GPU's while its
       // frames are shown there (untimed, the governor guesses from the frames' gaps), nothing
       // for a frame shown on the 2D canvas.
@@ -305,11 +376,14 @@
         frameEl.style.transform = `translateX(${-offset}px)`;
         shown = offset;
       }
+      ended = performance.now();
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", visibility);
+      window.removeEventListener("pagehide", hidden);
       gl?.dispose();
       room.dispose();
       sfx.bed("fans", 0);
@@ -338,6 +412,7 @@
           aria-label="an office: two AI slabs and a desk between them"
           {...pointer}
         ></canvas>
+        <canvas bind:this={stillEl} class="still" width={SCENE_W} height={SCENE_H} hidden></canvas>
         <!-- Leaving is leaving: the next visit starts a new week. -->
         {#if appleRect && officeWeek.screen === "loop"}
           <SceneSign
@@ -430,6 +505,12 @@
 
   canvas.pokable {
     cursor: pointer;
+  }
+
+  canvas.still {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
   }
 
   .overlay {

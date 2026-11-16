@@ -183,7 +183,10 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   the candle and the fireflies light what is near them, the candle throwing the jar's and the
   CRT's shadows (`shadows`, `facing`: the one lamp that does). The ruin's grime is paint, not
   light. Friday is a screensaver, so it holds the screen awake while it runs
-  (`wakeLock.ts`).
+  (`wakeLock.ts`). A phone waking, or a tab loaded again, shows the room's last picture (kept
+  every two seconds and saved as the page is hidden, `office/still.ts`) dimmed under a note of
+  how far behind the world is, until the frame that catches it up is drawn: that frame takes
+  seconds on a phone, and a GL context lost in the background leaves its canvas empty.
 - **The office is one scene raster.** `paintOffice` paints every part through a korpi pen into
   one 320x180 raster with a depth per pixel, lights it once and presents it once. Everything is
   at its true depth, metres out from the back wall (`office/depth.ts`: the room's view and one
