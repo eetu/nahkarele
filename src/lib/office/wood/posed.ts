@@ -1,7 +1,8 @@
 // Things that move in the wind, painted in pixels: korpi's posed paintings
-// (`@anarkisti/korpi/posed`), one keeping for the room's soft plants and the workbench's. A
-// shrub or a climber is painted once at rest, part by part; each frame every part is put back
-// where its pose has it, through the pen it is drawn with. The physics is korpi's `rustleOf`.
+// (`@anarkisti/korpi/posed`), one keeping for the workbench's soft plants (the room's are korpi's
+// soft painter's). A shrub or a climber is painted once at rest, part by part; each frame every
+// part is put back where its pose has it, through the pen it is drawn with. The physics is
+// korpi's `rustleOf`.
 
 import type { Pen } from "@anarkisti/korpi/paint";
 import { type Painter, type Pose, posedOf } from "@anarkisti/korpi/posed";

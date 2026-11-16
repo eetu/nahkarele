@@ -12,9 +12,8 @@ import {
   planCurtain,
   planGrass,
   reachIn,
-  rustleOf,
 } from "@anarkisti/korpi/plants";
-import { paintClimberParts, paintGrassParts, posePx } from "@anarkisti/korpi/plants/paint";
+import { paintClimberParts, paintGrassParts, softPainterOf } from "@anarkisti/korpi/plants/paint";
 import { FLAT } from "@anarkisti/korpi/view";
 
 import { colourOf } from "$lib/scene/pen";
@@ -23,7 +22,7 @@ import { hash, shuffled, smooth } from "$lib/scene/pixel";
 import { floorZ, onFloor, PX_M } from "../depth";
 import { FLOOR_Y } from "../engine";
 import { drawMoss as drawFloorMoss, floorMossOf } from "./moss";
-import { drawPosed, type Painter } from "./posed";
+import type { Painter } from "./posed";
 import { lookAt, SEASON_S, seasonAt, SEASONS_FROM } from "./seasons";
 import { plantWind } from "./wind";
 
@@ -88,21 +87,26 @@ export const floorMoss = (seed: number) => floorMossOf(seed, MOSS_FROM);
 export const drawMoss = (pen: Pen, since: number, seed: number) =>
   drawFloorMoss(pen, since, seed, MOSS_FROM);
 
-/** A soft plant rooted at scene (`x`, `y`): korpi's painting in its own pixels, moved there,
- *  rustling in friday's wind. */
-const drawSoft = (
-  pen: Pen,
-  name: string,
-  key: string,
-  root: { x: number; y: number },
-  plan: GrassPlan | ClimberPlan,
-  paint: Painter,
-  since: number,
-  seed: number,
-) => {
-  const look = lookAt(since);
-  const moves = rustleOf(plan, 1, look, since, plantWind(seed), root.x / PX_M);
-  drawPosed(shifted(pen, { dx: root.x, dy: root.y }), name, key, paint, posePx(moves, PX_M));
+/** The soft plants (grass, climbers, the creeper), each painted once a step of its growth and its
+ *  season. */
+const soft = softPainterOf({ pxPerM: PX_M, max: 64 });
+
+/** A soft plant as drawn at a moment: its painting's name and key, its root (scene px), its plan,
+ *  and how it is painted. */
+type Soft = {
+  name: string;
+  key: string;
+  root: { x: number; y: number };
+  plan: GrassPlan | ClimberPlan;
+  paint: Painter;
+};
+
+/** `s` at its root: korpi's painting in its own pixels, moved there, rustling in friday's wind at
+ *  the frame's `detail`. */
+const drawSoft = (pen: Pen, s: Soft, since: number, seed: number, detail: number) => {
+  const at = { g: 1, look: lookAt(since), t: since, x: s.root.x / PX_M };
+  const into = shifted(pen, { dx: s.root.x, dy: s.root.y });
+  soft.draw(into, s.name, s.key, s.paint, s.plan, at, plantWind(seed), detail);
 };
 
 // --- Grass ------------------------------------------------------------------------------
@@ -147,20 +151,24 @@ const footed =
     });
   };
 
-/** Grass in the cracks, a patch along each, every blade standing where it comes up. */
-export const drawGrass = (pen: Pen, since: number, seed: number) => {
+/** The grass in the cracks `since` seconds into friday, a patch along each that has come up. */
+const grassAt = (since: number, seed: number): Soft[] => {
   const look = lookAt(since);
-  patchesOf(seed).forEach((plan, i) => {
+  return patchesOf(seed).flatMap((plan, i) => {
     const tufts = TUFTS[i];
     const grown = tufts.map((t) => tuftGrowth(t, since));
     const steps = grown.map((g) => Math.round(g * 12));
-    if (steps.every((g) => g <= 0)) return;
+    if (steps.every((g) => g <= 0)) return [];
     const key = `${seed}|${steps.join(",")}|${look.k}|${Math.round(look.p * 24)}`;
     const paint: Painter = (rec, part) => paintGrassParts(rec, plan, grown, look, part, PX_M);
     const root = tufts[0];
-    const standing = footed(plan, root.y, paint);
-    drawSoft(pen, `grass${seed}:${i}`, key, root, plan, standing, since, seed);
+    return [{ name: `grass${seed}:${i}`, key, root, plan, paint: footed(plan, root.y, paint) }];
   });
+};
+
+/** Grass in the cracks, a patch along each, every blade standing where it comes up. */
+export const drawGrass = (pen: Pen, since: number, seed: number, detail = 0) => {
+  for (const s of grassAt(since, seed)) drawSoft(pen, s, since, seed, detail);
 };
 
 // --- Climbers ---------------------------------------------------------------------------
@@ -198,29 +206,34 @@ const reachOf = (plan: ClimberPlan, since: number, delay: number) => {
     : reachIn(plan.kind, grown, seasonAt(since));
 };
 
-const drawClimber = (
-  pen: Pen,
+/** A climber `name` rooted at `root` reached `reach` up its plan, if it has come up. */
+const climberAt = (
   name: string,
   plan: ClimberPlan,
   root: { x: number; y: number },
   reach: number,
   since: number,
   seed: number,
-) => {
-  if (reach <= 0) return;
+): Soft[] => {
+  if (reach <= 0) return [];
   const look = lookAt(since);
   const key = `${seed}|${Math.round(reach * 60)}|${look.k}|${Math.round(look.p * 24)}`;
   const paint: Painter = (rec, part) => paintClimberParts(rec, plan, reach, look, part, PX_M);
-  drawSoft(pen, name, key, root, plan, paint, since, seed);
+  return [{ name, key, root, plan, paint }];
 };
 
-/** Climbers up the walls. */
-export const drawVines = (pen: Pen, since: number, seed: number) =>
-  climbersOf(seed).forEach((plan, i) => {
+/** The climbers up the walls `since` seconds into friday. */
+const vinesAt = (since: number, seed: number): Soft[] =>
+  climbersOf(seed).flatMap((plan, i) => {
     const { x, delay } = VINES[i];
     const reach = reachOf(plan, since, delay);
-    drawClimber(pen, `vine${seed}:${i}`, plan, { x, y: FLOOR_Y }, reach, since, seed);
+    return climberAt(`vine${seed}:${i}`, plan, { x, y: FLOOR_Y }, reach, since, seed);
   });
+
+/** Climbers up the walls. */
+export const drawVines = (pen: Pen, since: number, seed: number, detail = 0) => {
+  for (const s of vinesAt(since, seed)) drawSoft(pen, s, since, seed, detail);
+};
 
 // --- Creeper over the machines ------------------------------------------------------------
 
@@ -233,18 +246,13 @@ export const overgrown = (since: number) => smooth((since - OVERGROWN_FROM) / OV
 
 const curtains = new Map<string, ClimberPlan>();
 
-/** Creeper up one AI's face: `x`..`x+w`, from `bottom` towards `top`, scene px. */
-export const drawCreeperOver = (
-  pen: Pen,
-  x: number,
-  top: number,
-  bottom: number,
-  w: number,
-  since: number,
-  seed: number,
-) => {
+/** A face the creeper grows over: `x`..`x+w`, from `bottom` towards `top`, scene px. */
+export type Face = { x: number; top: number; bottom: number; w: number };
+
+/** The creeper over `face` `since` seconds into friday, once it has come up. */
+const curtainAt = ({ x, top, bottom, w }: Face, since: number, seed: number): Soft[] => {
   const cover = overgrown(since);
-  if (cover <= 0) return;
+  if (cover <= 0) return [];
   const id = `${seed}|${x}`;
   let plan = curtains.get(id);
   if (!plan) {
@@ -253,5 +261,35 @@ export const drawCreeperOver = (
     curtains.set(id, plan);
   }
   const root = { x: x + w / 2, y: bottom };
-  drawClimber(pen, `curtain${seed}:${x}`, plan, root, cover, since, seed);
+  return climberAt(`curtain${seed}:${x}`, plan, root, cover, since, seed);
+};
+
+/** Creeper up one AI's face. */
+export const drawCreeperOver = (pen: Pen, face: Face, since: number, seed: number, detail = 0) => {
+  for (const s of curtainAt(face, since, seed)) drawSoft(pen, s, since, seed, detail);
+};
+
+/**
+ * What drawing the soft plants `since` seconds into friday (the grass, the climbers, the creeper
+ * over `faces`) would do first, done ahead of it while `stop` lets it (korpi's `Ahead`): each one's
+ * painting baked, and put up on the GPU `pen` draws to, if it does. How much is done, 0..1.
+ */
+export const softAhead = (
+  pen: Pen,
+  since: number,
+  seed: number,
+  faces: readonly Face[],
+  stop?: () => boolean,
+) => {
+  const all = [
+    ...grassAt(since, seed),
+    ...vinesAt(since, seed),
+    ...faces.flatMap((f) => curtainAt(f, since, seed)),
+  ];
+  let done = 0;
+  for (const s of all) {
+    if (!soft.ahead(pen, s.name, s.key, s.paint, stop)) break;
+    done++;
+  }
+  return all.length ? done / all.length : 1;
 };

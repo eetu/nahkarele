@@ -105,3 +105,24 @@ export const drawFloorPlants = (pen: Pen, since: number, seed: number, detail = 
     dayAt(since).sun === null,
     detail,
   );
+
+/** What drawing the floor's plants at `since` would do first, done ahead of it while `stop` lets
+ *  it (korpi's `Ahead`): each patch baked (put up on the GPU `pen` draws to, if it does) and its
+ *  rustle worked out. How much is done, 0..1. */
+export const floorPlantsAhead = (
+  pen: Pen,
+  since: number,
+  seed: number,
+  detail: number,
+  stop?: () => boolean,
+) =>
+  painter.ahead(
+    pen,
+    floorFor(seed),
+    ROOM_VIEW,
+    since,
+    plantWind(seed),
+    dayAt(since).sun === null,
+    detail,
+    stop,
+  );

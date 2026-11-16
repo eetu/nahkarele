@@ -1,8 +1,9 @@
 <script lang="ts">
   import { gapsOf } from "@anarkisti/korpi/clock";
-  import { budgetOf } from "@anarkisti/korpi/core";
+  import { type Ahead, budgetOf } from "@anarkisti/korpi/core";
   import { frameOf } from "@anarkisti/korpi/frame";
   import { glFrameOf } from "@anarkisti/korpi/gpu";
+  import { raster, rasterPen } from "@anarkisti/korpi/paint";
   import type { Snippet } from "svelte";
 
   import { panOf, sfx } from "$lib/audio/sfx.svelte";
@@ -10,6 +11,7 @@
   import { leaveKey } from "$lib/keys";
   import { dockCue, PAD } from "$lib/office/charger";
   import {
+    aheadOf,
     behindOf,
     birdCue,
     crowCaws,
@@ -192,9 +194,10 @@
 
   /** A frame begun this long after the one before it, ms, follows a hidden page (a phone asleep,
    *  another tab) or a load into friday: its clock has run on, and what it has laid down (its
-   *  floor, its trees, its wall) is behind. Those are laid on within an allowance a frame, the
-   *  room's last picture up meanwhile under how far they have got, and the room is drawn again
-   *  once they are there. */
+   *  floor, its trees, its wall) is behind. Those are laid on within an allowance a frame, and the
+   *  painters readied for now (their paintings baked and put up on the GPU), the room's last
+   *  picture up meanwhile under how far they have got; the room is drawn again once all is there,
+   *  on a frame that only draws. A GPU context given back readies the painters again. */
   const WAKE_MS = 1000;
   /** That allowance, ms: frames at friday's pace (every other refresh) on a phone four times
    *  slower than a laptop. */
@@ -257,9 +260,27 @@
         // A frame drawn since is newer.
         if (Number.isNaN(last)) room.still = still;
       });
-    /** When friday was found behind its clock, ms, until a frame draws it caught up. */
+    /** When friday was found behind its clock, ms, until a frame draws it caught up; and whether
+     *  it got there on the frame before, the room to be drawn on this one. */
     let woke = NaN;
+    let cutNext = false;
     const catchUp = budgetOf(CATCH_MS);
+    /** The painters readied through a pen as the frame's is, on the GPU while it is ready. */
+    const readied = raster(SCENE_W, SCENE_H);
+    /** What the GPU's frame will do first: its programs compiled, before the room cuts to it (a
+     *  frame while they compile is drawn on the CPU, and the next puts everything up at once). */
+    const compiled: Ahead = () => (gl?.status === "compiling" ? 0 : 1);
+    const aheadFor = (mood: Mood) => {
+      const pen = rasterPen(readied, gl?.status === "ready" ? { gpu: gl.sink } : {});
+      return [...aheadOf(mood, officeWeek.detail, pen), compiled];
+    };
+    // A context given back holds none of what was put up on the one lost: put it up again first.
+    const restored = () => {
+      if (officeWeek.screen !== "loop") return;
+      behindOf(officeWeek.mood).again();
+      if (Number.isNaN(woke)) woke = performance.now();
+    };
+    glEl.addEventListener("webglcontextrestored", restored);
     /** The canvas the frame went to shown, the GL one or the 2D one; a frame presented nowhere
      *  changes nothing. */
     const showCanvas = () => {
@@ -324,7 +345,7 @@
       const before = { blast: mood.blast, since: mood.since };
       officeWeek.tick(dt);
       const waking = !Number.isNaN(woke);
-      if (waking && mood.after) {
+      if (waking && mood.after && !cutNext) {
         const shows = !loading || now - woke > LOAD_MS;
         // The room's last picture up where its canvas lost it, a frame of its own so that it is
         // painted before anything is laid or drawn.
@@ -333,13 +354,19 @@
           return undrawn();
         }
         catchUp.frame();
-        const caught = behindOf(mood).to(mood.since, catchUp);
-        // Behind still: the picture stays up under how far they have got.
-        if (caught.got < mood.since) {
+        const behind = behindOf(mood);
+        const worked = behind.inspect().bakes;
+        const caught = behind.to(mood.since, catchUp, aheadFor(mood));
+        // Behind still, or there only after this frame's allowance went on getting there: the
+        // picture stays up under how far they have got, and the room is drawn on the next frame,
+        // which only draws (what is laid on meanwhile, a frame's worth, is laid as it is read).
+        if (caught.share < 1 || behind.inspect().bakes !== worked) {
+          cutNext = caught.share >= 1;
           if (shows) note(caught.share);
           return undrawn();
         }
       }
+      cutNext = false;
       const s = officeWeek.sim;
       for (const e of s.events.splice(0)) play(e);
       if (before.blast === null && mood.blast !== null) sfx.blast();
@@ -415,6 +442,7 @@
     raf = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(raf);
+      glEl.removeEventListener("webglcontextrestored", restored);
       document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("pagehide", hidden);
       gl?.dispose();

@@ -39,11 +39,11 @@ export const drawGarden = (pen: Pen, { since, seed, knocks, detail }: Friday, wa
   const sill = fixtureAt("window", since, seed, wall).on;
   const on = onWall(at(pen, Z.onWall), since, seed, wall);
   drawSillSnow(on, since, sill);
-  drawVines(on, since, seed);
+  drawVines(on, since, seed, detail);
   drawSticks(pen, since, seed);
   drawTrees(pen, since, seed, knocks, detail);
   drawSeeds(pen, since, seed);
-  drawGrass(pen, since, seed);
+  drawGrass(pen, since, seed, detail);
   drawFloorPlants(pen, since, seed, detail);
   drawApples(pen, since, seed, knocks, takenBy(since, seed, wall, knocks));
   drawSnowCaps(pen, since);

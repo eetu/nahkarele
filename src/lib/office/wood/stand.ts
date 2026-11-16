@@ -133,6 +133,26 @@ export const drawTrees = (pen: Pen, since: number, seed: number, knocks: Knocks,
     detail,
   );
 
+/** What drawing the trees and their seeds at `since` would do first, done ahead of it while `stop`
+ *  lets it (korpi's `Ahead`): each tree to be drawn read, baked (put up on the GPU `pen` draws to,
+ *  if it does) and its moves worked out, the seeds under it read. How much is done, 0..1. */
+export const treesAhead = (
+  pen: Pen,
+  since: number,
+  seed: number,
+  knocks: Knocks,
+  detail: number,
+  stop?: () => boolean,
+) =>
+  painter.ahead(
+    pen,
+    standFor(seed),
+    ROOM_VIEW,
+    since,
+    { wind: plantWind(seed), knocks, detail, drift: fridayAir(seed).drift },
+    stop,
+  );
+
 /** The cones and keys lying under the trees, and a maple's keys spinning down on the wind. */
 export const drawSeeds = (pen: Pen, since: number, seed: number) =>
   painter.seeds(pen, standFor(seed), ROOM_VIEW, since, fridayAir(seed).drift);

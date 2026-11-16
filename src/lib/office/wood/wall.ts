@@ -9,7 +9,7 @@
 // file is the room's side of it: the wall's numbers, its fixtures and where they land, and where
 // it stands in the room; korpi's painters paint what stands and what came off.
 
-import { mix, rgb, type Rgba } from "@anarkisti/korpi/core";
+import { mix, rgb, type Rgba, stopHeld } from "@anarkisti/korpi/core";
 import {
   climb,
   hanging,
@@ -231,6 +231,11 @@ export const paintWall = (
   setting: Setting,
 ) => wallFor(seed, setting).painter.paint(scene, view, since);
 
+/** What painting the wall at `since` would do first (its face painted anew), done ahead of it if
+ *  `stop` lets it (korpi's `Ahead`): 1 once it is. */
+export const wallAhead = (since: number, seed: number, setting: Setting, stop?: () => boolean) =>
+  wallFor(seed, setting).painter.ahead(ROOM_VIEW, since, {}, stop);
+
 /** Whether the wall still stands at scene pixel (x, y) `since` seconds into friday; below the
  *  masonry, the dado always does. */
 export const standsAt = (since: number, seed: number, setting: Setting) => {
@@ -325,6 +330,15 @@ export const heapAt = (wall: Wall, t: number, palette = WALL_PALETTE): Heap => {
 /** What has come off the wall `since` seconds into friday. */
 export const heapIn = (since: number, seed: number, setting: Setting) =>
   heapAt(wallFor(seed, setting).wall, since, PALETTE);
+
+/** What reading the heap `since` seconds into friday would do first (its world started afresh
+ *  after a jump, and stepped on to the moment), done ahead of it while `stop` lets it (korpi's
+ *  `Ahead`): 1 once it is there, the seek not stopped short. */
+export const heapAhead = (since: number, seed: number, setting: Setting, stop?: () => boolean) => {
+  const held = stopHeld(stop);
+  heapOf(wallFor(seed, setting).wall, PALETTE).tl.seek(since, { stop: held.ask });
+  return held.told() ? 0 : 1;
+};
 
 /** What has come off the wall `since` seconds into friday, falling or lying where it came to
  *  rest, each block at its depth and lit as the room is. */

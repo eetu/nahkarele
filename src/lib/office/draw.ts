@@ -1,4 +1,4 @@
-import { type CatchingUp, catchingUpOf, rgb } from "@anarkisti/korpi/core";
+import { type Ahead, type CatchingUp, catchingUpOf, rgb } from "@anarkisti/korpi/core";
 import type { Painting } from "@anarkisti/korpi/frame";
 import { further, type Light, type PointLight, rgb3, toward } from "@anarkisti/korpi/light";
 import type { Knock, Wall } from "@anarkisti/korpi/masonry";
@@ -52,10 +52,10 @@ import {
 import { crowAtJar, crowCue } from "./wood/crow";
 import { drawAir, drawGarden, drawGlow, drawLife } from "./wood/garden";
 import { firefliesAt } from "./wood/life";
-import { floorFor } from "./wood/meadow";
+import { floorFor, floorPlantsAhead } from "./wood/meadow";
 import { lightningAt, OUTSIDE_NIGHT, outsideNight, paintOutside } from "./wood/outside";
-import { drawCreeperOver, overgrown } from "./wood/overgrowth";
-import { type Knocks, standFor } from "./wood/stand";
+import { drawCreeperOver, overgrown, softAhead } from "./wood/overgrowth";
+import { type Knocks, standFor, treesAhead } from "./wood/stand";
 import {
   birdAt,
   birdCue as titCue,
@@ -70,6 +70,7 @@ import {
   fallRank,
   fixtureAt,
   grimed,
+  heapAhead,
   heapIn,
   landOf,
   paintHeap,
@@ -78,6 +79,7 @@ import {
   type Rect,
   rubbleCue,
   type Setting,
+  wallAhead,
   wallIn,
 } from "./wood/wall";
 import { wetFloor, windowAt } from "./wood/weather";
@@ -187,6 +189,17 @@ export const behindOf = (mood: Mood): CatchingUp => {
   return behind;
 };
 
+/** What a frame of friday's drawn at `detail` would do first, done ahead of it (korpi's `Ahead`):
+ *  the wall's face, the trees, the floor's plants and the soft plants baked, and put up on the GPU
+ *  `pen` draws to, if it does; the heap got to the moment. */
+export const aheadOf = (mood: Mood, detail: number, pen: Pen): Ahead[] => [
+  (t, stop) => wallAhead(t, mood.seed, wallOf(mood), stop),
+  (t, stop) => heapAhead(t, mood.seed, wallOf(mood), stop),
+  (t, stop) => treesAhead(pen, t, mood.seed, mood.knocks, detail, stop),
+  (t, stop) => floorPlantsAhead(pen, t, mood.seed, detail, stop),
+  (t, stop) => softAhead(pen, t, mood.seed, [FACES[1], FACES[2]], stop),
+];
+
 /** Where friday is heard from: six metres in front of the room's middle. */
 export const EAR = ROOM_VIEW.unproject(SCENE_W / 2, SCENE_H * 0.6, -6);
 
@@ -196,6 +209,12 @@ export type Signs = { muted: boolean; fullscreen: boolean | null };
  *  what is on the face is set from `bottom`. */
 const SLAB = { w: 44, top: 32, bottom: 150, foot: 153 };
 const AI_X = { 1: 6, 2: SCENE_W - 6 - SLAB.w } as const;
+/** Each slab's face as friday's creeper grows over it: up from its foot, as high as the face is
+ *  from `bottom`. */
+const FACES = {
+  1: { x: AI_X[1], top: SLAB.top + SLAB.foot - SLAB.bottom, bottom: SLAB.foot, w: SLAB.w },
+  2: { x: AI_X[2], top: SLAB.top + SLAB.foot - SLAB.bottom, bottom: SLAB.foot, w: SLAB.w },
+} as const;
 /** The desk: its top at `y`, its front down to `foot`, where it meets the floor (`Z.desk` out). */
 const DESK = { x: 104, w: 112, y: 118, foot: 154 };
 /** Friday's cake on the desk, and its candle's flame (the sprite's top two rows). */
@@ -355,7 +374,7 @@ const paintPay = (pen: Pen, s: OfficeState, mood: Mood) => {
 /** Runes, scrolling up the face of a slab on friday: from the glyphs the face carries. */
 const RUNES = "#%&*+=@$?<>^";
 
-const paintSlab = (pen: Pen, ai: 1 | 2, s: OfficeState, mood: Mood) => {
+const paintSlab = (pen: Pen, ai: 1 | 2, s: OfficeState, mood: Mood, detail: number) => {
   const x = AI_X[ai];
   const { w, top, bottom, foot } = SLAB;
   const slab = at(pen, Z.slab);
@@ -383,9 +402,7 @@ const paintSlab = (pen: Pen, ai: 1 | 2, s: OfficeState, mood: Mood) => {
   }
   fill(face, C.plate, x + 6, bottom - 16, w - 12, 9);
   paintText(face, `AI #${ai}`, x + w / 2, bottom - 15, C.plateText, { align: "center" });
-  // The ivy comes up from its foot, as high as the face is from `bottom`.
-  const ivy = at(pen, Z.ivy);
-  if (mood.after) drawCreeperOver(ivy, x, top + foot - bottom, foot, w, mood.since, mood.seed);
+  if (mood.after) drawCreeperOver(at(pen, Z.ivy), FACES[ai], mood.since, mood.seed, detail);
 };
 
 /** Friday's AIs talk directly: a crackling arc over the empty desk, face to face. */
@@ -716,8 +733,8 @@ export const paintOffice = (frame: Painting, s: OfficeState, mood: Mood, signs: 
           : 0;
     paintSprite(lit(at(pen, fixtureZ(name, rect, mood))), S[name], rect.x, rect.y, { frame });
   }
-  paintSlab(pen, 1, s, mood);
-  paintSlab(pen, 2, s, mood);
+  paintSlab(pen, 1, s, mood, frame.detail);
+  paintSlab(pen, 2, s, mood, frame.detail);
   paintDesk(pen, s, mood);
   if (mood.after) {
     const friday = {
