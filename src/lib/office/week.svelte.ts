@@ -18,6 +18,7 @@ import {
   type Tally,
   type Verdict,
 } from "./engine";
+import { keepStart, startOf } from "./keep";
 import { forgetStill } from "./still";
 
 export type Screen = "memo" | "shift" | "blast" | "review" | "loop";
@@ -42,18 +43,19 @@ const seed = () => Math.floor(Math.random() * 2 ** 31);
 const FRIDAY_KEY = "nahkarele:specialist:friday";
 
 const loadFriday = (): number | null => {
+  let stored: string | null = null;
   try {
-    const v = Number(localStorage.getItem(FRIDAY_KEY));
-    return Number.isFinite(v) && v > 0 ? v : null;
+    stored = localStorage.getItem(FRIDAY_KEY);
   } catch {
-    return null;
+    /* the cookie may still have it */
   }
+  return startOf(stored, typeof document === "undefined" ? "" : document.cookie);
 };
 
 /** Friday's wood is shaped by when friday began: the same through reloads, new each week. */
 const woodSeed = (at: number) => Math.floor(at / 1000) % 2 ** 31;
 
-const saveFriday = (at: number | null) => {
+const storeFriday = (at: number | null) => {
   try {
     if (at === null) {
       localStorage.removeItem(FRIDAY_KEY);
@@ -63,6 +65,12 @@ const saveFriday = (at: number | null) => {
   } catch {
     /* the wood then starts over on reload */
   }
+};
+
+/** Friday begun, come back to, or left (null): its start kept in the cookie too. */
+const saveFriday = (at: number | null) => {
+  storeFriday(at);
+  keepStart(at);
 };
 
 /** What has been done to this friday: apples shaken down, blocks poked out of the wall. */
@@ -286,20 +294,22 @@ class OfficeWeek {
   warp = (since: number) => {
     if (this.fridayAt === null) return;
     this.fridayAt = Date.now() - Math.max(0, since) * 1000;
-    saveFriday(this.fridayAt);
+    storeFriday(this.fridayAt);
     this.mood.since = Math.max(0, since);
   };
 
   /** Dev only: run friday's clock at `rate` (1 is real time). */
   setRate = (rate: number) => {
     this.rate = rate;
-    if (this.fridayAt !== null) saveFriday(this.fridayAt);
+    if (this.fridayAt !== null) storeFriday(this.fridayAt);
   };
 
-  /** Friday, once reached, is where the room stays: the loop picks up where the clock is. */
+  /** Friday, once reached, is where the room stays: the loop picks up where the clock is. Kept
+   *  again, so the cookie lasts 400 days from this visit and localStorage has it back. */
   resume = () => {
     const at = loadFriday();
     if (at === null) return;
+    saveFriday(at);
     this.fridayAt = at;
     this.day = OFFICE_DAYS.length - 1;
     this.mood = {

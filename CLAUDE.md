@@ -35,7 +35,8 @@ src/lib/tape/        orientation cassette: mechanics (from scene), canvas drawin
 src/lib/components/  factory/ · office/ · intro/ · dev/ (dev bar, shuttle); shared signs and icons
 src/routes/          / (front page) · /tehdas · /specialist · /workbench (dev only)
 static/              favicon.svg (icon source) + generated PNGs + manifest
-default.conf         nginx: SPA fallback, immutable caching for /_app/immutable
+default.conf         nginx: SPA fallback, immutable caching for /_app/immutable, friday's cookie
+                     (`/friday?at=`)
 docker/              optional Liwan tracker entrypoint (same as logo)
 ```
 
@@ -103,7 +104,10 @@ docker/              optional Liwan tracker entrypoint (same as logo)
 - **Friday in the office is a loop, not a day.** `mood.since` drives everything (grass, vines,
   bird, drone) as functions of time; there is nothing to finish. The trees (always an apple
   tree, plus five of birch, rowan, oak, maple, cherry, plum, spruce, pine) are generated from
-  `mood.seed`, so each friday grows its own wood and a reload keeps it. Trees are at the room's
+  `mood.seed`, so each friday grows its own wood and a reload keeps it. When friday began is
+  kept in localStorage and in a cookie nginx sets (`office/keep.ts`, `/friday`), which Safari
+  does not clear after seven days away as it does what a script stores; a visitor arriving at
+  the front page with it goes straight to friday (`hooks.client.ts`). Trees are at the room's
   scale (40 px to the metre, the desk's) and grow as trees do (korpi `plants`, `growth`): a tree's
   whole life is laid down once from its seed, stems gaining height and girth year by year,
   branches sprouting from each year's growth, the crown rising and what it leaves below dying
@@ -230,7 +234,9 @@ then scrub, retune or switch the wall to bricks, rubble or plaster, its heap at 
 `src/lib/tape/orientation.json`, then `uv run scripts/gen-tape.py` (Piper on mini, ffmpeg); it
 re-sings each line on held notes and writes `static/tape/orientation.mp3` + `tape.json` cues.
 Link card: `yarn dev`, then `SITE=http://localhost:5173 node scripts/gen-og.mjs` (borrows a
-playwright install, see the script) captures both rooms into `static/og.jpg`. The deer is drawn
+playwright install, see the script) captures both rooms into `static/og.jpg`. Friday's cookie:
+`yarn build && node scripts/check-friday.mjs` (dist/ with `/friday` stubbed, or `SITE=` the
+container) checks in Chromium that friday is found again from it alone. The deer is drawn
 by `scripts/deer.py` (body spans and marks, IK legs on the walk); a hand edit in dab is folded
 back into it until `node scripts/deer.mjs --check` finds no pixel apart, and `node
 scripts/deer.mjs` writes it.
