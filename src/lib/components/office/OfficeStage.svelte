@@ -349,9 +349,9 @@
         glEl.hidden = !onGpu;
         el.hidden = onGpu;
       }
-      // The live picture is there: the still comes down, and is kept again (at once, after a
-      // catch-up).
-      if (room.presented !== null) {
+      // The live picture is there (not korpi's still in its place): the still comes down, and is
+      // kept again (at once, after a catch-up).
+      if (room.presented === "gpu" || room.presented === "cpu") {
         if (!stilled.hidden) stilled.hidden = true;
         const caught = up;
         woke = NaN;

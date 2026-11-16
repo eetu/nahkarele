@@ -44,9 +44,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@anarkisti/korpi@npm:^0.6.1":
-  version: 0.6.1
-  resolution: "@anarkisti/korpi@npm:0.6.1"
+"@anarkisti/korpi@npm:^0.6.2":
+  version: 0.6.2
+  resolution: "@anarkisti/korpi@npm:0.6.2"
   dependencies:
     "@glowbox/lcd": "npm:^1.13.1"
     "@glowbox/neon": "npm:^1.13.1"
@@ -55,7 +55,7 @@ __metadata:
   peerDependenciesMeta:
     "@anarkisti/dab":
       optional: true
-  checksum: 10c0/5deb9d98fa414a5e224657fc6cab85577064b7328b1c76fc948fb9dea73bea28096fa716bd27a8031bd20f4939c827a725747ef6d5b3bf007b7b20a9d3691c77
+  checksum: 10c0/cdc6426869a0ba1201106ce9a9455ff94be7001ff412acd045cff06a76ebd2a77f4d34290c919a6e12b42ae40ded680ff3321912b22b713c79f9694c3e99d622
   languageName: node
   linkType: hard
 
@@ -1949,7 +1949,7 @@ __metadata:
   dependencies:
     "@anarkisti/dab": "npm:^0.2.4"
     "@anarkisti/eslint-config": "npm:^1.1.0"
-    "@anarkisti/korpi": "npm:^0.6.1"
+    "@anarkisti/korpi": "npm:^0.6.2"
     "@fontsource/inter": "npm:^5.3.0"
     "@fontsource/pixelify-sans": "npm:^5.3.0"
     "@fontsource/space-grotesk": "npm:^5.3.0"
