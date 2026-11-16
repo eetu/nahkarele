@@ -1,11 +1,9 @@
-// The last picture of friday's room, so that the room is never blank while the world catches up.
-// A phone waking finds its GL canvas empty (the context goes in the background), and the frame
-// that brings friday's world up to the clock takes seconds on a phone; a tab the browser threw
-// away comes back to nothing at all. A copy at scene pixels is taken off the canvas shown every
-// few seconds and saved as the page is hidden; until the live picture is back it is shown, dimmed
-// under a note of how far behind the world is.
+// Friday's last picture across a reload, and the note over it while the world catches up. korpi's
+// frame keeps the picture presented last (`Frame.still`) and shows it where the GPU's went (a GL
+// context lost in the background); a page hidden saves it here, and the tab loaded again gives it
+// back before its first frame.
 
-import { canvasPen } from "@anarkisti/korpi/paint";
+import { canvasPen, type Raster, raster } from "@anarkisti/korpi/paint";
 
 import { paintText, PIXEL_LINE, pixelTextWidth } from "$lib/scene/pixelfont";
 
@@ -47,85 +45,63 @@ export const forgetStill = () => {
   }
 };
 
-export type Still = {
-  /** The picture on `from` (the scene scaled up whole) at friday's `since`: taken in the task
-   *  that presented it, as a GL canvas keeps nothing once it is composited. */
-  keep: (from: HTMLCanvasElement, since: number) => void;
-  /** Onto `onto` (the scene's size): what was kept, dimmed, under a note of how far behind it is
-   *  of friday's clock at `now`; with nothing kept, the note on the room's dark. A cover with no
-   *  note is the picture alone. */
-  cover: (onto: CanvasRenderingContext2D, now: number | null) => void;
-  /** Saved for the tab loaded again, friday begun at `at`. */
-  save: (at: number) => void;
-  /** What was saved for friday begun at `at`, put back once its image is in. */
-  load: (at: number) => void;
-  /** Whether a picture is kept, or one is still loading. */
-  readonly kept: boolean;
-  readonly loading: boolean;
+/** `still`, friday `since` s in, saved for the tab loaded again, friday begun at `at`. */
+export const saveStill = (still: Raster, at: number, since: number) => {
+  const canvas = Object.assign(document.createElement("canvas"), {
+    width: still.w,
+    height: still.h,
+  });
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const bytes = new Uint8ClampedArray(
+    still.px.buffer as ArrayBuffer,
+    still.px.byteOffset,
+    still.px.byteLength,
+  );
+  ctx.putImageData(new ImageData(bytes, still.w, still.h), 0, 0);
+  try {
+    const saved: Saved = { at, since, png: canvas.toDataURL("image/png") };
+    localStorage.setItem(KEY, JSON.stringify(saved));
+  } catch {
+    /* the tab loaded again then starts on the room's dark */
+  }
 };
 
-export const stillOf = (): Still => {
-  const canvas = document.createElement("canvas");
-  canvas.width = SCENE_W;
-  canvas.height = SCENE_H;
-  const ctx = canvas.getContext("2d");
-  /** The moment kept, friday s, or null with nothing kept. */
-  let since: number | null = null;
-  let loading = false;
-  return {
-    keep: (from, at) => {
-      if (!ctx || !from.width || !from.height) return;
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(from, 0, 0, from.width, from.height, 0, 0, SCENE_W, SCENE_H);
-      since = at;
-    },
-    cover: (onto, now) => {
-      onto.imageSmoothingEnabled = false;
-      if (since === null) {
-        onto.fillStyle = GROUND;
-        onto.fillRect(0, 0, SCENE_W, SCENE_H);
-      } else onto.drawImage(canvas, 0, 0);
-      if (now === null) return;
-      onto.fillStyle = DIM;
-      onto.fillRect(0, 0, SCENE_W, SCENE_H);
-      const words = "catching up";
-      const amount = since === null ? "" : ` ${behindText(now - since)}`;
-      const x = Math.round((SCENE_W - pixelTextWidth(words + amount)) / 2);
-      const y = Math.round((SCENE_H - PIXEL_LINE) / 2);
-      const pen = canvasPen(onto);
-      paintText(pen, words, x, y, NOTE);
-      if (amount) paintText(pen, amount, x + pixelTextWidth(words), y, AMOUNT);
-    },
-    save: (at) => {
-      if (since === null) return;
-      try {
-        const saved: Saved = { at, since, png: canvas.toDataURL("image/png") };
-        localStorage.setItem(KEY, JSON.stringify(saved));
-      } catch {
-        /* the tab loaded again then starts on the room's dark */
-      }
-    },
-    load: (at) => {
-      const saved = savedStill();
-      if (!ctx || saved?.at !== at) return;
-      const { since: then, png } = saved;
-      const img = new Image();
-      loading = true;
-      img.onload = () => {
-        loading = false;
-        // Kept since it was asked for: what was taken is newer.
-        if (since !== null) return;
-        ctx.drawImage(img, 0, 0);
-        since = then;
-      };
-      img.onerror = () => (loading = false);
-      img.src = png;
-    },
-    get kept() {
-      return since !== null;
-    },
-    get loading() {
-      return loading;
-    },
+/** What was saved for friday begun at `at`, handed to `then` once its image is in, with the
+ *  moment it shows. Whether there is one coming. */
+export const loadStill = (at: number, then: (still: Raster, since: number) => void): boolean => {
+  const saved = savedStill();
+  if (saved?.at !== at) return false;
+  const img = new Image();
+  img.onload = () => {
+    const { width: w, height: h } = img;
+    const canvas = Object.assign(document.createElement("canvas"), { width: w, height: h });
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return;
+    ctx.drawImage(img, 0, 0);
+    const still = raster(w, h);
+    still.px.set(new Uint32Array(ctx.getImageData(0, 0, w, h).data.buffer));
+    then(still, saved.since);
   };
+  img.src = saved.png;
+  return true;
+};
+
+/** Onto `onto` (the scene's size, over the room): the picture under it dimmed, or with none the
+ *  room's dark, under a note of how far behind friday's world is, s (null: not known). */
+export const paintNote = (
+  onto: CanvasRenderingContext2D,
+  picture: boolean,
+  behind: number | null,
+) => {
+  onto.clearRect(0, 0, SCENE_W, SCENE_H);
+  onto.fillStyle = picture ? DIM : GROUND;
+  onto.fillRect(0, 0, SCENE_W, SCENE_H);
+  const words = "catching up";
+  const amount = behind === null ? "" : ` ${behindText(behind)}`;
+  const x = Math.round((SCENE_W - pixelTextWidth(words + amount)) / 2);
+  const y = Math.round((SCENE_H - PIXEL_LINE) / 2);
+  const pen = canvasPen(onto);
+  paintText(pen, words, x, y, NOTE);
+  if (amount) paintText(pen, amount, x + pixelTextWidth(words), y, AMOUNT);
 };
