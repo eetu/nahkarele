@@ -71,7 +71,7 @@ const floors = lru<number, Meadow>(8);
 
 /** `seed`'s floor under its stand (korpi's undergrowth): the grow-in in seven steps, then a year
  *  a step, each spot with the soil and headroom the room gives it there. */
-const floorFor = (seed: number): Meadow =>
+export const floorFor = (seed: number): Meadow =>
   floors.get(seed, () =>
     undergrowthOf({
       ...{ stand: standFor(seed), kinds: KINDS, floor: FLOOR, per: PER, keep },

@@ -12,7 +12,7 @@ import { SCENE_H, SCENE_W } from "./engine";
 /** The picture saved as the page is hidden, for the tab loaded again. */
 const KEY = "nahkarele:specialist:friday:still";
 
-type Saved = { at: number; since: number; png: string };
+type Saved = { at: number; png: string };
 
 /** The room's dark where nothing was kept, and the note's colours: halo's light text, the
  *  amount in its accent. */
@@ -20,14 +20,6 @@ const GROUND = "#1c1c1c";
 const DIM = "rgba(0, 0, 0, 0.45)";
 const NOTE = "#ededed";
 const AMOUNT = "#f78f08";
-
-/** How far behind, s, as the note says it: dry, a number and a unit. */
-export const behindText = (s: number): string => {
-  if (s < 90) return `${Math.max(1, Math.round(s))} s`;
-  if (s < 90 * 60) return `${Math.round(s / 60)} min`;
-  if (s < 36 * 3600) return `${Math.round(s / 3600)} h`;
-  return `${Math.round(s / 86400)} d`;
-};
 
 const savedStill = (): Saved | null => {
   try {
@@ -45,8 +37,8 @@ export const forgetStill = () => {
   }
 };
 
-/** `still`, friday `since` s in, saved for the tab loaded again, friday begun at `at`. */
-export const saveStill = (still: Raster, at: number, since: number) => {
+/** `still` saved for the tab loaded again, friday begun at `at`. */
+export const saveStill = (still: Raster, at: number) => {
   const canvas = Object.assign(document.createElement("canvas"), {
     width: still.w,
     height: still.h,
@@ -60,16 +52,16 @@ export const saveStill = (still: Raster, at: number, since: number) => {
   );
   ctx.putImageData(new ImageData(bytes, still.w, still.h), 0, 0);
   try {
-    const saved: Saved = { at, since, png: canvas.toDataURL("image/png") };
+    const saved: Saved = { at, png: canvas.toDataURL("image/png") };
     localStorage.setItem(KEY, JSON.stringify(saved));
   } catch {
     /* the tab loaded again then starts on the room's dark */
   }
 };
 
-/** What was saved for friday begun at `at`, handed to `then` once its image is in, with the
- *  moment it shows. Whether there is one coming. */
-export const loadStill = (at: number, then: (still: Raster, since: number) => void): boolean => {
+/** What was saved for friday begun at `at`, handed to `then` once its image is in. Whether there
+ *  is one coming. */
+export const loadStill = (at: number, then: (still: Raster) => void): boolean => {
   const saved = savedStill();
   if (saved?.at !== at) return false;
   const img = new Image();
@@ -81,27 +73,23 @@ export const loadStill = (at: number, then: (still: Raster, since: number) => vo
     ctx.drawImage(img, 0, 0);
     const still = raster(w, h);
     still.px.set(new Uint32Array(ctx.getImageData(0, 0, w, h).data.buffer));
-    then(still, saved.since);
+    then(still);
   };
   img.src = saved.png;
   return true;
 };
 
 /** Onto `onto` (the scene's size, over the room): the picture under it dimmed, or with none the
- *  room's dark, under a note of how far behind friday's world is, s (null: not known). */
-export const paintNote = (
-  onto: CanvasRenderingContext2D,
-  picture: boolean,
-  behind: number | null,
-) => {
+ *  room's dark, under a note of how far through catching up friday's world is, 0..1. */
+export const paintNote = (onto: CanvasRenderingContext2D, picture: boolean, share: number) => {
   onto.clearRect(0, 0, SCENE_W, SCENE_H);
   onto.fillStyle = picture ? DIM : GROUND;
   onto.fillRect(0, 0, SCENE_W, SCENE_H);
   const words = "catching up";
-  const amount = behind === null ? "" : ` ${behindText(behind)}`;
+  const amount = ` ${Math.floor(share * 100)}%`;
   const x = Math.round((SCENE_W - pixelTextWidth(words + amount)) / 2);
   const y = Math.round((SCENE_H - PIXEL_LINE) / 2);
   const pen = canvasPen(onto);
   paintText(pen, words, x, y, NOTE);
-  if (amount) paintText(pen, amount, x + pixelTextWidth(words), y, AMOUNT);
+  paintText(pen, amount, x + pixelTextWidth(words), y, AMOUNT);
 };

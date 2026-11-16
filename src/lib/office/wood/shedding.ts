@@ -3,6 +3,7 @@
 // tree's foot, settles flat, lies a few minutes and sinks into the moss. This is the room's
 // side of it: where on the floor a stick comes to rest, and a stick painted.
 
+import { fallTime } from "@anarkisti/korpi/motion";
 import type { Pen } from "@anarkisti/korpi/paint";
 import {
   type Life,
@@ -32,21 +33,26 @@ const DEADWOOD = ["#8c877e", "#7a756c", "#9a958b"];
 const BACK_LANE = [-0.25, 0.05] as const;
 const FRONT_LANE = [-0.05, 0.85] as const;
 
+/** What is seen to fall starts no higher than this, m: a quarter metre over the room's top. */
+const REACH = (ROOT_Y + 10) / PX_M;
+
 const sheddings = new WeakMap<Life, Shedding>();
 
-/** What `seed`'s `life` drops while it stands and the year turns. */
-const sheddingOf = (seed: number, life: Life): Shedding => {
+/** What `seed`'s `life` drops while it stands and the year turns, its life laid as far as it is
+ *  drawn at `t` (korpi's `archAt`, laid on in place as the tree grows): what drops by then is
+ *  known. */
+const sheddingOf = (seed: number, life: Life, t: number): Shedding => {
+  const stand = standFor(seed);
+  const arch = stand.archAt(life, t);
   const known = sheddings.get(life);
   if (known) return known;
-  const stand = standFor(seed);
   const spec: Shedding = {
-    arch: life.arch,
+    arch,
     timeOf: (age) => stand.timeOf(life, age),
     dies: stand.ageAt(life, life.dies),
     // What goes while the wood grows in, years in minutes, just goes.
     after: SEASONS_FROM,
-    // A quarter metre over the room's top.
-    reach: (ROOT_Y + 10) / PX_M,
+    reach: REACH,
     lane: inLane(life, true) ? FRONT_LANE : BACK_LANE,
     lies: LIES_S,
     sinks: SINKS_S,
@@ -54,6 +60,11 @@ const sheddingOf = (seed: number, life: Life): Shedding => {
   sheddings.set(life, spec);
   return spec;
 };
+
+/** The trees whose sticks may be falling or lying between `from` and `to`: up by `to`, and dead
+ *  no longer before `from` than a stick takes to come down and lie. */
+const sheddersIn = (seed: number, from: number, to: number): Life[] =>
+  livesTo(seed, to).filter((l) => l.born <= to && l.dies + fallTime(REACH) + LIES_S > from);
 
 /** One stick of `life`'s at `t`: falling, turning and drifting, then lying flat and sinking. */
 const drawStick = (pen: Pen, life: Life, spec: Shedding, s: Stick, t: number) => {
@@ -90,8 +101,8 @@ const drawStick = (pen: Pen, life: Life, spec: Shedding, s: Stick, t: number) =>
 
 /** The branches coming down or lying at the trees' feet, each at its own depth. */
 export const drawSticks = (pen: Pen, since: number, seed: number) => {
-  for (const life of livesTo(seed, since)) {
-    const spec = sheddingOf(seed, life);
+  for (const life of sheddersIn(seed, since, since)) {
+    const spec = sheddingOf(seed, life, since);
     for (const s of sticksAt(spec, since)) drawStick(pen, life, spec, s, since);
   }
 };
@@ -99,7 +110,7 @@ export const drawSticks = (pen: Pen, since: number, seed: number) => {
 /** Where branches landed between two moments of friday, scene x: for the sound. */
 export const shedCue = (from: number, to: number, seed: number): number[] => {
   if (to <= from) return [];
-  return livesTo(seed, to).flatMap((life) =>
-    stickCues(sheddingOf(seed, life), from, to).map((c) => (life.x + c.p.x) * PX_M),
+  return sheddersIn(seed, from, to).flatMap((life) =>
+    stickCues(sheddingOf(seed, life, to), from, to).map((c) => (life.x + c.p.x) * PX_M),
   );
 };

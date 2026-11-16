@@ -166,6 +166,9 @@ const wallFor = (seed: number, setting: Setting): Made => {
   return made;
 };
 
+/** `seed`'s wall in `setting`: laid down as far as it is read (korpi's `Laid`). */
+export const wallIn = (seed: number, setting: Setting): Wall => wallFor(seed, setting).wall;
+
 // --- Fixtures --------------------------------------------------------------------------
 
 /** When fixture `name` came off `wall`, if it has by `t`; else Infinity. */

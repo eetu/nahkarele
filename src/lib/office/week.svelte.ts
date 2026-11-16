@@ -137,11 +137,6 @@ class OfficeWeek {
     return this.fridayAt;
   }
 
-  /** Where friday's clock is now, s: ahead of `mood.since` while no frame has ticked it. */
-  get clock(): number {
-    return this.fridayAt === null ? 0 : (Date.now() - this.fridayAt) / 1000;
-  }
-
   /** A toilet break: the specialist leaves, the AIs talk directly, and the day speeds by. */
   toggleBreak = () => {
     if (this.screen !== "shift") return;

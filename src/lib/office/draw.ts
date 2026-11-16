@@ -1,7 +1,7 @@
-import { rgb } from "@anarkisti/korpi/core";
+import { type CatchingUp, catchingUpOf, rgb } from "@anarkisti/korpi/core";
 import type { Painting } from "@anarkisti/korpi/frame";
 import { further, type Light, type PointLight, rgb3, toward } from "@anarkisti/korpi/light";
-import type { Knock } from "@anarkisti/korpi/masonry";
+import type { Knock, Wall } from "@anarkisti/korpi/masonry";
 import { lit, type Pen, type Raster, shifted, wash } from "@anarkisti/korpi/paint";
 import { flashed } from "@anarkisti/korpi/sky";
 import { mirrorWet } from "@anarkisti/korpi/wet/paint";
@@ -52,9 +52,10 @@ import {
 import { crowAtJar, crowCue } from "./wood/crow";
 import { drawAir, drawGarden, drawGlow, drawLife } from "./wood/garden";
 import { firefliesAt } from "./wood/life";
+import { floorFor } from "./wood/meadow";
 import { lightningAt, OUTSIDE_NIGHT, outsideNight, paintOutside } from "./wood/outside";
 import { drawCreeperOver, overgrown } from "./wood/overgrowth";
-import type { Knocks } from "./wood/stand";
+import { type Knocks, standFor } from "./wood/stand";
 import {
   birdAt,
   birdCue as titCue,
@@ -77,6 +78,7 @@ import {
   type Rect,
   rubbleCue,
   type Setting,
+  wallIn,
 } from "./wood/wall";
 import { wetFloor, windowAt } from "./wood/weather";
 import { windAt } from "./wood/wind";
@@ -171,6 +173,21 @@ export const wallCue = (from: number, to: number, mood: Mood) =>
 
 /** What has come off the wall on friday, as korpi's world has it: for its landings. */
 export const heapOf = (mood: Mood) => heapIn(mood.since, mood.seed, wallOf(mood));
+
+const behinds = new WeakMap<Wall, CatchingUp>();
+
+/** Friday's histories, laid down as far as they are read (korpi's `Laid`): its wall, its floor
+ *  (its stand's lives first) and its trees, to be caught up over frames after a wake or a load.
+ *  The wall first: laid nowhere yet (a load), it cannot say how far it is laid until it has laid
+ *  a piece, nor the catching up how far through it is. */
+export const behindOf = (mood: Mood): CatchingUp => {
+  const wall = wallIn(mood.seed, wallOf(mood));
+  const known = behinds.get(wall);
+  if (known) return known;
+  const behind = catchingUpOf([wall, floorFor(mood.seed), standFor(mood.seed)]);
+  behinds.set(wall, behind);
+  return behind;
+};
 
 /** Where friday is heard from: six metres in front of the room's middle. */
 export const EAR = ROOM_VIEW.unproject(SCENE_W / 2, SCENE_H * 0.6, -6);

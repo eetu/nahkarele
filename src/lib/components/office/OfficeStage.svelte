@@ -1,5 +1,6 @@
 <script lang="ts">
   import { gapsOf } from "@anarkisti/korpi/clock";
+  import { budgetOf } from "@anarkisti/korpi/core";
   import { frameOf } from "@anarkisti/korpi/frame";
   import { glFrameOf } from "@anarkisti/korpi/gpu";
   import type { Snippet } from "svelte";
@@ -9,6 +10,7 @@
   import { leaveKey } from "$lib/keys";
   import { dockCue, PAD } from "$lib/office/charger";
   import {
+    behindOf,
     birdCue,
     crowCaws,
     EAR,
@@ -188,17 +190,17 @@
    *  shuttle, a frame of a year would sound all at once. */
   const HEARD_S = 10;
 
-  /** A frame begun this long after the one drawn before it, ms, follows a hidden page (a phone
-   *  asleep, another tab) or a load into friday: its clock has run on, and the frame that brings
-   *  the world up to it takes seconds on a phone, while a GL canvas whose context went in the
-   *  background shows nothing. The last picture goes up first, a frame of its own, so the
-   *  browser paints it before that frame starts. */
+  /** A frame begun this long after the one before it, ms, follows a hidden page (a phone asleep,
+   *  another tab) or a load into friday: its clock has run on, and what it has laid down (its
+   *  floor, its trees, its wall) is behind. Those are laid on within an allowance a frame, the
+   *  room's last picture up meanwhile under how far they have got, and the room is drawn again
+   *  once they are there. */
   const WAKE_MS = 1000;
+  /** That allowance, ms: frames at friday's pace (every other refresh) on a phone four times
+   *  slower than a laptop. */
+  const CATCH_MS = 20;
   /** A saved picture still loading is waited for so long, ms, before the room's dark goes up. */
   const LOAD_MS = 300;
-  /** The note goes up over the still once the world is this far behind, s, or on a load: closer,
-   *  it is caught up as soon as the still goes up. */
-  const NOTE_S = 30;
 
   /** What friday does from `from` to now that can be heard. */
   const playFriday = (from: number, mood: Mood) => {
@@ -246,24 +248,20 @@
     const noteCtx = noted.getContext("2d");
     /** The GPU's build the GL canvas's picture was presented by: one built since has lost it. */
     let shownBuild = -1;
-    /** The moment a picture saved for a tab loaded again shows, friday s, while it loads. */
-    let saved: number | null = null;
+    /** A picture saved for a tab loaded again, while it loads. */
     let loading =
       officeWeek.screen === "loop" &&
       officeWeek.started !== null &&
-      loadStill(officeWeek.started, (still, since) => {
+      loadStill(officeWeek.started, (still) => {
         loading = false;
         // A frame drawn since is newer.
-        if (!Number.isNaN(last)) return;
-        room.still = still;
-        saved = since;
+        if (Number.isNaN(last)) room.still = still;
       });
-    /** When the world was found behind its clock, ms, until a frame catches it up; whether the
-     *  still is up for it. */
+    /** When friday was found behind its clock, ms, until a frame draws it caught up. */
     let woke = NaN;
-    let up = false;
-    /** The GL canvas shown while the frame went there, the 2D one while it went there; a frame
-     *  presented nowhere changes nothing. */
+    const catchUp = budgetOf(CATCH_MS);
+    /** The canvas the frame went to shown, the GL one or the 2D one; a frame presented nowhere
+     *  changes nothing. */
     const showCanvas = () => {
       const onGpu = room.presented === "gpu";
       if (room.presented !== null && glEl.hidden === onGpu) {
@@ -272,27 +270,37 @@
       }
     };
     /** The room's last picture: the GL canvas keeps it while its context does, the 2D canvas its
-     *  own; else korpi's still goes onto the 2D canvas. */
+     *  own; else korpi's still goes onto the 2D canvas. Whether it was put up now. */
     const showStill = () => {
+      // Asked every frame: a GPU given back builds what it compiled meanwhile, not in the frame
+      // that draws the room again.
+      const ready = gl?.status === "ready";
       const kept =
         room.presented === "cpu" ||
-        (room.presented === "gpu" && gl?.status === "ready" && gl.inspect().builds === shownBuild);
-      if (kept) return;
+        room.presented === "still" ||
+        (room.presented === "gpu" && ready && gl?.inspect().builds === shownBuild);
+      if (kept) return false;
       ctx?.setTransform(1, 0, 0, 1, 0, 0);
       room.present(el.width / SCENE_W, { ctx });
       showCanvas();
+      return room.presented !== null;
     };
-    /** Over the room's picture, dimmed (or the room's dark with none), how far behind the world
-     *  is, s. */
-    const note = (behind: number | null) => {
+    /** Over the room's picture, dimmed (or the room's dark with none), how far through catching
+     *  up the world is, 0..1. */
+    const note = (share: number) => {
       if (!noteCtx) return;
-      paintNote(noteCtx, room.presented !== null, behind);
+      paintNote(noteCtx, room.presented !== null, share);
       noted.hidden = false;
+    };
+    /** A frame that drew nothing ended: the next asked for. */
+    const undrawn = () => {
+      ended = performance.now();
+      raf = requestAnimationFrame(frame);
     };
     // A page hidden saves its picture for a tab loaded again.
     const hidden = () => {
       if (officeWeek.screen !== "loop" || officeWeek.started === null || !room.still) return;
-      saveStill(room.still, officeWeek.started, officeWeek.mood.since);
+      saveStill(room.still, officeWeek.started);
     };
     const visibility = () => {
       if (document.visibilityState === "hidden") hidden();
@@ -306,28 +314,32 @@
         raf = requestAnimationFrame(frame);
         return;
       }
-      // Friday's clock ran on while no frame was drawn: the last picture goes up, and the world
-      // is caught up the frame after.
-      const behind = Number.isNaN(ended) || now - ended > WAKE_MS;
-      if (officeWeek.screen === "loop" && officeWeek.rate === 1 && Number.isNaN(woke) && behind)
+      // Friday's clock ran on while no frame was drawn: its histories are laid on from here.
+      const late = Number.isNaN(ended) || now - ended > WAKE_MS;
+      if (officeWeek.screen === "loop" && officeWeek.rate === 1 && Number.isNaN(woke) && late)
         woke = now;
-      if (!Number.isNaN(woke) && !up) {
-        if (!loading || now - woke > LOAD_MS) {
-          showStill();
-          const { clock, mood } = officeWeek;
-          const shows = Number.isNaN(last) ? saved : mood.since;
-          if (Number.isNaN(last) || clock - mood.since >= NOTE_S)
-            note(shows === null ? null : clock - shows);
-          up = true;
-        }
-        raf = requestAnimationFrame(frame);
-        return;
-      }
       const t0 = performance.now();
       const dt = gap(now / 1000);
       const { mood } = officeWeek;
       const before = { blast: mood.blast, since: mood.since };
       officeWeek.tick(dt);
+      const waking = !Number.isNaN(woke);
+      if (waking && mood.after) {
+        const shows = !loading || now - woke > LOAD_MS;
+        // The room's last picture up where its canvas lost it, a frame of its own so that it is
+        // painted before anything is laid or drawn.
+        if (shows && showStill()) {
+          note(0);
+          return undrawn();
+        }
+        catchUp.frame();
+        const caught = behindOf(mood).to(mood.since, catchUp);
+        // Behind still: the picture stays up under how far they have got.
+        if (caught.got < mood.since) {
+          if (shows) note(caught.share);
+          return undrawn();
+        }
+      }
       const s = officeWeek.sim;
       for (const e of s.events.splice(0)) play(e);
       if (before.blast === null && mood.blast !== null) sfx.blast();
@@ -380,12 +392,13 @@
         if (!noted.hidden) noted.hidden = true;
         if (room.presented === "gpu" && gl) shownBuild = gl.inspect().builds;
         woke = NaN;
-        up = false;
       }
-      // What the GPU took for its frames timed since, read every frame, and where this one went.
+      // What the GPU took for its frames timed since, read every frame, and where this one went;
+      // the first drawn after a wake tells nothing of the next.
       officeWeek.took({
         ms: performance.now() - t0,
         since: Number.isNaN(last) ? undefined : now - last,
+        bake: waking,
         presented: room.presented,
         gpu: gl?.took(),
       });
