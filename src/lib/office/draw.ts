@@ -34,7 +34,7 @@ import token from "$lib/sprites/token.json";
 import wc from "$lib/sprites/wc.json";
 
 import { BOX, dockAt, drawBox, drawChargerAt, drawChargerLightAt, PAD, roundAt } from "./charger";
-import { at, COVER, FLAT, floorZ, footAt, onFloor, ROOM_VIEW, Z } from "./depth";
+import { at, COVER, floorZ, footAt, onFloor, ROOM_VIEW, Z } from "./depth";
 import {
   AI_MOUTH,
   DESK_CAPACITY,
@@ -259,7 +259,7 @@ const paintRoom = (scene: Raster, pen: Pen, s: OfficeState, mood: Mood, sky: Sky
   else fill(wall, C.wall, 0, 97, SCENE_W, 1);
   fill(wall, C.trim, 0, 98, SCENE_W, 2);
   fill(wall, C.wallLow, 0, 100, SCENE_W, FLOOR_Y - 100);
-  const floor = ruin(onFloor(pen, FLAT.floor));
+  const floor = ruin(onFloor(pen));
   fill(floor, C.floor, 0, FLOOR_Y, SCENE_W, SCENE_H - FLOOR_Y);
   for (let y = FLOOR_Y + 6; y < SCENE_H; y += 8) fill(floor, C.floorLine, 0, y, SCENE_W, 1);
   const hung = ruin(at(pen, Z.hung));

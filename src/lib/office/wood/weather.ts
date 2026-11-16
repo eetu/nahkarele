@@ -14,6 +14,7 @@ import {
   paintSnowfall,
   paintSnowGround,
 } from "@anarkisti/korpi/sky/paint";
+import { FLAT } from "@anarkisti/korpi/view";
 import { heldAt, type Rainfall, rainingFrom } from "@anarkisti/korpi/wet";
 import type { WetGround } from "@anarkisti/korpi/wet/paint";
 
@@ -21,7 +22,7 @@ import { fill, paintRaster } from "$lib/scene/pen";
 import { hash, ramp } from "$lib/scene/pixel";
 import type { Weather } from "$lib/scene/sky";
 
-import { at, FLAT, floorZ, onFloor, OUTSIDE_Z, PX_M, ROOM_VIEW, Z } from "../depth";
+import { at, floorZ, onFloor, OUTSIDE_Z, PX_M, ROOM_VIEW, Z } from "../depth";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
 import { dayAt } from "./daylight";
 import { mossOver } from "./moss";

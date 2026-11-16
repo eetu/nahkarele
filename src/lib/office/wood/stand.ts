@@ -9,11 +9,11 @@
 
 import { lru } from "@anarkisti/korpi/core";
 import { APPLE, TREES } from "@anarkisti/korpi/flora";
-import { floored, type Pen } from "@anarkisti/korpi/paint";
+import type { Pen } from "@anarkisti/korpi/paint";
 import { type Life, type Pt, type Slot, type Stand, standOf } from "@anarkisti/korpi/plants";
 import { drawFruit, standPainterOf, type Taken } from "@anarkisti/korpi/plants/paint";
 
-import { FLOOR_DEPTHS, floorZ, PX_M, ROOM_VIEW } from "../depth";
+import { floorZ, PX_M, ROOM_VIEW } from "../depth";
 import { FLOOR_Y, SCENE_W } from "../engine";
 import { FRIDAY, SEASON_S, SEASONS_FROM } from "./seasons";
 import { fridayAir, plantWind } from "./wind";
@@ -123,26 +123,12 @@ export const drawTrees = (pen: Pen, since: number, seed: number, knocks: Knocks,
 
 /** The cones and keys lying under the trees, and a maple's keys spinning down on the wind. */
 export const drawSeeds = (pen: Pen, since: number, seed: number) =>
-  painter.seeds(
-    floored(pen, FLOOR_DEPTHS),
-    standFor(seed),
-    ROOM_VIEW,
-    since,
-    fridayAir(seed).drift,
-  );
+  painter.seeds(pen, standFor(seed), ROOM_VIEW, since, fridayAir(seed).drift);
 
 /** The apples, hanging, falling, and lying in the grass where they came down; what was `taken`
  *  stays away. */
 export const drawApples = (pen: Pen, since: number, seed: number, knocks: Knocks, taken?: Taken) =>
-  painter.fruit(
-    floored(pen, FLOOR_DEPTHS),
-    standFor(seed),
-    ROOM_VIEW,
-    since,
-    plantWind(seed),
-    knocks,
-    taken,
-  );
+  painter.fruit(pen, standFor(seed), ROOM_VIEW, since, plantWind(seed), knocks, taken);
 
 /** A tree giving way at its foot, or landing, at scene x. */
 type Fell = { x: number; kind: "crack" | "crash" };

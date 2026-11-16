@@ -15,11 +15,12 @@ import {
   rustleOf,
 } from "@anarkisti/korpi/plants";
 import { paintClimberParts, paintGrassParts, posePx } from "@anarkisti/korpi/plants/paint";
+import { FLAT } from "@anarkisti/korpi/view";
 
 import { colourOf } from "$lib/scene/pen";
 import { hash, shuffled, smooth } from "$lib/scene/pixel";
 
-import { FLAT, floorZ, onFloor, PX_M } from "../depth";
+import { floorZ, onFloor, PX_M } from "../depth";
 import { FLOOR_Y } from "../engine";
 import { drawMoss as drawFloorMoss, floorMossOf } from "./moss";
 import { drawPosed, type Painter } from "./posed";
@@ -73,7 +74,7 @@ const VINES = [
 /** The cracks, a pixel wide, point to point, in the floor. */
 export const drawCracks = (pen: Pen) => {
   const c = colourOf(CRACK);
-  const floor = onFloor(pen, FLAT.cracks);
+  const floor = onFloor(pen, FLAT.marks);
   for (const run of CRACKS) {
     for (let i = 1; i < run.length; i++) line(floor, c, ...run[i - 1], ...run[i]);
   }

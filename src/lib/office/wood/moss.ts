@@ -10,7 +10,7 @@ import type { SurfaceGrid } from "@anarkisti/korpi/wet/paint";
 
 import { hash } from "$lib/scene/pixel";
 
-import { FLAT, floorZ, PX_M, ROOM_VIEW, SLOPE } from "../depth";
+import { floorZ, PX_M, ROOM_VIEW, SLOPE } from "../depth";
 import { FLOOR_Y, SCENE_H, SCENE_W } from "../engine";
 import { lookAt, seasonAt } from "./seasons";
 
@@ -43,16 +43,7 @@ export const drawMoss = (
   since: number,
   seed: number,
   sources: readonly (readonly [number, number])[],
-) =>
-  painter.lay(
-    pen,
-    floorMossOf(seed, sources),
-    ROOM_VIEW,
-    { x: 0, z: 0 },
-    since,
-    lookAt(since),
-    FLAT.moss,
-  );
+) => painter.lay(pen, floorMossOf(seed, sources), ROOM_VIEW, { x: 0, z: 0 }, since, lookAt(since));
 
 /** Where `moss` has come by `since` over the floor, in the room's metres (x across, z out from
  *  the wall, a node a moss cell apart): 1 where it has. The moss lies in the floor as the view

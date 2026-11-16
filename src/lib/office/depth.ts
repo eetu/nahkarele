@@ -6,7 +6,7 @@
 
 import { coverOf } from "@anarkisti/korpi/light";
 import { floored, type Pen, shifted } from "@anarkisti/korpi/paint";
-import { floorDepths, groundDepth, linesOf, obliqueView } from "@anarkisti/korpi/view";
+import { floorDepths, obliqueView } from "@anarkisti/korpi/view";
 
 import { FLOOR_Y, SCENE_H, SCENE_W } from "./engine";
 
@@ -67,38 +67,15 @@ export const Z = {
   fireflies: 1.2,
 } as const;
 
-/** What lies flat on the floor, how far over it, m: each a hair over the one before, all under
- *  what stands on it (`FLOOR_DEPTHS`, a millimetre nearer in depth, a quarter of one in height). */
-export const FLAT = { floor: 0, moss: 2.5e-5, cracks: 5e-5, litter: 7.5e-5, snow: 1e-4 } as const;
-
 /** `pen` at `z` m out. */
 export const at = (pen: Pen, z: number): Pen => shifted(pen, { dd: -z });
 
-/** The rows a fill covers, as the raster pen rounds them. */
-const rows = (y: number, h: number): [number, number] => [Math.round(y), Math.round(y + h)];
+/** `pen` (in scene px) laying what is flat on the floor `lift` m over it (korpi's `FLAT`): what it
+ *  paints at the wall or under the floor lies on the floor, at the depth ground that high has. */
+export const onFloor = (pen: Pen, lift = 0): Pen => floored(pen, floorDepths(ROOM_VIEW, lift));
 
-const LINES = linesOf(ROOM_VIEW);
-
-/**
- * `pen` (in scene px) laying what is flat on the floor, `lift` m over it: every row at the depth
- * ground that high is seen at there (korpi's `groundDepth`, as its moss and wet mirror take it),
- * whatever depth it is given.
- */
-export const onFloor = (pen: Pen, lift = 0): Pen => {
-  const d = (y: number) => groundDepth(LINES, lift, y + 0.5);
-  const out: Pen = {
-    fill: (c, x, y, w = 1, h = 1) => {
-      const [y0, y1] = rows(y, h);
-      for (let r = y0; r < y1; r++) pen.fill(c, x, r, w, 1, d(r));
-    },
-    span: (c, x0, x1, y) => pen.span(c, x0, x1, y, d(Math.round(y)), 0),
-  };
-  const { glowing } = pen;
-  return glowing ? { ...out, glowing: (g) => onFloor(glowing(g), lift) } : out;
-};
-
-/** The floor as the room's view draws it, a millimetre nearer: what is drawn through korpi's
- *  `floored` over it reaches no deeper (a leaf below its root, an apple's lower half lie on it). */
+/** The floor as high as what stands on it reaches (korpi's `ON_FLOOR`, over all that lies flat):
+ *  what is drawn through korpi's `floored` over it reaches no deeper (a leaf below its root). */
 export const FLOOR_DEPTHS = floorDepths(ROOM_VIEW);
 
 /** `pen` (in scene px) for something standing on the floor `z` m out. */
