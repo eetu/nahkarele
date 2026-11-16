@@ -10,7 +10,6 @@
 // it stands in the room; korpi's painters paint what stands and what came off.
 
 import { mix, rgb, type Rgba } from "@anarkisti/korpi/core";
-import type { Landing } from "@anarkisti/korpi/impacts";
 import {
   climb,
   hanging,
@@ -263,7 +262,7 @@ export const onWall = (pen: Pen, since: number, seed: number, setting: Setting):
   masked(pen, standingMask(since, seed, setting));
 
 /** Where the fixtures landed between two moments of friday, scene x: for the thuds. What came
- *  off the wall is heard as it lands in the heap (`heapLandings`). */
+ *  off the wall is heard as it lands in the heap (its world's `landings`). */
 export const rubbleCue = (from: number, to: number, seed: number, setting: Setting): number[] =>
   wallFor(seed, setting)
     .wall.cues(from, to)
@@ -328,14 +327,6 @@ export const heapIn = (since: number, seed: number, setting: Setting) =>
  *  rest, each block at its depth and lit as the room is. */
 export const paintHeap = (pen: Pen, since: number, seed: number, setting: Setting) =>
   heapIn(since, seed, setting).things.paint(pen, ROOM_VIEW, since);
-
-/** What came off the wall landing between two moments of friday, as korpi's world has it. */
-export const heapLandings = (
-  from: number,
-  to: number,
-  seed: number,
-  setting: Setting,
-): readonly Landing[] => heapIn(to, seed, setting).things.landings(from, to);
 
 /** How long after a poke its block goes, s: long enough to bake the wall again first. */
 const POKE_LEAD = 0.15;

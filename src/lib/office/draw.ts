@@ -69,7 +69,7 @@ import {
   fallRank,
   fixtureAt,
   grimed,
-  heapLandings,
+  heapIn,
   landOf,
   paintHeap,
   paintWall,
@@ -169,9 +169,8 @@ const fixtureZ = (name: Fixture, rect: Rect, mood: Mood) => {
 export const wallCue = (from: number, to: number, mood: Mood) =>
   rubbleCue(from, to, mood.seed, wallOf(mood));
 
-/** What came off the wall landing between two moments of friday, as korpi's world has it. */
-export const heapCue = (from: number, to: number, mood: Mood) =>
-  heapLandings(from, to, mood.seed, wallOf(mood));
+/** What has come off the wall on friday, as korpi's world has it: for its landings. */
+export const heapOf = (mood: Mood) => heapIn(mood.since, mood.seed, wallOf(mood));
 
 /** Where friday is heard from: six metres in front of the room's middle. */
 export const EAR = ROOM_VIEW.unproject(SCENE_W / 2, SCENE_H * 0.6, -6);

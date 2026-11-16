@@ -3,9 +3,7 @@
 // and until then every call is a no-op: a frame loop can call freely from the first frame.
 
 import { type Audio, audioOn } from "@anarkisti/korpi/audio";
-import type { V3 } from "@anarkisti/korpi/core";
-import type { Landing } from "@anarkisti/korpi/impacts";
-import { hearLandings } from "@anarkisti/korpi/impacts/sound";
+import { listenerOf } from "@anarkisti/korpi/impacts/sound";
 
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
 /** The Audio Session API (Safari 17+), not yet in TypeScript's DOM types. */
@@ -87,9 +85,8 @@ class Sfx {
   #master: GainNode | null = null;
   #noise: AudioBuffer | null = null;
   #beds = new Map<BedName, Bed>();
-  /** korpi's voices, on the same context through a gain of their own; the landings heard last. */
+  /** korpi's voices, on the same context through a gain of their own. */
   #korpi: Audio | null = null;
-  #landed: readonly Landing[] = [];
 
   /** The running context, or null before the first gesture and while muted or hidden. */
   #live(): AudioContext | null {
@@ -740,15 +737,14 @@ class Sfx {
     this.#hiss(ctx, t + 0.08, { filter: "bandpass", f0: 2600, q: 2, peak: 0.02, dur: 0.3, pan });
   }
 
-  /** What came off friday's wall landing, as korpi voices it (each block struck by what it landed
-   *  on), heard at `ear`: the loudest few, those heard a frame ago standing for quieter ones
-   *  close after them. */
-  landings(landed: readonly Landing[], ear: V3) {
-    const ctx = this.#live();
-    if (!ctx || !landed.length) return;
-    this.#korpi ??= audioOn(ctx);
-    this.#landed = hearLandings(this.#korpi, landed, ear, { before: this.#landed });
-  }
+  /** What lands in a world of korpi's (what came off friday's wall), as korpi voices it (each
+   *  block struck by what it landed on): the loudest few, while the sound is live. */
+  landings = listenerOf({
+    audio: () => {
+      const ctx = this.#live();
+      return ctx && (this.#korpi ??= audioOn(ctx));
+    },
+  });
 
   /** A dead branch landing on the floor: a dry tick and a soft knock. */
   twig(pan = 0) {

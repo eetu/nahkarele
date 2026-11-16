@@ -9,7 +9,6 @@ import {
   fixtureAt,
   floatingAt,
   heapIn,
-  heapLandings,
   onWall,
   paintWall,
   pokeAt,
@@ -50,7 +49,8 @@ describe("the back wall", () => {
   it("is heard landing, frame by frame through the blast", () => {
     for (const seed of [4, 5]) {
       let heard = 0;
-      for (let k = 1; k <= 600; k++) heard += heapLandings((k - 1) / 30, k / 30, seed, WALL).length;
+      for (let k = 1; k <= 600; k++)
+        heard += heapIn(k / 30, seed, WALL).things.landings((k - 1) / 30, k / 30).length;
       expect(heard).toBeGreaterThan(0);
     }
   });
