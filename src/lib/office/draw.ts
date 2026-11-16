@@ -176,15 +176,13 @@ export const heapOf = (mood: Mood) => heapIn(mood.since, mood.seed, wallOf(mood)
 
 const behinds = new WeakMap<Wall, CatchingUp>();
 
-/** Friday's histories, laid down as far as they are read (korpi's `Laid`): its wall, its floor
- *  (its stand's lives first) and its trees, to be caught up over frames after a wake or a load.
- *  The wall first: laid nowhere yet (a load), it cannot say how far it is laid until it has laid
- *  a piece, nor the catching up how far through it is. */
+/** Friday's histories, laid down as far as they are read (korpi's `Laid`): its floor, its trees
+ *  and its wall, to be caught up over frames after a wake or a load. */
 export const behindOf = (mood: Mood): CatchingUp => {
   const wall = wallIn(mood.seed, wallOf(mood));
   const known = behinds.get(wall);
   if (known) return known;
-  const behind = catchingUpOf([wall, floorFor(mood.seed), standFor(mood.seed)]);
+  const behind = catchingUpOf([floorFor(mood.seed), standFor(mood.seed), wall]);
   behinds.set(wall, behind);
   return behind;
 };

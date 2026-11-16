@@ -79,6 +79,8 @@ export const floorFor = (seed: number): Meadow =>
       room: roomAt,
       steps: { n: 7, every: 40 },
       growIn: { years: 5, by: SEASONS_FROM },
+      // A day back it remembers; further, it grows again from bare plots, the same for an hour.
+      forget: { horizon: 86400, period: 3600 },
     }),
   );
 

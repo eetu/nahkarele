@@ -1,74 +1,21 @@
-// Friday's trees shed what they have outgrown (korpi's `sticksOf`): a branch the rising crown
+// Friday's trees shed what they have outgrown (korpi's stand sticks): a branch the rising crown
 // has left below dies, hangs on a while, and comes down, turning as it falls, lands at its
 // tree's foot, settles flat, lies a few minutes and sinks into the moss. This is the room's
-// side of it: where on the floor a stick comes to rest, and a stick painted.
+// side of it: a stick painted.
 
-import { fallTime } from "@anarkisti/korpi/motion";
 import type { Pen } from "@anarkisti/korpi/paint";
-import {
-  type Life,
-  type Shedding,
-  type Stick,
-  stickAt,
-  stickCues,
-  sticksAt,
-} from "@anarkisti/korpi/plants";
+import type { Life, Stick, StickAt } from "@anarkisti/korpi/plants";
 
 import { fill } from "$lib/scene/pen";
 
 import { PX_M, ROOM_VIEW, standing } from "../depth";
-import { SEASONS_FROM } from "./seasons";
-import { inLane, livesTo, ROOT_Y, standFor } from "./stand";
+import { standFor } from "./stand";
 
-/** A fallen branch lies this long, s, sinking into the moss over the last of it. */
-const LIES_S = 300;
-const SINKS_S = 90;
 const DEADWOOD = ["#8c877e", "#7a756c", "#9a958b"];
 
-/**
- * Where a stick comes to rest, m toward the viewer from its tree's root: behind the furniture at
- * the wall's foot, from two rows back to the root's row; in front, anywhere from the root's row
- * to eight rows nearer. Half a row either side of those, so each row is as likely.
- */
-const BACK_LANE = [-0.25, 0.05] as const;
-const FRONT_LANE = [-0.05, 0.85] as const;
-
-/** What is seen to fall starts no higher than this, m: a quarter metre over the room's top. */
-const REACH = (ROOT_Y + 10) / PX_M;
-
-const sheddings = new WeakMap<Life, Shedding>();
-
-/** What `seed`'s `life` drops while it stands and the year turns, its life laid as far as it is
- *  drawn at `t` (korpi's `archAt`, laid on in place as the tree grows): what drops by then is
- *  known. */
-const sheddingOf = (seed: number, life: Life, t: number): Shedding => {
-  const stand = standFor(seed);
-  const arch = stand.archAt(life, t);
-  const known = sheddings.get(life);
-  if (known) return known;
-  const spec: Shedding = {
-    arch,
-    timeOf: (age) => stand.timeOf(life, age),
-    dies: stand.ageAt(life, life.dies),
-    // What goes while the wood grows in, years in minutes, just goes.
-    after: SEASONS_FROM,
-    reach: REACH,
-    lane: inLane(life, true) ? FRONT_LANE : BACK_LANE,
-    lies: LIES_S,
-    sinks: SINKS_S,
-  };
-  sheddings.set(life, spec);
-  return spec;
-};
-
-/** The trees whose sticks may be falling or lying between `from` and `to`: up by `to`, and dead
- *  no longer before `from` than a stick takes to come down and lie. */
-const sheddersIn = (seed: number, from: number, to: number): Life[] =>
-  livesTo(seed, to).filter((l) => l.born <= to && l.dies + fallTime(REACH) + LIES_S > from);
-
-/** One stick of `life`'s at `t`: falling, turning and drifting, then lying flat and sinking. */
-const drawStick = (pen: Pen, life: Life, spec: Shedding, s: Stick, t: number) => {
-  const at = stickAt(spec, s, t);
+/** One stick of `life`'s, `at` where it is: falling, turning and drifting, then lying flat and
+ *  sinking. */
+const drawStick = (pen: Pen, life: Life, s: Stick, at: StickAt) => {
   const into = standing(pen, life.z + (at.down ? s.z : at.z));
   const where = (y: number, z: number) => ROOM_VIEW.project({ x: life.x + at.x, y, z: life.z + z });
   // Turned as seen: + clockwise.
@@ -101,16 +48,11 @@ const drawStick = (pen: Pen, life: Life, spec: Shedding, s: Stick, t: number) =>
 
 /** The branches coming down or lying at the trees' feet, each at its own depth. */
 export const drawSticks = (pen: Pen, since: number, seed: number) => {
-  for (const life of sheddersIn(seed, since, since)) {
-    const spec = sheddingOf(seed, life, since);
-    for (const s of sticksAt(spec, since)) drawStick(pen, life, spec, s, since);
-  }
+  for (const { life, stick, at } of standFor(seed).sticksAt(since)) drawStick(pen, life, stick, at);
 };
 
 /** Where branches landed between two moments of friday, scene x: for the sound. */
-export const shedCue = (from: number, to: number, seed: number): number[] => {
-  if (to <= from) return [];
-  return sheddersIn(seed, from, to).flatMap((life) =>
-    stickCues(sheddingOf(seed, life, to), from, to).map((c) => (life.x + c.p.x) * PX_M),
-  );
-};
+export const shedCue = (from: number, to: number, seed: number): number[] =>
+  standFor(seed)
+    .stickCues(from, to)
+    .map((c) => c.p.x * PX_M);

@@ -4,8 +4,8 @@
 // top of the room in time. A slot keeps a tree for good: one lives its years, dies standing,
 // goes over and lies rotting into the floor, and a sapling of another kind comes up in the gap
 // (an apple tree's gap grows an apple tree). This is the room's side of it: where the slots
-// are, what the room's view cuts off, which trees stand in front of the furniture, and the
-// apple tree's tap.
+// are, what the room's view cuts off, which trees stand in front of the furniture, where what
+// they shed comes to rest, and the apple tree's tap.
 
 import { lru } from "@anarkisti/korpi/core";
 import { APPLE, TREES } from "@anarkisti/korpi/flora";
@@ -30,6 +30,14 @@ export const ROOT_Y = FLOOR_Y + 3;
 export const FRONT_ROOT_Y = FLOOR_Y + 6;
 
 /**
+ * Where a stick comes to rest, m toward the viewer from its tree's root: behind the furniture at
+ * the wall's foot, from two rows back to the root's row; in front, anywhere from the root's row
+ * to eight rows nearer. Half a row either side of those, so each row is as likely.
+ */
+const BACK_LANE = [-0.25, 0.05] as const;
+const FRONT_LANE = [-0.05, 0.85] as const;
+
+/**
  * Where the trees come up, at the cracks, world m, and when, s; their kind and shape come from
  * the seed. Those clear of the desk stand in `front` of the furniture (their feet are nearer
  * than the slabs' and the desk's); those behind the desk keep behind it, so the desk still
@@ -42,7 +50,11 @@ const SLOTS: (Slot & { front: boolean })[] = [
   { x: 4.75, start: 75, front: false },
   { x: 5.8, start: 55, front: true },
   { x: 6.55, start: 120, front: true },
-].map((s) => ({ ...s, z: floorZ(s.front ? FRONT_ROOT_Y : ROOT_Y) }));
+].map((s) => ({
+  ...s,
+  z: floorZ(s.front ? FRONT_ROOT_Y : ROOT_Y),
+  lane: s.front ? FRONT_LANE : BACK_LANE,
+}));
 
 /** Whether `life` stands in front of the furniture or behind it. */
 export const inLane = (life: Life, front: boolean) => SLOTS[life.slot].front === front;
@@ -79,6 +91,9 @@ export const standFor = (seed: number): Stand =>
       // What comes down lands whole in view, on the floor (rows 152 to 167).
       bounds: [2 / PX_M, (SCENE_W - 3) / PX_M],
       depth: [0.2, 1.7],
+      // A fallen branch lies five minutes, sinking into the moss over the last minute and a half;
+      // what starts a quarter metre over the room's top is never seen to fall.
+      sticks: { lies: 300, sinks: 90, reach: (ROOT_Y + 10) / PX_M },
     }),
   );
 
@@ -87,9 +102,6 @@ export const standing = (seed: number, since: number): Life[] => standFor(seed).
 
 /** What is going over or lying where it fell. */
 export const fallen = (seed: number, since: number): Life[] => standFor(seed).fallen(since);
-
-/** Every tree there has been by `since`, and the next of each slot. */
-export const livesTo = (seed: number, since: number): Life[] => standFor(seed).lives(since);
 
 /** A point of `life`'s own (m, y up from its root) in scene px. */
 export const sceneOf = (life: Life, p: Pt): Pt => {
