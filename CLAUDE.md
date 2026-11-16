@@ -104,7 +104,10 @@ docker/              optional Liwan tracker entrypoint (same as logo)
 - **Friday in the office is a loop, not a day.** `mood.since` drives everything (grass, vines,
   bird, drone) as functions of time; there is nothing to finish. The trees (always an apple
   tree, plus five of birch, rowan, oak, maple, cherry, plum, spruce, pine) are generated from
-  `mood.seed`, so each friday grows its own wood and a reload keeps it. Trees are at the room's
+  `mood.seed`, so each friday grows its own wood and a reload keeps it. When friday began is
+  kept in localStorage and in a cookie nginx sets (`office/keep.ts`, `/friday`), which Safari
+  does not clear after seven days away as it does what a script stores; a visitor arriving at
+  the front page with it goes straight to friday (`hooks.client.ts`). Trees are at the room's
   scale (40 px to the metre, the desk's) and grow as trees do (korpi `plants`, `growth`): a tree's
   whole life is laid down once from its seed, stems gaining height and girth year by year,
   branches sprouting from each year's growth, the crown rising and what it leaves below dying
