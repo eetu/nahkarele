@@ -20,7 +20,6 @@ import {
   type Pace,
   releasedBy,
   type Spec,
-  stands,
   type Wall,
   type WallInput,
   wallOf,
@@ -148,6 +147,12 @@ const landIn =
   (name: string, x: number, w: number): number =>
     setting.before?.includes(name) ? NEAR_FLOOR : restOn(setting.fronts, x, w, FLOOR_Y + 1);
 
+/** What comes out of the wall's face lies no further out than this, m: a block 20 cm deep stays
+ *  behind the AIs' faces and the desk (35 cm out and on), whose feet the world does not know.
+ *  What drops in the wall's own depths lies on its feet (the dado's top), where it is seen and
+ *  stays. */
+export const RUNOUT = 0.12;
+
 /** A wall as friday keeps it: baked once, with its painter and what stood of it last asked. */
 type Made = { wall: Wall; painter: WallPainter; standing: { key: string; mask: PenMask } | null };
 
@@ -159,7 +164,10 @@ const wallFor = (seed: number, setting: Setting): Made => {
   walls.set(spec, bySeed);
   const known = bySeed.get(seed);
   if (known) return known;
-  const wall = wallOf({ spec, seed, at: AT, pace: FRIDAY_PACE, land: landIn(setting) });
+  const wall = wallOf({
+    ...{ spec, seed, at: AT, pace: FRIDAY_PACE },
+    ...{ land: landIn(setting), runout: RUNOUT },
+  });
   const made: Made = { wall, painter: wallPainter(wall, { palette: PALETTE }), standing: null };
   bySeed.set(seed, made);
   if (bySeed.size > 4) bySeed.delete(bySeed.keys().next().value as number);
@@ -278,9 +286,6 @@ export const rubbleCue = (from: number, to: number, seed: number, setting: Setti
 
 // --- What came off it ---------------------------------------------------------------------
 
-/** What comes out of the wall's face lies no further out than this, m: a block 20 cm deep stays
- *  behind the AIs' faces and the desk (35 cm out and on), whose feet the world does not know. */
-const RUNOUT = 0.12;
 /** The world is stepped up to this far at once, s; jumped further, korpi's timeline starts it
  *  afresh: after a while played (a reload, a phone waking) this long before the moment, so what
  *  was falling then is still falling; straight after another jump (the shuttle), at the moment. */
@@ -298,7 +303,7 @@ const heapOf = (wall: Wall, palette: WallPalette): Heap => {
   if (known) return known;
   const fresh = (t: number) => {
     const world = worldOf({ t, ground: { made: "stone" } });
-    return { world, ww: wallWorldOf(world, wall, { runout: RUNOUT, palette }) };
+    return { world, ww: wallWorldOf(world, wall, { palette }) };
   };
   const { world, ww } = fresh(0);
   const tl = timelineOf<WallInput>({
@@ -349,9 +354,10 @@ export const paintHeap = (pen: Pen, since: number, seed: number, setting: Settin
 const POKE_LEAD = 0.15;
 
 /**
- * A poke at scene `x`, `y`, `since` seconds into friday: the blow that knocks out the block
- * there, or null where none stands to take it (a gap, the window) or something is in front
- * of it (what hangs on it, what stands before it).
+ * A poke at scene `x`, `y`, `since` seconds into friday: the knock that knocks out the block
+ * there, or shoves what lies there (a block come down onto the wall's feet); or null where it
+ * would do nothing (a gap with nothing in it, the window) or something is in front of it (what
+ * hangs on it, what stands before it).
  */
 export const pokeAt = (
   x: number,
@@ -369,9 +375,7 @@ export const pokeAt = (
     const { on, rect } = fixtureAt(name, t, seed, setting);
     if (on && over(rect)) return null;
   }
-  const r = wallFor(seed, setting).wall.ruin;
-  const o = r.bond.owner[py * SCENE_W + px];
-  return o >= 0 && stands(r, o, t) ? { t, x: px, y: py, kind: "block" } : null;
+  return wallFor(seed, setting).wall.takes(px, py, t) ? { t, x: px, y: py, kind: "block" } : null;
 };
 
 /** How many blocks hang in the air `since` seconds into friday: none, if the ruin is right. */

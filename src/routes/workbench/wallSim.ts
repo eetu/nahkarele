@@ -27,7 +27,7 @@ import { obliqueView } from "@anarkisti/korpi/view";
 import { PX_M, SLOPE } from "$lib/office/depth";
 import { WALL } from "$lib/office/draw";
 import { SCENE_H, SCENE_W } from "$lib/office/engine";
-import { FRIDAY_PACE, heapAt, specOf } from "$lib/office/wood/wall";
+import { FRIDAY_PACE, heapAt, RUNOUT, specOf } from "$lib/office/wood/wall";
 import { paintText } from "$lib/scene/pixelfont";
 
 import { clock as hms, px } from "./show";
@@ -197,7 +197,7 @@ const wallFor = (v: Values) => {
   const key = `${seed}|${build}|${v.plaster}|${JSON.stringify(pace)}|${JSON.stringify(inputs)}`;
   return walls.get(key, () => {
     const spec = { ...SPEC, ...BUILDS[build], bond: build, plaster: Boolean(v.plaster) };
-    const wall = wallOf({ spec, seed, at: AT, pace, inputs: [...inputs] });
+    const wall = wallOf({ spec, seed, at: AT, pace, inputs: [...inputs], runout: RUNOUT });
     return { wall, painter: wallPainter(wall) };
   });
 };

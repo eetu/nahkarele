@@ -1,4 +1,4 @@
-import { ruinOf } from "@anarkisti/korpi/masonry";
+import { type Knock, ruinOf } from "@anarkisti/korpi/masonry";
 import { raster, rasterPen } from "@anarkisti/korpi/paint";
 import { describe, expect, it } from "vitest";
 
@@ -14,6 +14,7 @@ import {
   pokeAt,
   specOf,
   standsAt,
+  wallIn,
 } from "../wall";
 
 const FIXTURES = {
@@ -171,6 +172,41 @@ describe("a poke at the wall", () => {
       // Nor through what stands in front of the wall.
       const slab = { ...WALL, fronts: [{ x: 30, y: 32, w: 20, h: 118 }] };
       expect(pokeAt(40, 90, since, seed + 10, slab)).toBeNull();
+    }
+  });
+
+  it("brings what stood over a poked-out foot down onto the feet, for good, and moves it again", () => {
+    const deep = -specOf(WALL).thickness / 2 / PX_M;
+    for (const seed of [31, 32, 33]) {
+      // The bottom course poked out across three blocks, a second apart.
+      let knocks: Knock[] = [];
+      let since = 3000;
+      for (const x of [56, 72, 88]) {
+        const knock = pokeAt(x, 93, since, seed, { ...WALL, knocks });
+        if (knock) knocks = [...knocks, knock];
+        since++;
+      }
+      expect(knocks).toHaveLength(3);
+      const poked = { ...WALL, knocks };
+      const wall = wallIn(seed, poked);
+      /** The cells of the foot where something lies in the wall's own depth at `t`. */
+      const onFeet = (t: number) => {
+        const cells: [number, number][] = [];
+        for (let y = 89; y < 97; y++)
+          for (let x = 48; x < 104; x++) if (wall.lyingAt(x, y, t)?.z === deep) cells.push([x, y]);
+        return cells;
+      };
+      const settled = onFeet(since + 60);
+      expect(settled.length).toBeGreaterThan(100);
+      // A day on, it lies there still.
+      expect(onFeet(since + 86400).length).toBeGreaterThanOrEqual(settled.length);
+      // A poke where a block lies shoves it along the feet.
+      const [x, y] = settled[0];
+      const knock = pokeAt(x, y, since + 60, seed, poked);
+      expect(knock).toMatchObject({ x, y, kind: "block" });
+      const shoved = wallIn(seed, { ...WALL, knocks: [...knocks, knock as Knock] });
+      const was = wall.lyingAt(x, y, since + 65);
+      expect(shoved.lyingAt(x, y, since + 65)?.i).not.toBe(was?.i);
     }
   });
 });

@@ -125,8 +125,9 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   ahead or back while held, faster the further it is pulled. Cones and a maple's keys come
   down under old trees, the keys spinning on the wind (korpi `seeds`). Apples ripen, fall
   through the autumn and lie until the snow; a tap on the apple tree shakes the next one down
-  early (`mood.knocks`), and a tap on the back wall knocks out the block there (`mood.pokes`,
-  baked into the masonry as a blow), the two things on friday that answer the player; both
+  early (`mood.knocks`), and a tap on the back wall knocks out the block there, or shoves a
+  block lying on the wall's feet (`mood.pokes`, baked into the masonry as knocks; korpi's
+  `wall.takes` says where one does anything), the two things on friday that answer the player; both
   are kept through a reload. Flowers and shrubs come up on the floor (korpi's undergrowth,
   `wood/meadow.ts`: spots strewn clear of the trunks and of where the exit sign lands, each
   with soil once the moss has reached it; flowers each on their own calendar, the ones that
@@ -163,7 +164,9 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   exposure), and what loses its support comes down with them; part of the foot stands for
   good. A block that comes off falls, is heard landing (korpi's voice for it) and lies in a heap
   at the wall's foot, behind the furniture's faces, sinking into the floor a block's height in
-  under three hours: korpi's `masonry/world`, a world of bodies on a timeline read at friday's
+  under three hours; one that drops in the wall's own depth (what stood over a gap poked in the
+  foot) lies on the wall's feet, the dado's top, for good, in sight over the desk:
+  korpi's `masonry/world`, a world of bodies on a timeline read at friday's
   moment (`heapAt`). Where friday's clock jumps (a reload, a sleeping phone) it starts afresh from
   the closed form two seconds before, what came off earlier lying where it came to rest; while
   it keeps jumping (the shuttle), at the moment itself. What hangs on the wall (window, clock, calendar, signs) goes with
