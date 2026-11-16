@@ -1,4 +1,4 @@
-import { governorOf } from "@anarkisti/korpi/frame";
+import { governorOf, type Took } from "@anarkisti/korpi/frame";
 import type { Knock } from "@anarkisti/korpi/masonry";
 
 import { sfx } from "$lib/audio/sfx.svelte";
@@ -197,13 +197,10 @@ class OfficeWeek {
     this.sync();
   };
 
-  /** Called by the frame loop: a frame drawn, what it took and how long after the one before it
-   *  began, and what the GPU took for its frames timed since (korpi's `GlFrame.took`), ms.
-   *  Frames while time runs at another rate (the dev shuttle, a toilet break) tell nothing of the
-   *  next ones. */
-  took = (ms: number, since?: number, gpu?: readonly number[]) => {
-    const frozen = this.rate !== 1 || this.away;
-    const detail = this.governor.took({ ms, since, frozen, gpu });
+  /** Called by the frame loop: a frame drawn, as korpi's governor takes it. Frames while time runs
+   *  at another rate (the dev shuttle, a toilet break) tell nothing of the next ones. */
+  took = (frame: Took) => {
+    const detail = this.governor.took({ ...frame, frozen: this.rate !== 1 || this.away });
     if (detail !== this.detail) this.detail = detail;
   };
 

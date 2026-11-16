@@ -360,15 +360,13 @@
           keptAt = now;
         }
       }
-      // What the GPU took for its frames timed since, read every frame: the GPU's while its
-      // frames are shown there (untimed, the governor guesses from the frames' gaps), nothing
-      // for a frame shown on the 2D canvas.
-      const gpu = gl?.took() ?? null;
-      officeWeek.took(
-        performance.now() - t0,
-        Number.isNaN(last) ? undefined : now - last,
-        room.presented === "cpu" ? [] : gpu && onGpu ? gpu : undefined,
-      );
+      // What the GPU took for its frames timed since, read every frame, and where this one went.
+      officeWeek.took({
+        ms: performance.now() - t0,
+        since: Number.isNaN(last) ? undefined : now - last,
+        presented: room.presented,
+        gpu: gl?.took(),
+      });
       last = now;
       const focus = officeWeek.mood.after ? SCENE_W / 2 : focusOf(officeWeek.sim);
       const offset = camera.follow(fit, SCENE_W, focus, dt);
