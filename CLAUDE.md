@@ -19,11 +19,11 @@ src/lib/office/      software specialist: engine (messages, desk, pay), tasks, d
                      (the room's view and depths), week store
   wood/              friday's wood, the room's side of korpi `plants` (what grows, how it moves
                      and is painted): garden (draw order) · seasons · wind ·
-                     stand (the six slots, lanes, the apple tree's tap) · shedding (where dead
-                     branches come to rest, a stick painted) ·
+                     stand (the six slots, where what they shed comes to rest, the apple tree's
+                     tap) · shedding (a stick painted) ·
                      overgrowth (cracks, grass, climbers) · meadow (the floor's flowers and
                      shrubs, korpi's undergrowth) ·
-                     moss · posed (the soft plants' paintings) ·
+                     moss · posed (the workbench's soft plants' paintings) ·
                      wall (the back wall coming down; korpi paints it) · outside (the world
                      behind it, under korpi's sky) · window (the broken window, korpi's) ·
                      weather · life · tit, crow, swallows (the birds)
@@ -185,11 +185,14 @@ docker/              optional Liwan tracker entrypoint (same as logo)
   light. Friday is a screensaver, so it holds the screen awake while it runs
   (`wakeLock.ts`). A phone waking, or a tab loaded again, finds what friday lays down (the wall's
   ruin, the floor's turns, the trees' lives) behind its clock: korpi lays them on within 20 ms a
-  frame (`catchingUpOf`), the room's last picture up meanwhile, dimmed under how far through it is
-  (`catching up 40%`), and the room is drawn again once they are there. korpi's frame keeps the
+  frame (`catchingUpOf`), then readies the painters for now (their paintings baked and put up on
+  the GPU, the heap got there), the room's last picture up meanwhile (korpi's `Frame.show`),
+  dimmed under how far through it is (`catching up 40%`); the room is drawn again on the frame
+  after, which only draws. Away a year, it is as quick: the stand holds only its trees of the last
+  year, and the floor forgets past a day, growing again from bare plots. korpi's frame keeps the
   picture (`Frame.still`) and shows it where a GL context lost in the background left its canvas
-  empty; friday saves it as the page is hidden and gives it back to the tab loaded again
-  (`office/still.ts`).
+  empty; friday saves it as the page is hidden (korpi's `stillPngOf`) and gives it back to the tab
+  loaded again (`office/still.ts`).
 - **The office is one scene raster.** `paintOffice` paints every part through a korpi pen into
   one 320x180 raster with a depth per pixel, lights it once and presents it once. Everything is
   at its true depth, metres out from the back wall (`office/depth.ts`: the room's view and one

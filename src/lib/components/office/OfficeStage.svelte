@@ -249,8 +249,6 @@
     let last = NaN;
     let ended = NaN;
     const noteCtx = noted.getContext("2d");
-    /** The GPU's build the GL canvas's picture was presented by: one built since has lost it. */
-    let shownBuild = -1;
     /** A picture saved for a tab loaded again, while it loads. */
     let loading =
       officeWeek.screen === "loop" &&
@@ -260,9 +258,11 @@
         // A frame drawn since is newer.
         if (Number.isNaN(last)) room.still = still;
       });
-    /** When friday was found behind its clock, ms, until a frame draws it caught up; and whether
-     *  it got there on the frame before, the room to be drawn on this one. */
+    /** When friday was found behind its clock, ms, until a frame draws it caught up; whether the
+     *  picture kept up meanwhile has had a frame of its own; and whether it got there on the frame
+     *  before, the room to be drawn on this one. */
     let woke = NaN;
+    let kept = false;
     let cutNext = false;
     const catchUp = budgetOf(CATCH_MS);
     /** The painters readied through a pen as the frame's is, on the GPU while it is ready. */
@@ -290,21 +290,13 @@
         el.hidden = onGpu;
       }
     };
-    /** The room's last picture: the GL canvas keeps it while its context does, the 2D canvas its
-     *  own; else korpi's still goes onto the 2D canvas. Whether it was put up now. */
-    const showStill = () => {
-      // Asked every frame: a GPU given back builds what it compiled meanwhile, not in the frame
-      // that draws the room again.
-      const ready = gl?.status === "ready";
-      const kept =
-        room.presented === "cpu" ||
-        room.presented === "still" ||
-        (room.presented === "gpu" && ready && gl?.inspect().builds === shownBuild);
-      if (kept) return false;
+    /** The room's last picture kept on screen, nothing drawn (korpi's `show`): the GL canvas as it
+     *  stands while it shows it, else korpi's still onto the 2D canvas. A GPU given back is built
+     *  meanwhile. */
+    const keep = () => {
       ctx?.setTransform(1, 0, 0, 1, 0, 0);
-      room.present(el.width / SCENE_W, { ctx });
+      room.show(el.width / SCENE_W, { ctx });
       showCanvas();
-      return room.presented !== null;
     };
     /** Over the room's picture, dimmed (or the room's dark with none), how far through catching
      *  up the world is, 0..1. */
@@ -347,9 +339,11 @@
       const waking = !Number.isNaN(woke);
       if (waking && mood.after && !cutNext) {
         const shows = !loading || now - woke > LOAD_MS;
-        // The room's last picture up where its canvas lost it, a frame of its own so that it is
-        // painted before anything is laid or drawn.
-        if (shows && showStill()) {
+        if (shows) keep();
+        // The picture first up on a frame of its own, so that it is on screen before anything is
+        // laid.
+        if (shows && !kept && room.presented !== null) {
+          kept = true;
           note(0);
           return undrawn();
         }
@@ -417,8 +411,8 @@
       // The live picture is there (not korpi's still in its place): the note comes down.
       if (room.presented === "gpu" || room.presented === "cpu") {
         if (!noted.hidden) noted.hidden = true;
-        if (room.presented === "gpu" && gl) shownBuild = gl.inspect().builds;
         woke = NaN;
+        kept = false;
       }
       // What the GPU took for its frames timed since, read every frame, and where this one went;
       // the first drawn after a wake tells nothing of the next.

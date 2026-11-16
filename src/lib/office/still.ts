@@ -1,9 +1,9 @@
 // Friday's last picture across a reload, and the note over it while the world catches up. korpi's
 // frame keeps the picture presented last (`Frame.still`) and shows it where the GPU's went (a GL
-// context lost in the background); a page hidden saves it here, and the tab loaded again gives it
-// back before its first frame.
+// context lost in the background); a page hidden saves it here as korpi's PNG, and the tab loaded
+// again gives it back before its first frame.
 
-import { canvasPen, type Raster, raster } from "@anarkisti/korpi/paint";
+import { canvasPen, type Raster, stillOfPng, stillPngOf } from "@anarkisti/korpi/paint";
 
 import { paintText, PIXEL_LINE, pixelTextWidth } from "$lib/scene/pixelfont";
 
@@ -37,45 +37,44 @@ export const forgetStill = () => {
   }
 };
 
-/** `still` saved for the tab loaded again, friday begun at `at`. */
-export const saveStill = (still: Raster, at: number) => {
-  const canvas = Object.assign(document.createElement("canvas"), {
-    width: still.w,
-    height: still.h,
-  });
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const bytes = new Uint8ClampedArray(
-    still.px.buffer as ArrayBuffer,
-    still.px.byteOffset,
-    still.px.byteLength,
-  );
-  ctx.putImageData(new ImageData(bytes, still.w, still.h), 0, 0);
-  try {
-    const saved: Saved = { at, png: canvas.toDataURL("image/png") };
-    localStorage.setItem(KEY, JSON.stringify(saved));
-  } catch {
-    /* the tab loaded again then starts on the room's dark */
-  }
+/** Bytes as base64, for localStorage, a chunk at a time. */
+const base64Of = (bytes: Uint8Array) => {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
 };
 
-/** What was saved for friday begun at `at`, handed to `then` once its image is in. Whether there
- *  is one coming. */
+/** `still` saved for the tab loaded again, friday begun at `at`. */
+export const saveStill = (still: Raster, at: number) =>
+  stillPngOf(still)
+    .then((png) => {
+      const saved: Saved = { at, png: base64Of(png) };
+      localStorage.setItem(KEY, JSON.stringify(saved));
+    })
+    .catch(() => {
+      /* the tab loaded again then starts on the room's dark */
+    });
+
+/** What was saved for friday begun at `at`, handed to `then` once it is read. Whether there is
+ *  one coming. */
 export const loadStill = (at: number, then: (still: Raster) => void): boolean => {
   const saved = savedStill();
   if (saved?.at !== at) return false;
-  const img = new Image();
-  img.onload = () => {
-    const { width: w, height: h } = img;
-    const canvas = Object.assign(document.createElement("canvas"), { width: w, height: h });
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
-    ctx.drawImage(img, 0, 0);
-    const still = raster(w, h);
-    still.px.set(new Uint32Array(ctx.getImageData(0, 0, w, h).data.buffer));
-    then(still);
-  };
-  img.src = saved.png;
+  let png: Uint8Array;
+  try {
+    // A data URL's base64 after its comma.
+    png = Uint8Array.from(atob(saved.png.slice(saved.png.indexOf(",") + 1)), (c) =>
+      c.charCodeAt(0),
+    );
+  } catch {
+    return false;
+  }
+  stillOfPng(png)
+    .then(then)
+    .catch(() => {
+      /* the room's dark until it is drawn */
+    });
   return true;
 };
 
