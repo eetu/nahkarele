@@ -143,7 +143,8 @@
             window.innerHeight - (full && el.clientWidth > 900 ? 0 : 140),
           );
       fit = next;
-      if (canvas) {
+      // Only when it changes: a canvas given a size, even the one it has, is cleared.
+      if (canvas && canvas.width !== SCENE_W * next.scale) {
         canvas.width = SCENE_W * next.scale;
         canvas.height = SCENE_H * next.scale;
       }
