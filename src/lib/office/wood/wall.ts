@@ -278,9 +278,6 @@ const RUNOUT = 0.12;
  *  starts afresh this long before the moment, so what was falling then is still falling. While
  *  it keeps jumping (the shuttle), it starts afresh at the moment itself. */
 const LEAD = 2;
-/** A snapshot of it so often, s: going back further than the lead starts it afresh anyway, and
- *  korpi's timeline keeps a share of its snapshots for good, which over friday's hours add up. */
-const EVERY = 60;
 
 /** What came off a wall, in a world of bodies stepped on its timeline; whether it jumped last. */
 type Heap = { world: World; ww: WallWorld; tl: Timeline<WallInput>; jumped: boolean };
@@ -308,7 +305,6 @@ const heapOf = (wall: Wall, palette: WallPalette): Heap => {
       ww.restore(at.ww.snapshot());
     },
     reach: LEAD,
-    every: EVERY,
   });
   const heap = { world, ww, tl, jumped: false };
   heaps.set(wall, heap);
@@ -319,8 +315,7 @@ const heapOf = (wall: Wall, palette: WallPalette): Heap => {
 export const heapAt = (wall: Wall, t: number, palette = WALL_PALETTE): WallWorld => {
   const heap = heapOf(wall, palette);
   const jump = Math.abs(t - heap.tl.t) > LEAD;
-  if (jump && !heap.jumped) heap.tl.seek(t - LEAD);
-  heap.tl.seek(t);
+  heap.tl.seek(t, { lead: heap.jumped ? 0 : LEAD });
   heap.jumped = jump;
   return heap.ww;
 };
