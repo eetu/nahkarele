@@ -122,10 +122,8 @@ class OfficeWeek {
   private fridayAt: number | null = null;
   /** Dev only: how fast friday's clock runs; negative runs it back. */
   rate = $state(1);
-  /** How coarsely the room is drawn (korpi's levels of detail), from what its frames take. Where
-   *  the GPU is not timed, a frame begun this long after the one before missed the refresh on
-   *  it: friday draws every other refresh (33 ms apart at 60 a second; one missed, 50). */
-  private governor = governorOf({ missed: 42 });
+  /** How coarsely the room is drawn (korpi's levels of detail), from what its frames take. */
+  private governor = governorOf();
   detail = $state(0);
   /** Dev only: the level held whatever the frames take, or null. */
   pinned = $state<number | null>(null);
