@@ -228,7 +228,9 @@ then scrub, retune or switch the wall to bricks, rubble or plaster, its heap at 
 `src/lib/tape/orientation.json`, then `uv run scripts/gen-tape.py` (Piper on mini, ffmpeg); it
 re-sings each line on held notes and writes `static/tape/orientation.mp3` + `tape.json` cues.
 Link card: `yarn dev`, then `SITE=http://localhost:5173 node scripts/gen-og.mjs` (borrows a
-playwright install, see the script) captures both rooms into `static/og.jpg`. The deer is drawn
+playwright install, see the script) captures both rooms into `static/og.jpg`. Friday's cookie:
+`yarn build && node scripts/check-friday.mjs` (dist/ with `/friday` stubbed, or `SITE=` the
+container) checks in Chromium that friday is found again from it alone. The deer is drawn
 by `scripts/deer.py` (body spans and marks, IK legs on the walk); a hand edit in dab is folded
 back into it until `node scripts/deer.mjs --check` finds no pixel apart, and `node
 scripts/deer.mjs` writes it.
