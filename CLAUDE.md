@@ -35,7 +35,8 @@ src/lib/tape/        orientation cassette: mechanics (from scene), canvas drawin
 src/lib/components/  factory/ · office/ · intro/ · dev/ (dev bar, shuttle); shared signs and icons
 src/routes/          / (front page) · /tehdas · /specialist · /workbench (dev only)
 static/              favicon.svg (icon source) + generated PNGs + manifest
-default.conf         nginx: SPA fallback, immutable caching for /_app/immutable
+default.conf         nginx: SPA fallback, immutable caching for /_app/immutable, friday's cookie
+                     (`/friday?at=`)
 docker/              optional Liwan tracker entrypoint (same as logo)
 ```
 
