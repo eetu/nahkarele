@@ -33,7 +33,7 @@ import {
 } from "@anarkisti/korpi/masonry/paint";
 import { type WallWorld, wallWorldOf } from "@anarkisti/korpi/masonry/world";
 import { masked, type Pen, type PenMask, type Raster } from "@anarkisti/korpi/paint";
-import { type World, worldOf } from "@anarkisti/korpi/physics";
+import { worldOf } from "@anarkisti/korpi/physics";
 import { type Timeline, timelineOf } from "@anarkisti/korpi/timeline";
 import type { ObliqueView } from "@anarkisti/korpi/view";
 
@@ -276,14 +276,14 @@ export const rubbleCue = (from: number, to: number, seed: number, setting: Setti
 /** What comes out of the wall's face lies no further out than this, m: a block 20 cm deep stays
  *  behind the AIs' faces and the desk (35 cm out and on), whose feet the world does not know. */
 const RUNOUT = 0.12;
-/** The world is stepped up to this far at once, s; jumped further (a reload, a phone waking), it
- *  starts afresh this long before the moment, so what was falling then is still falling. While
- *  it keeps jumping (the shuttle), it starts afresh at the moment itself. */
+/** The world is stepped up to this far at once, s; jumped further, korpi's timeline starts it
+ *  afresh: after a while played (a reload, a phone waking) this long before the moment, so what
+ *  was falling then is still falling; straight after another jump (the shuttle), at the moment. */
 const LEAD = 2;
 
 /** What came off a wall (`ww`), in a world of bodies stepped on its timeline (`tl`: the world as
- *  played, which is what its landings are heard by); whether it jumped last. */
-export type Heap = { world: World; ww: WallWorld; tl: Timeline<WallInput>; jumped: boolean };
+ *  played, which is what its landings are heard by). */
+export type Heap = { ww: WallWorld; tl: Timeline<WallInput> };
 const heaps = new WeakMap<Wall, Heap>();
 
 /** A heap for `wall`: a world started afresh at a moment lays what came off before where it lies
@@ -308,8 +308,9 @@ const heapOf = (wall: Wall, palette: WallPalette): Heap => {
       ww.restore(at.ww.snapshot());
     },
     reach: LEAD,
+    lead: LEAD,
   });
-  const heap = { world, ww, tl, jumped: false };
+  const heap = { ww, tl };
   heaps.set(wall, heap);
   return heap;
 };
@@ -317,9 +318,7 @@ const heapOf = (wall: Wall, palette: WallPalette): Heap => {
 /** What came off `wall` at `t`, s: its heap's world got there, stepped or started afresh. */
 export const heapAt = (wall: Wall, t: number, palette = WALL_PALETTE): Heap => {
   const heap = heapOf(wall, palette);
-  const jump = Math.abs(t - heap.tl.t) > LEAD;
-  heap.tl.seek(t, { lead: heap.jumped ? 0 : LEAD });
-  heap.jumped = jump;
+  heap.tl.seek(t);
   return heap;
 };
 
